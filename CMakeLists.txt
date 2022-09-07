@@ -20,7 +20,7 @@ set_property(
 
 add_library(
         oculus_openxr_poc MODULE
-        main.cpp
+        src/main.cpp
         $<TARGET_OBJECTS:android_native_app_glue>
 )
 
