@@ -1,9 +1,3 @@
-// Copyright (c) 2020-2022, The Khronos Group Inc.
-//
-// SPDX-License-Identifier: Apache-2.0
-
-// Open this directory in Android Studio, or build with Gradle,
-// to build the "hello_xr" sample application
 buildscript {
     repositories {
         google()
@@ -20,6 +14,10 @@ repositories {
 }
 
 apply plugin: 'com.android.application'
+
+def properties = new Properties();
+properties.load(project.rootProject.file('local.properties').newDataInputStream())
+def ovr_openxr_mobile_sdk_dir = properties.getProperty('ovr_openxr_mobile_sdk.dir')
 
 android {
     compileSdkVersion 29
@@ -40,6 +38,7 @@ android {
                 abiFilters 'arm64-v8a', 'armeabi-v7a'
             }
             cmake {
+                arguments "-DOVR_OPENXR_MOBILE_SDK_DIR:STRING=${ovr_openxr_mobile_sdk_dir}"
                 cppFlags ''
             }
         }

@@ -15,7 +15,7 @@ set_property(
         openxr_loader
         PROPERTY
         IMPORTED_LOCATION
-        /Users/aki/Documents/OculusSDK/ovr_openxr_mobile_sdk_42.0/OpenXR/Libs/Android/${ANDROID_ABI}/${CMAKE_BUILD_TYPE}/libopenxr_loader.so
+        ${OVR_OPENXR_MOBILE_SDK_DIR}/OpenXR/Libs/Android/${ANDROID_ABI}/${CMAKE_BUILD_TYPE}/libopenxr_loader.so
 )
 
 add_library(

@@ -1,1 +1,10 @@
 == Oculus x OpenXR PoC
+
+=== Setup
+
+Set `ovr_openxr_mobile_sdk.dir` in your `local.properties`
+
+[source,properties]
+----
+ovr_openxr_mobile_sdk.dir=/path/to/ovr_openxr_mobile_sdk
+----
