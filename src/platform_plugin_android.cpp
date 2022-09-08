@@ -18,8 +18,6 @@ struct AndroidPlatformPlugin : public IPlatformPlugin {
     XrBaseInStructure *
     GetInstanceCreateExtension() const override { return (XrBaseInStructure *) &instanceCreateInfoAndroid; }
 
-    void UpdateOptions(const std::shared_ptr<struct Options> & /*unused*/) override {}
-
     XrInstanceCreateInfoAndroidKHR instanceCreateInfoAndroid;
 };
 
