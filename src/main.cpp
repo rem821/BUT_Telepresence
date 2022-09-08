@@ -40,6 +40,8 @@ void android_main(struct android_app *app) {
         XrEnvironmentBlendMode blendMode = program->GetPreferredBlendMode();
         graphicsPlugin->SetBlendMode(blendMode);
 
+        program->InitializeDevice();
+
         while (true) {
             for (;;) {
                 int events;

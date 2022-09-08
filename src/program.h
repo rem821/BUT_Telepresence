@@ -10,7 +10,7 @@ struct IOpenXrProgram {
     virtual void InitializeSystem() = 0;
 
     // Initialize the graphics device for the selected system.
-    // virtual void InitializeDevice() = 0;
+    virtual void InitializeDevice() = 0;
 
     // Create a Session and other basic session-level initialization.
     // virtual void InitializeSession() = 0;

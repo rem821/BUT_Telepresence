@@ -118,7 +118,92 @@ struct OpenXrProgram : IOpenXrProgram {
         LogInstanceInfo();
     }
 
+    void LogViewConfigurations() {
+        CHECK(m_instance != XR_NULL_HANDLE);
+        CHECK(m_systemId != XR_NULL_SYSTEM_ID);
+
+        uint32_t viewConfigTypeCount;
+        CHECK_XRCMD(xrEnumerateViewConfigurations(m_instance, m_systemId, 0, &viewConfigTypeCount,
+                                                  nullptr));
+        std::vector<XrViewConfigurationType> viewConfigTypes(viewConfigTypeCount);
+        CHECK_XRCMD(xrEnumerateViewConfigurations(m_instance, m_systemId, viewConfigTypeCount,
+                                                  &viewConfigTypeCount,
+                                                  viewConfigTypes.data()));
+        CHECK((uint32_t) viewConfigTypes.size() == viewConfigTypeCount);
+
+        LOG_INFO("Available View Configuration Types: (%d)", viewConfigTypeCount);
+        for (auto viewConfigType: viewConfigTypes) {
+            LOG_INFO("  View Configuration Type: %s %s", to_string(viewConfigType),
+                     viewConfigType == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO ? "(Selected)"
+                                                                                 : "");
+
+            XrViewConfigurationProperties viewConfigProperties{
+                    XR_TYPE_VIEW_CONFIGURATION_PROPERTIES};
+            CHECK_XRCMD(xrGetViewConfigurationProperties(m_instance, m_systemId, viewConfigType,
+                                                         &viewConfigProperties));
+
+            LOG_INFO("  View Configuration FovMutable=%s",
+                     viewConfigProperties.fovMutable == XR_TRUE ? "True" : "False");
+
+            uint32_t viewCount;
+            CHECK_XRCMD(xrEnumerateViewConfigurationViews(m_instance, m_systemId, viewConfigType, 0,
+                                                          &viewCount,
+                                                          nullptr));
+            if (viewCount > 0) {
+                std::vector<XrViewConfigurationView> views(viewCount,
+                                                           {XR_TYPE_VIEW_CONFIGURATION_VIEW});
+                CHECK_XRCMD(
+                        xrEnumerateViewConfigurationViews(m_instance, m_systemId, viewConfigType,
+                                                          viewCount,
+                                                          &viewCount,
+                                                          views.data()));
+
+                for (uint32_t i = 0; i < views.size(); i++) {
+                    const XrViewConfigurationView &view = views[i];
+                    LOG_INFO("    View [%d]: Recommended Width=%d Height=%d SampleCount=%d", i,
+                             view.recommendedImageRectWidth, view.recommendedImageRectHeight,
+                             view.recommendedSwapchainSampleCount);
+                    LOG_INFO("    View [%d]:   Maximum Width=%d Height=%d SampleCount=%d", i,
+                             view.maxImageRectWidth, view.maxImageRectHeight,
+                             view.maxSwapchainSampleCount);
+                }
+            } else {
+                LOG_ERROR("Empty view configuration type");
+            }
+
+            LogEnvironmentBlendMode(viewConfigType);
+        }
+    }
+
+    void LogEnvironmentBlendMode(XrViewConfigurationType type) {
+        CHECK(m_instance != XR_NULL_HANDLE);
+        CHECK(m_systemId != XR_NULL_SYSTEM_ID);
+
+        uint32_t count;
+        CHECK_XRCMD(xrEnumerateEnvironmentBlendModes(m_instance, m_systemId, type, 0, &count,
+                                                     nullptr));
+        CHECK(count > 0);
+
+        LOG_INFO("Available Environment Blend Mode count: (%u)", count);
+
+        std::vector<XrEnvironmentBlendMode> blendModes(count);
+        CHECK_XRCMD(xrEnumerateEnvironmentBlendModes(m_instance, m_systemId, type, count, &count,
+                                                     blendModes.data()));
+        bool blendModeFound = false;
+        for (auto mode: blendModes) {
+            const bool blendModeMatch = (mode == m_preferredBlendMode);
+            LOG_INFO("Environment Blend Mode (%s): %s", to_string(mode),
+                     blendModeMatch ? "(Selected)" : "");
+            blendModeFound |= blendModeMatch;
+        }
+        CHECK(blendModeFound);
+    }
+
     XrEnvironmentBlendMode GetPreferredBlendMode() const override {
+        return m_preferredBlendMode;
+    }
+
+    void UpdatePreferredBlendMode() {
         uint32_t count;
         CHECK_XRCMD(xrEnumerateEnvironmentBlendModes(m_instance, m_systemId,
                                                      XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0,
@@ -133,7 +218,8 @@ struct OpenXrProgram : IOpenXrProgram {
         for (const auto &blendMode: blendModes) {
             if (m_acceptableBlendModes.count(blendMode)) {
                 LOG_INFO("Preferred Blend Mode: %s", to_string(blendMode));
-                return blendMode;
+                m_preferredBlendMode = blendMode;
+                return;
             }
         }
         THROW("No acceptable blend mode returned from the xrEnumerateEnvironmentBlendModes");
@@ -151,6 +237,12 @@ struct OpenXrProgram : IOpenXrProgram {
                  to_string(XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY));
         CHECK(m_instance != XR_NULL_HANDLE);
         CHECK(m_systemId != XR_NULL_SYSTEM_ID);
+
+        UpdatePreferredBlendMode();
+    }
+
+    void InitializeDevice() override {
+        LogViewConfigurations();
     }
 
 private:
@@ -159,6 +251,8 @@ private:
 
     XrInstance m_instance{XR_NULL_HANDLE};
     XrSystemId m_systemId{XR_NULL_SYSTEM_ID};
+
+    XrEnvironmentBlendMode m_preferredBlendMode{XR_ENVIRONMENT_BLEND_MODE_OPAQUE};
 
     const std::set<XrEnvironmentBlendMode> m_acceptableBlendModes;
 };
