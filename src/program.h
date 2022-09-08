@@ -7,7 +7,7 @@ struct IOpenXrProgram {
     virtual void CreateInstance() = 0;
 
     // Select a System for the view configuration specified in the Options
-    // virtual void InitializeSystem() = 0;
+    virtual void InitializeSystem() = 0;
 
     // Initialize the graphics device for the selected system.
     // virtual void InitializeDevice() = 0;

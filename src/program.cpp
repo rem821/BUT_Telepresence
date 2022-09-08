@@ -115,10 +115,26 @@ struct OpenXrProgram : IOpenXrProgram {
         LogInstanceInfo();
     }
 
+    void InitializeSystem() override {
+        CHECK(m_instance != XR_NULL_HANDLE);
+        CHECK(m_systemId == XR_NULL_SYSTEM_ID);
+
+        XrSystemGetInfo systemInfo{XR_TYPE_SYSTEM_GET_INFO};
+        systemInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
+        CHECK_XRCMD(xrGetSystem(m_instance, &systemInfo, &m_systemId));
+
+        LOG_INFO("Using system %u for form factor %s", m_systemId,
+                 to_string(XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY));
+        CHECK(m_instance != XR_NULL_HANDLE);
+        CHECK(m_systemId != XR_NULL_SYSTEM_ID);
+    }
+
 private:
     std::shared_ptr<IPlatformPlugin> m_platformPlugin;
     std::shared_ptr<IGraphicsPlugin> m_graphicsPlugin;
+
     XrInstance m_instance{XR_NULL_HANDLE};
+    XrSystemId m_systemId{XR_NULL_SYSTEM_ID};
 };
 
 std::shared_ptr<IOpenXrProgram>

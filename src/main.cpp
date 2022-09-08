@@ -35,6 +35,7 @@ void android_main(struct android_app *app) {
         }
 
         program->CreateInstance();
+        program->InitializeSystem();
 
         while (true) {
             for (;;) {
