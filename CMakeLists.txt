@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 add_definitions(-DXR_USE_PLATFORM_ANDROID)
+add_definitions(-DXR_USE_GRAPHICS_API_OPENGL_ES)
 
 find_library(ANDROID_LIBRARY NAMES android)
 find_library(ANDROID_LOG_LIBRARY NAMES log)
@@ -20,7 +21,12 @@ set_property(
 
 add_library(
         oculus_openxr_poc MODULE
+
+        src/graphics_plugin_opengles.cpp
         src/main.cpp
+        src/platform_plugin_android.cpp
+        src/program.cpp
+
         $<TARGET_OBJECTS:android_native_app_glue>
 )
 
