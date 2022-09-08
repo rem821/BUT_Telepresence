@@ -13,7 +13,10 @@ struct OpenXrProgram : IOpenXrProgram {
     OpenXrProgram(const std::shared_ptr<IPlatformPlugin> &platformPlugin,
                   const std::shared_ptr<IGraphicsPlugin> &graphicsPlugin)
             : m_platformPlugin(platformPlugin),
-              m_graphicsPlugin(graphicsPlugin) {}
+              m_graphicsPlugin(graphicsPlugin),
+              m_acceptableBlendModes{XR_ENVIRONMENT_BLEND_MODE_OPAQUE,
+                                     XR_ENVIRONMENT_BLEND_MODE_ADDITIVE,
+                                     XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND} {}
 
     ~OpenXrProgram() override {}
 
@@ -115,6 +118,27 @@ struct OpenXrProgram : IOpenXrProgram {
         LogInstanceInfo();
     }
 
+    XrEnvironmentBlendMode GetPreferredBlendMode() const override {
+        uint32_t count;
+        CHECK_XRCMD(xrEnumerateEnvironmentBlendModes(m_instance, m_systemId,
+                                                     XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0,
+                                                     &count,
+                                                     nullptr));
+        CHECK(count > 0);
+
+        std::vector<XrEnvironmentBlendMode> blendModes(count);
+        CHECK_XRCMD(xrEnumerateEnvironmentBlendModes(m_instance, m_systemId,
+                                                     XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,
+                                                     count, &count, blendModes.data()));
+        for (const auto &blendMode: blendModes) {
+            if (m_acceptableBlendModes.count(blendMode)) {
+                LOG_INFO("Preferred Blend Mode: %s", to_string(blendMode));
+                return blendMode;
+            }
+        }
+        THROW("No acceptable blend mode returned from the xrEnumerateEnvironmentBlendModes");
+    }
+
     void InitializeSystem() override {
         CHECK(m_instance != XR_NULL_HANDLE);
         CHECK(m_systemId == XR_NULL_SYSTEM_ID);
@@ -135,6 +159,8 @@ private:
 
     XrInstance m_instance{XR_NULL_HANDLE};
     XrSystemId m_systemId{XR_NULL_SYSTEM_ID};
+
+    const std::set<XrEnvironmentBlendMode> m_acceptableBlendModes;
 };
 
 std::shared_ptr<IOpenXrProgram>

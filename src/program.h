@@ -35,7 +35,7 @@ struct IOpenXrProgram {
     // virtual void RenderFrame() = 0;
 
     // Get preferred blend mode based on the view configuration specified in the Options
-    // virtual XrEnvironmentBlendMode GetPreferredBlendMode() const = 0;
+    virtual XrEnvironmentBlendMode GetPreferredBlendMode() const = 0;
 };
 
 //struct Swapchain {
