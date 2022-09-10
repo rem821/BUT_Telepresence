@@ -41,6 +41,8 @@ void android_main(struct android_app *app) {
         graphicsPlugin->SetBlendMode(blendMode);
 
         program->InitializeDevice();
+        program->InitializeSession();
+        program->CreateSwapchains();
 
         while (true) {
             for (;;) {

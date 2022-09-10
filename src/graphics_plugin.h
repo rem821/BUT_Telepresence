@@ -14,21 +14,21 @@ struct IGraphicsPlugin {
     virtual std::vector<std::string> GetInstanceExtensions() const = 0;
 
     // Create an instance of this graphics api for the provided instance and systemId.
-    // virtual void InitializeDevice(XrInstance instance, XrSystemId systemId) = 0;
+    virtual void InitializeDevice(XrInstance instance, XrSystemId systemId) = 0;
 
     // Select the preferred swapchain format from the list of available formats.
-    // virtual int64_t
-    // SelectColorSwapchainFormat(const std::vector <int64_t> &runtimeFormats) const = 0;
+    virtual int64_t
+    SelectColorSwapchainFormat(const std::vector<int64_t> &runtimeFormats) const = 0;
 
     // Get the graphics binding header for session creation.
-    // virtual const XrBaseInStructure *GetGraphicsBinding() const = 0;
+    virtual const XrBaseInStructure *GetGraphicsBinding() const = 0;
 
     // Allocate space for the swapchain image structures. These are different for each graphics API. The returned
     // pointers are valid for the lifetime of the graphics plugin.
-    // virtual std::vector<XrSwapchainImageBaseHeader *> AllocateSwapchainImageStructs(
-    //         uint32_t capacity,
-    //         const XrSwapchainCreateInfo &swapchainCreateInfo
-    // ) = 0;
+    virtual std::vector<XrSwapchainImageBaseHeader *> AllocateSwapchainImageStructs(
+            uint32_t capacity,
+            const XrSwapchainCreateInfo &swapchainCreateInfo
+    ) = 0;
 
     // Render to a swapchain image for a projection view.
     // virtual void RenderView(const XrCompositionLayerProjectionView &layerView,
@@ -37,9 +37,9 @@ struct IGraphicsPlugin {
 
     // Get recommended number of sub-data element samples in view (recommendedSwapchainSampleCount)
     // if supported by the graphics plugin. A supported value otherwise.
-    // virtual uint32_t GetSupportedSwapchainSampleCount(const XrViewConfigurationView &view) {
-    //     return view.recommendedSwapchainSampleCount;
-    // }
+    virtual uint32_t GetSupportedSwapchainSampleCount(const XrViewConfigurationView &view) {
+        return view.recommendedSwapchainSampleCount;
+    }
 
     // Perform required steps after updating Options
     virtual void SetBlendMode(XrEnvironmentBlendMode blendMode) = 0;

@@ -67,6 +67,16 @@ inline XrResult CheckXrResult(XrResult res, const char *originator = nullptr,
     return res;
 }
 
+inline bool CheckEglResult(EGLBoolean res, const char *originator = nullptr,
+                           const char *sourceLocation = nullptr) {
+    if (res == EGL_FALSE) {
+        Throw("EGL command failure", originator, sourceLocation);
+    }
+
+    return res;
+}
+
 #define THROW_XR(xr, cmd) ThrowXrResult(xr, #cmd, FILE_AND_LINE);
 #define CHECK_XRCMD(cmd) CheckXrResult(cmd, #cmd, FILE_AND_LINE);
 #define CHECK_XRRESULT(res, cmdStr) CheckXrResult(res, cmdStr, FILE_AND_LINE);
+#define CHECK_EGL(cmd) CheckEglResult(cmd, #cmd, FILE_AND_LINE);
