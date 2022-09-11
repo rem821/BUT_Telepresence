@@ -5,6 +5,12 @@
 #include "platform_plugin.h"
 #include "program.h"
 
+namespace Side {
+    const int LEFT = 0;
+    const int RIGHT = 1;
+    const int COUNT = 2;
+}  // namespace Side
+
 namespace Math {
     namespace Pose {
         XrPosef Identity() {
@@ -323,6 +329,7 @@ struct OpenXrProgram : IOpenXrProgram {
 
     struct InputState {
         XrActionSet actionSet{XR_NULL_HANDLE};
+        XrAction quitAction{XR_NULL_HANDLE};
     };
 
     void InitializeActions() {
@@ -336,6 +343,60 @@ struct OpenXrProgram : IOpenXrProgram {
         }
 
         // Bind actions
+        {
+            XrActionCreateInfo actionInfo{XR_TYPE_ACTION_CREATE_INFO};
+            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy(actionInfo.actionName, "quit_session");
+            strcpy(actionInfo.localizedActionName, "Quit Session");
+            actionInfo.countSubactionPaths = 0;
+            actionInfo.subactionPaths = nullptr;
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.quitAction));
+        }
+
+        std::array<XrPath, Side::COUNT> menuClickPath;
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/menu/click",
+                                   &menuClickPath[Side::RIGHT]));
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/menu/click",
+                                   &menuClickPath[Side::LEFT]));
+        {
+            XrPath khrSimpleInteractionProfilePath;
+            CHECK_XRCMD(xrStringToPath(m_instance, "/interaction_profiles/khr/simple_controller",
+                                       &khrSimpleInteractionProfilePath));
+            std::vector<XrActionSuggestedBinding> bindings{
+                    {
+                            {m_input.quitAction, menuClickPath[Side::LEFT]},
+                            {m_input.quitAction, menuClickPath[Side::RIGHT]},
+                    }
+            };
+            XrInteractionProfileSuggestedBinding suggestedBindings{
+                    XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+            suggestedBindings.interactionProfile = khrSimpleInteractionProfilePath;
+            suggestedBindings.suggestedBindings = bindings.data();
+            suggestedBindings.countSuggestedBindings = (uint32_t) bindings.size();
+            CHECK_XRCMD(xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings));
+        }
+
+        {
+            XrPath oculusTouchInteractionProfilePath;
+            CHECK_XRCMD(xrStringToPath(m_instance, "/interaction_profiles/oculus/touch_controller",
+                                       &oculusTouchInteractionProfilePath));
+            std::vector<XrActionSuggestedBinding> bindings{
+                    {
+                            {m_input.quitAction, menuClickPath[Side::LEFT]},
+                    }
+            };
+            XrInteractionProfileSuggestedBinding suggestedBindings{
+                    XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+            suggestedBindings.interactionProfile = oculusTouchInteractionProfilePath;
+            suggestedBindings.suggestedBindings = bindings.data();
+            suggestedBindings.countSuggestedBindings = (uint32_t) bindings.size();
+            CHECK_XRCMD(xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings));
+        }
+
+        XrSessionActionSetsAttachInfo attachInfo{XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};
+        attachInfo.countActionSets = 1;
+        attachInfo.actionSets = &m_input.actionSet;
+        CHECK_XRCMD(xrAttachSessionActionSets(m_session, &attachInfo));
     }
 
     void CreateVisualizedSpaces() {
@@ -483,6 +544,185 @@ struct OpenXrProgram : IOpenXrProgram {
         }
     }
 
+    const XrEventDataBaseHeader *TryReadNextEvent() {
+        XrEventDataBaseHeader *baseHeader = reinterpret_cast<XrEventDataBaseHeader *>(&m_eventDataBuffer);
+        *baseHeader = {XR_TYPE_EVENT_DATA_BUFFER};
+        const XrResult xr = xrPollEvent(m_instance, &m_eventDataBuffer);
+        if (xr == XR_SUCCESS) {
+            if (baseHeader->type == XR_TYPE_EVENT_DATA_EVENTS_LOST) {
+                const XrEventDataEventsLost *const eventsLost = reinterpret_cast<const XrEventDataEventsLost *>(baseHeader);
+                LOG_INFO("%d events lost", eventsLost->lostEventCount);
+            }
+            return baseHeader;
+        }
+        if (xr == XR_EVENT_UNAVAILABLE) {
+            return nullptr;
+        }
+        THROW_XR(xr, "xrPollEvent");
+    }
+
+    void PollEvents(bool *exitRenderLoop, bool *requestRestart) override {
+        *exitRenderLoop = *requestRestart = false;
+
+        while (const XrEventDataBaseHeader *event = TryReadNextEvent()) {
+            switch (event->type) {
+                case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING: {
+                    const auto &instanceLossPending = *reinterpret_cast<const XrEventDataInstanceLossPending *>(event);
+                    LOG_INFO("XrEventDataInstanceLossPending by %lld",
+                             (unsigned long long) instanceLossPending.lossTime);
+                    *exitRenderLoop = true;
+                    *requestRestart = true;
+                    break;
+                }
+                case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED: {
+                    auto sessionStateChangedEvent = *reinterpret_cast<const XrEventDataSessionStateChanged *>(event);
+                    HandleSessionStateChangedEvent(sessionStateChangedEvent, exitRenderLoop,
+                                                   requestRestart);
+                    break;
+                }
+                case XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED:
+                    LogActionSourceName(m_input.quitAction, "Quit");
+                    break;
+                case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
+                default: {
+                    LOG_INFO("Ignoring event type %d", event->type);
+                    break;
+                }
+            }
+        }
+    }
+
+    void HandleSessionStateChangedEvent(const XrEventDataSessionStateChanged &stateChangedEvent,
+                                        bool *exitRenderLoop, bool *requestRestart) {
+        const XrSessionState oldState = m_sessionState;
+        m_sessionState = stateChangedEvent.state;
+
+        LOG_INFO("XrEventDataSessionStateChanged: state %s->%s session=%lld time=%lld",
+                 to_string(oldState), to_string(m_sessionState),
+                 (unsigned long long) stateChangedEvent.session,
+                 (unsigned long long) stateChangedEvent.time);
+
+        if ((stateChangedEvent.session != XR_NULL_HANDLE) &&
+            (stateChangedEvent.session != m_session)) {
+            LOG_ERROR("XrEVentDataSessionStateChanged for unknown session");
+            return;
+        }
+
+        switch (m_sessionState) {
+            case XR_SESSION_STATE_READY: {
+                CHECK(m_session != XR_NULL_HANDLE);
+                XrSessionBeginInfo sessionBeginInfo{XR_TYPE_SESSION_BEGIN_INFO};
+                sessionBeginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+                CHECK_XRCMD(xrBeginSession(m_session, &sessionBeginInfo));
+                m_sessionRunning = true;
+                break;
+            }
+            case XR_SESSION_STATE_STOPPING: {
+                CHECK(m_session != XR_NULL_HANDLE);
+                m_sessionRunning = false;
+                CHECK_XRCMD(xrEndSession(m_session));
+                break;
+            }
+            case XR_SESSION_STATE_EXITING: {
+                *exitRenderLoop = true;
+                *requestRestart = false;
+                break;
+            }
+            case XR_SESSION_STATE_LOSS_PENDING: {
+                *exitRenderLoop = true;
+                *requestRestart = true;
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    void LogActionSourceName(XrAction action, const std::string &actionName) const {
+        XrBoundSourcesForActionEnumerateInfo getInfo = {
+                XR_TYPE_BOUND_SOURCES_FOR_ACTION_ENUMERATE_INFO};
+        getInfo.action = action;
+        uint32_t pathCount = 0;
+        CHECK_XRCMD(xrEnumerateBoundSourcesForAction(m_session, &getInfo, 0, &pathCount, nullptr));
+        std::vector<XrPath> paths(pathCount);
+        CHECK_XRCMD(xrEnumerateBoundSourcesForAction(m_session, &getInfo, uint32_t(paths.size()),
+                                                     &pathCount, paths.data()));
+
+        std::string sourceName;
+        for (uint32_t i = 0; i < pathCount; ++i) {
+            constexpr XrInputSourceLocalizedNameFlags all =
+                    XR_INPUT_SOURCE_LOCALIZED_NAME_USER_PATH_BIT |
+                    XR_INPUT_SOURCE_LOCALIZED_NAME_INTERACTION_PROFILE_BIT |
+                    XR_INPUT_SOURCE_LOCALIZED_NAME_COMPONENT_BIT;
+            XrInputSourceLocalizedNameGetInfo nameInfo = {
+                    XR_TYPE_INPUT_SOURCE_LOCALIZED_NAME_GET_INFO};
+            nameInfo.sourcePath = paths[i];
+            nameInfo.whichComponents = all;
+
+            uint32_t size = 0;
+            CHECK_XRCMD(xrGetInputSourceLocalizedName(m_session, &nameInfo, 0, &size, nullptr));
+            std::vector<char> grabSource(size);
+            CHECK_XRCMD(
+                    xrGetInputSourceLocalizedName(m_session, &nameInfo, uint32_t(grabSource.size()),
+                                                  &size, grabSource.data()));
+            if (!sourceName.empty()) {
+                sourceName += " and ";
+            }
+            sourceName += "'";
+            sourceName += std::string(grabSource.data(), size - 1);
+            sourceName += "'";
+        }
+
+        LOG_INFO("%s action is bound to %s", actionName.c_str(),
+                 ((!sourceName.empty()) ? sourceName.c_str() : "nothing"));
+    }
+
+    bool IsSessionRunning() const override { return m_sessionRunning; }
+
+    bool IsSessionFocused() const override { return m_sessionState == XR_SESSION_STATE_FOCUSED; }
+
+    void PollActions() override {
+        const XrActiveActionSet activeActionSet{m_input.actionSet, XR_NULL_PATH};
+        XrActionsSyncInfo syncInfo{XR_TYPE_ACTIONS_SYNC_INFO};
+        syncInfo.countActiveActionSets = 1;
+        syncInfo.activeActionSets = &activeActionSet;
+        CHECK_XRCMD(xrSyncActions(m_session, &syncInfo));
+
+        XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.quitAction,
+                                     XR_NULL_PATH};
+        XrActionStateBoolean quitValue{XR_TYPE_ACTION_STATE_BOOLEAN};
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &quitValue));
+        if ((quitValue.isActive == XR_TRUE) && (quitValue.changedSinceLastSync == XR_TRUE) &&
+            (quitValue.currentState == XR_TRUE)) {
+            CHECK_XRCMD(xrRequestExitSession(m_session));
+        }
+    }
+
+    void RenderFrame() override {
+        CHECK(m_session != XR_NULL_HANDLE);
+
+        XrFrameWaitInfo frameWaitInfo{XR_TYPE_FRAME_WAIT_INFO};
+        XrFrameState frameState{XR_TYPE_FRAME_STATE};
+        CHECK_XRCMD(xrWaitFrame(m_session, &frameWaitInfo, &frameState));
+
+        XrFrameBeginInfo frameBeginInfo{XR_TYPE_FRAME_BEGIN_INFO};
+        CHECK_XRCMD(xrBeginFrame(m_session, &frameBeginInfo));
+
+        std::vector<XrCompositionLayerBaseHeader *> layers;
+        XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
+        std::vector<XrCompositionLayerProjectionView> projectionLayerViews;
+        if (frameState.shouldRender == XR_TRUE) {
+            // render
+        }
+
+        XrFrameEndInfo frameEndInfo{XR_TYPE_FRAME_END_INFO};
+        frameEndInfo.displayTime = frameState.predictedDisplayTime;
+        frameEndInfo.environmentBlendMode = m_preferredBlendMode;
+        frameEndInfo.layerCount = (uint32_t) layers.size();
+        frameEndInfo.layers = layers.data();
+        CHECK_XRCMD(xrEndFrame(m_session, &frameEndInfo));
+    }
+
 private:
     std::shared_ptr<IPlatformPlugin> m_platformPlugin;
     std::shared_ptr<IGraphicsPlugin> m_graphicsPlugin;
@@ -502,6 +742,10 @@ private:
 
     std::vector<XrSpace> m_visualizedSpaces;
 
+    XrSessionState m_sessionState{XR_SESSION_STATE_UNKNOWN};
+    bool m_sessionRunning{false};
+
+    XrEventDataBuffer m_eventDataBuffer;
     InputState m_input;
 
     const std::set<XrEnvironmentBlendMode> m_acceptableBlendModes;

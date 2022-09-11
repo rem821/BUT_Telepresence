@@ -20,19 +20,19 @@ struct IOpenXrProgram {
     virtual void CreateSwapchains() = 0;
 
     // Process any events in the event queue.
-    // virtual void PollEvents(bool* exitRenderLoop, bool* requestRestart) = 0;
+    virtual void PollEvents(bool *exitRenderLoop, bool *requestRestart) = 0;
 
     // Manage session lifecycle to track if RenderFrame should be called.
-    // virtual bool IsSessionRunning() const = 0;
+    virtual bool IsSessionRunning() const = 0;
 
     // Manage session state to track if input should be processed.
-    // virtual bool IsSessionFocused() const = 0;
+    virtual bool IsSessionFocused() const = 0;
 
     // Sample input actions and generate haptic feedback.
-    // virtual void PollActions() = 0;
+    virtual void PollActions() = 0;
 
     // Create and submit a frame.
-    // virtual void RenderFrame() = 0;
+    virtual void RenderFrame() = 0;
 
     // Get preferred blend mode based on the view configuration specified in the Options
     virtual XrEnvironmentBlendMode GetPreferredBlendMode() const = 0;

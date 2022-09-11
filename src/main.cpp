@@ -15,6 +15,9 @@ void android_main(struct android_app *app) {
         data->applicationVM = app->activity->vm;
         data->applicationActivity = app->activity->clazz;
 
+        bool requestRestart = false;
+        bool exitRenderLoop = false;
+
         std::shared_ptr<IPlatformPlugin> platformPlugin = CreatePlatformPlugin(data);
         std::shared_ptr<IGraphicsPlugin> graphicsPlugin = CreateGraphicsPlugin();
 
@@ -44,7 +47,7 @@ void android_main(struct android_app *app) {
         program->InitializeSession();
         program->CreateSwapchains();
 
-        while (true) {
+        while (!app->destroyRequested) {
             for (;;) {
                 int events;
                 struct android_poll_source *source;
@@ -57,7 +60,22 @@ void android_main(struct android_app *app) {
                     source->process(app, source);
                 }
             }
+
+            program->PollEvents(&exitRenderLoop, &requestRestart);
+            if (exitRenderLoop) {
+                break;
+            }
+
+            if (!program->IsSessionRunning()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+                continue;
+            }
+
+            program->PollActions();
+            program->RenderFrame();
         }
+
+        app->activity->vm->DetachCurrentThread();
     } catch (const std::exception &ex) {
         LOG_ERROR("%s", ex.what());
     } catch (...) {
