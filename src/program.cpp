@@ -712,7 +712,9 @@ struct OpenXrProgram : IOpenXrProgram {
         XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
         std::vector<XrCompositionLayerProjectionView> projectionLayerViews;
         if (frameState.shouldRender == XR_TRUE) {
-            // render
+            if (RenderLayer(frameState.predictedDisplayTime, projectionLayerViews, layer)) {
+                layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader *>(&layer));
+            }
         }
 
         XrFrameEndInfo frameEndInfo{XR_TYPE_FRAME_END_INFO};
@@ -721,6 +723,91 @@ struct OpenXrProgram : IOpenXrProgram {
         frameEndInfo.layerCount = (uint32_t) layers.size();
         frameEndInfo.layers = layers.data();
         CHECK_XRCMD(xrEndFrame(m_session, &frameEndInfo));
+    }
+
+    bool RenderLayer(XrTime predictedDisplayTime,
+                     std::vector<XrCompositionLayerProjectionView> &projectionLayerViews,
+                     XrCompositionLayerProjection &layer) {
+        XrResult res;
+
+        XrViewState viewState{XR_TYPE_VIEW_STATE};
+        uint32_t viewCapacityInput = (uint32_t) m_views.size();
+        uint32_t viewCountOutput;
+
+        XrViewLocateInfo viewLocateInfo{XR_TYPE_VIEW_LOCATE_INFO};
+        viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+        viewLocateInfo.displayTime = predictedDisplayTime;
+        viewLocateInfo.space = m_appSpace;
+
+        res = xrLocateViews(m_session, &viewLocateInfo, &viewState, viewCapacityInput,
+                            &viewCountOutput, m_views.data());
+        CHECK_XRRESULT(res, "xrLocateViews");
+        if ((viewState.viewStateFlags & XR_VIEW_STATE_POSITION_VALID_BIT) == 0 ||
+            (viewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT) == 0) {
+            return false;
+        }
+
+        CHECK(viewCountOutput == viewCapacityInput);
+        CHECK(viewCountOutput == m_configViews.size());
+        CHECK(viewCountOutput == m_swapchains.size());
+
+        projectionLayerViews.resize(viewCountOutput);
+
+        std::vector<Cube> cubes;
+
+        for (XrSpace visualizedSpace: m_visualizedSpaces) {
+            XrSpaceLocation spaceLocation{XR_TYPE_SPACE_LOCATION};
+            res = xrLocateSpace(visualizedSpace, m_appSpace, predictedDisplayTime, &spaceLocation);
+            CHECK_XRRESULT(res, "xrLocateSpace");
+            if (XR_UNQUALIFIED_SUCCESS(res)) {
+                if ((spaceLocation.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
+                    (spaceLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
+                    cubes.push_back(Cube{spaceLocation.pose, {0.25f, 0.25f, 0.25f}});
+                }
+            } else {
+                LOG_INFO("Unable to locate a visualized reference space in app space: %d", res);
+            }
+        }
+
+        // Render view to the appropriate part of the swapchain image.
+        for (uint32_t i = 0; i < viewCountOutput; i++) {
+            const Swapchain viewSwapchain = m_swapchains[i];
+
+            XrSwapchainImageAcquireInfo acquireInfo{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+
+            uint32_t swapchainImageIndex;
+            CHECK_XRCMD(xrAcquireSwapchainImage(viewSwapchain.handle, &acquireInfo,
+                                                &swapchainImageIndex));
+
+            XrSwapchainImageWaitInfo waitInfo{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+            waitInfo.timeout = XR_INFINITE_DURATION;
+            CHECK_XRCMD(xrWaitSwapchainImage(viewSwapchain.handle, &waitInfo));
+
+            projectionLayerViews[i] = {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
+            projectionLayerViews[i].pose = m_views[i].pose;
+            projectionLayerViews[i].fov = m_views[i].fov;
+            projectionLayerViews[i].subImage.swapchain = viewSwapchain.handle;
+            projectionLayerViews[i].subImage.imageRect.offset = {0, 0};
+            projectionLayerViews[i].subImage.imageRect.extent = {viewSwapchain.width,
+                                                                 viewSwapchain.height};
+
+            const XrSwapchainImageBaseHeader *const swapchainImage = m_swapchainImages[viewSwapchain.handle][swapchainImageIndex];
+            m_graphicsPlugin->RenderView(projectionLayerViews[i], swapchainImage,
+                                         m_colorSwapchainFormat, cubes);
+
+            XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+            CHECK_XRCMD(xrReleaseSwapchainImage(viewSwapchain.handle, &releaseInfo));
+        }
+
+        layer.space = m_appSpace;
+        layer.layerFlags = m_preferredBlendMode == XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND
+                           ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT |
+                             XR_COMPOSITION_LAYER_UNPREMULTIPLIED_ALPHA_BIT
+                           : 0;
+        layer.viewCount = (uint32_t) projectionLayerViews.size();
+        layer.views = projectionLayerViews.data();
+
+        return true;
     }
 
 private:

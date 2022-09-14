@@ -34,3 +34,8 @@ inline bool EqualsIgnoreCase(const std::string &s1, const std::string &s2,
     };
     return s1.size() == s2.size() && std::equal(s1.begin(), s1.end(), s2.begin(), compareCharLower);
 }
+
+template<typename T, size_t Size>
+constexpr size_t ArraySize(const T (&/* unused */)[Size]) noexcept {
+    return Size;
+}

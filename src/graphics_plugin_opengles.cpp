@@ -4,9 +4,38 @@
 #include "graphics_plugin.h"
 #include "platform_plugin.h"
 #include "gpu_window.h"
+#include "geometry.h"
+#include "linear.h"
 
 #include <GLES3/gl3.h>
 #include <GLES3/gl32.h>
+
+// The version statement has come on first line.
+static const char *VertexShaderGlsl = R"_(#version 320 es
+
+    in vec3 VertexPos;
+    in vec3 VertexColor;
+
+    out vec3 PSVertexColor;
+
+    uniform mat4 ModelViewProjection;
+
+    void main() {
+       gl_Position = ModelViewProjection * vec4(VertexPos, 1.0);
+       PSVertexColor = VertexColor;
+    }
+    )_";
+
+// The version statement has come on first line.
+static const char *FragmentShaderGlsl = R"_(#version 320 es
+
+    in lowp vec3 PSVertexColor;
+    out lowp vec4 FragColor;
+
+    void main() {
+       FragColor = vec4(PSVertexColor, 1);
+    }
+    )_";
 
 struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
     OpenGLESGraphicsPlugin() {}
@@ -63,10 +92,87 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
                                                                                  severity, length,
                                                                                  message);
                 }, this);
+
+        InitializeResources();
     }
 
-    std::vector<XrSwapchainImageBaseHeader *> AllocateSwapchainImageStructs(
-            uint32_t capacity,
+    void InitializeResources() {
+        glGenFramebuffers(1, &m_swapchainFramebuffer);
+
+        GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
+        glShaderSource(vertexShader, 1, &VertexShaderGlsl, nullptr);
+        glCompileShader(vertexShader);
+        CheckShader(vertexShader);
+
+        GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+        glShaderSource(fragmentShader, 1, &FragmentShaderGlsl, nullptr);
+        glCompileShader(fragmentShader);
+        CheckShader(fragmentShader);
+
+        m_program = glCreateProgram();
+        glAttachShader(m_program, vertexShader);
+        glAttachShader(m_program, fragmentShader);
+        glLinkProgram(m_program);
+        CheckProgram(m_program);
+
+        glDeleteShader(vertexShader);
+        glDeleteShader(fragmentShader);
+
+        m_modelViewProjectionUniformLocation = glGetUniformLocation(m_program,
+                                                                    "ModelViewProjection");
+
+        m_vertexAttribCoords = glGetAttribLocation(m_program, "VertexPos");
+        m_vertexAttribColor = glGetAttribLocation(m_program, "VertexColor");
+
+        glGenBuffers(1, &m_cubeVertexBuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, m_cubeVertexBuffer);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(Geometry::c_cubeVertices), Geometry::c_cubeVertices,
+                     GL_STATIC_DRAW);
+
+        glGenBuffers(1, &m_cubeIndexBuffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_cubeIndexBuffer);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Geometry::c_cubeIndices),
+                     Geometry::c_cubeIndices, GL_STATIC_DRAW);
+
+        glGenVertexArrays(1, &m_vao);
+        glBindVertexArray(m_vao);
+        glEnableVertexAttribArray(m_vertexAttribCoords);
+        glEnableVertexAttribArray(m_vertexAttribColor);
+        glBindBuffer(GL_ARRAY_BUFFER, m_cubeVertexBuffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_cubeIndexBuffer);
+        glVertexAttribPointer(m_vertexAttribCoords, 3, GL_FLOAT, GL_FALSE, sizeof(Geometry::Vertex),
+                              nullptr);
+        glVertexAttribPointer(m_vertexAttribColor, 3, GL_FLOAT, GL_FALSE,
+                              sizeof(Geometry::Vertex),
+                              reinterpret_cast<const void *>(sizeof(XrVector3f)));
+    }
+
+    void CheckShader(GLuint shader) {
+        GLint r = 0;
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &r);
+        if (r == GL_FALSE) {
+            GLchar msg[4096] = {};
+            GLsizei length;
+            glGetShaderInfoLog(shader, sizeof(msg), &length, msg);
+            THROW(Fmt("Compile shader failed: %s", msg));
+        }
+    }
+
+    void CheckProgram(GLuint program) {
+        GLint r = 0;
+        glGetProgramiv(program, GL_LINK_STATUS, &r);
+        if (r == GL_FALSE) {
+            GLchar msg[4096];
+            GLsizei length;
+            glGetProgramInfoLog(program, sizeof(msg), &length, msg);
+            THROW(Fmt("Link program failed: %s", msg));
+        }
+    }
+
+    std::vector<XrSwapchainImageBaseHeader *>
+    AllocateSwapchainImageStructs(
+            uint32_t
+            capacity,
             const XrSwapchainCreateInfo &swapchainCreateInfo
     ) override {
         std::vector<XrSwapchainImageOpenGLESKHR> swapchainImageBuffer(capacity);
@@ -121,12 +227,116 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
         }
     }
 
+    uint32_t GetDepthTexture(uint32_t colorTexture) {
+        auto depthBufferIt = m_colorToDepthMap.find(colorTexture);
+        if (depthBufferIt != m_colorToDepthMap.end()) {
+            return depthBufferIt->second;
+        }
+
+        GLint width;
+        GLint height;
+        glBindTexture(GL_TEXTURE_2D, colorTexture);
+        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
+        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
+
+        uint32_t depthTexture;
+        glGenTextures(1, &depthTexture);
+        glBindTexture(GL_TEXTURE_2D, depthTexture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, width, height, 0, GL_DEPTH_COMPONENT,
+                     GL_UNSIGNED_INT, nullptr);
+
+        m_colorToDepthMap.insert(std::make_pair(colorTexture, depthTexture));
+
+        return depthTexture;
+    }
+
+    void RenderView(const XrCompositionLayerProjectionView &layerView,
+                    const XrSwapchainImageBaseHeader *swapchainImage,
+                    int64_t swapchainFormat, const std::vector<Cube> &cubes) override {
+        CHECK(layerView.subImage.imageArrayIndex == 0);
+        (void) swapchainFormat;
+
+        glBindFramebuffer(GL_FRAMEBUFFER, m_swapchainFramebuffer);
+
+        const uint32_t colorTexture = reinterpret_cast<const XrSwapchainImageOpenGLESKHR *>(swapchainImage)->image;
+
+        glViewport(
+                static_cast<GLint>(layerView.subImage.imageRect.offset.x),
+                static_cast<GLint>(layerView.subImage.imageRect.offset.y),
+                static_cast<GLint>(layerView.subImage.imageRect.extent.width),
+                static_cast<GLint>(layerView.subImage.imageRect.extent.height)
+        );
+
+        glFrontFace(GL_CW);
+        glCullFace(GL_BACK);
+        glEnable(GL_CULL_FACE);
+        glEnable(GL_DEPTH_TEST);
+
+        const uint32_t depthTexture = GetDepthTexture(colorTexture);
+
+        glFramebufferTexture2D(
+                GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
+
+        glClearColor(m_clearColor[0], m_clearColor[1], m_clearColor[2], m_clearColor[3]);
+        glClearDepthf(1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+        glUseProgram(m_program);
+
+        const auto &pose = layerView.pose;
+        XrMatrix4x4f proj;
+        XrMatrix4x4f_CreateProjectionFov(&proj, layerView.fov, 0.05f, 100.0f);
+        XrMatrix4x4f toView;
+        XrVector3f scale{1.f, 1.f, 1.f};
+        XrMatrix4x4f_CreateTranslationRotationScale(
+                &toView, &pose.position, &pose.orientation, &scale);
+        XrMatrix4x4f view;
+        XrMatrix4x4f_InvertRigidBody(&view, &toView);
+        XrMatrix4x4f vp;
+        XrMatrix4x4f_Multiply(&vp, &proj, &view);
+
+        glBindVertexArray(m_vao);
+
+        for (const Cube &cube: cubes) {
+            XrMatrix4x4f model;
+            XrMatrix4x4f_CreateTranslationRotationScale(&model, &cube.Pose.position,
+                                                        &cube.Pose.orientation, &cube.Scale);
+            XrMatrix4x4f mvp;
+            XrMatrix4x4f_Multiply(&mvp, &vp, &model);
+            glUniformMatrix4fv(m_modelViewProjectionUniformLocation, 1, GL_FALSE,
+                               reinterpret_cast<const GLfloat *>(&mvp));
+            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_cubeIndices)),
+                           GL_UNSIGNED_SHORT,
+                           nullptr);
+        }
+
+        glBindVertexArray(0);
+        glUseProgram(0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
     uint32_t GetSupportedSwapchainSampleCount(const XrViewConfigurationView &view) override {
         return 1;
     }
 
 private:
     std::list<std::vector<XrSwapchainImageOpenGLESKHR>> m_swapchainImageBuffers;
+
+    GLuint m_swapchainFramebuffer{0};
+    GLuint m_program{0};
+    GLuint m_modelViewProjectionUniformLocation{0};
+    GLuint m_vertexAttribCoords{0};
+    GLuint m_vertexAttribColor{0};
+    GLuint m_vao{0};
+    GLuint m_cubeVertexBuffer{0};
+    GLuint m_cubeIndexBuffer{0};
+
+    std::map<uint32_t, uint32_t> m_colorToDepthMap;
     std::array<float, 4> m_clearColor;
     std::shared_ptr<IGpuWindow> m_window;
     XrGraphicsBindingOpenGLESAndroidKHR m_graphicsBinding{

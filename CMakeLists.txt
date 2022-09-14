@@ -51,4 +51,5 @@ target_include_directories(
         PRIVATE ${OpenGLES_V3_INCLUDE_DIR}
         PRIVATE ${OpenGLES_V32_INCLUDE_DIR}
         PRIVATE ${PROJECT_SOURCE_DIR}/3rdParty/OpenXR-SDK/include
+        PRIVATE ${PROJECT_SOURCE_DIR}/3rdParty/boost/include
 )
