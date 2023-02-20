@@ -31,8 +31,3 @@ google-services.json
 
 # Android Profiling
 *.hprof
-
-# Boost
-/3rdParty/boost-src
-/3rdParty/boost
-user-config.jam

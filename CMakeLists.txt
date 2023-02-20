@@ -25,7 +25,7 @@ set_property(
 )
 
 add_library(
-        oculus_openxr_poc MODULE
+        but_telepresence MODULE
 
         src/gpu_window.cpp
         src/graphics_plugin_opengles.cpp
@@ -37,7 +37,7 @@ add_library(
 )
 
 target_link_libraries(
-        oculus_openxr_poc
+        but_telepresence
         openxr_loader
         ${ANDROID_LIBRARY}
         ${ANDROID_LOG_LIBRARY}
@@ -46,10 +46,9 @@ target_link_libraries(
 )
 
 target_include_directories(
-        oculus_openxr_poc
+        but_telepresence
         PRIVATE ${ANDROID_NATIVE_APP_GLUE}
         PRIVATE ${OpenGLES_V3_INCLUDE_DIR}
         PRIVATE ${OpenGLES_V32_INCLUDE_DIR}
         PRIVATE ${PROJECT_SOURCE_DIR}/3rdParty/OpenXR-SDK/include
-        PRIVATE ${PROJECT_SOURCE_DIR}/3rdParty/boost/include
 )

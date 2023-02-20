@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.example.oculus_openxr_poc"
+    package="com.example.but_telepresence"
     android:installLocation="auto"
     android:versionCode="1"
     android:versionName="1.0">
@@ -53,7 +53,7 @@
             <!-- Tell NativeActivity the name of the .so -->
             <meta-data
                 android:name="android.app.lib_name"
-                android:value="oculus_openxr_poc" />
+                android:value="but_telepresence" />
             <!-- This filter lets the apk show up as a launchable icon. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

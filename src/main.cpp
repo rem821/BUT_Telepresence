@@ -1,10 +1,5 @@
 #include "pch.h"
 
-#include <boost/asio/io_service.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio.hpp>
-#include <boost/system/errc.hpp>
-
 #include "log.h"
 #include "platform_data.h"
 #include "platform_plugin.h"
@@ -12,26 +7,6 @@
 #include "program.h"
 
 void android_main(struct android_app *app) {
-    boost::asio::io_service io_service;
-    boost::asio::ip::tcp::socket socket(io_service);
-
-    const char *address = "192.168.0.5";
-    const int port = 51111;
-
-    boost::system::error_code error;
-    socket.connect(
-            boost::asio::ip::tcp::endpoint(boost::asio::ip::address::from_string(address), port),
-            error);
-
-    if (error) {
-        LOG_ERROR("Failed to connect");
-    } else {
-        LOG_INFO("Connection OK");
-        const std::string msg = "ping!";
-        boost::system::error_code e;
-        boost::asio::write(socket, boost::asio::buffer(msg), e);
-    }
-
     try {
         JNIEnv *Env;
         app->activity->vm->AttachCurrentThread(&Env, nullptr);
