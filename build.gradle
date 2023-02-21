@@ -18,6 +18,7 @@ apply plugin: 'com.android.application'
 def properties = new Properties();
 properties.load(project.rootProject.file('local.properties').newDataInputStream())
 def ovr_openxr_mobile_sdk_dir = properties.getProperty('ovr_openxr_mobile_sdk.dir')
+def gstreamer_sdk_dir = properties.getProperty('gstreamer_sdk.dir')
 
 android {
     compileSdkVersion 29
@@ -39,6 +40,7 @@ android {
             }
             cmake {
                 arguments "-DOVR_OPENXR_MOBILE_SDK_DIR:STRING=${ovr_openxr_mobile_sdk_dir}"
+                arguments "-DGSTREAMER_SDK_DIR:STRING=${gstreamer_sdk_dir}"
                 cppFlags ''
             }
         }

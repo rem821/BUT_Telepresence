@@ -5,6 +5,8 @@
 #include "platform_plugin.h"
 #include "graphics_plugin.h"
 #include "program.h"
+#include <gst/gst.h>
+#include <gio/gio.h>
 
 void android_main(struct android_app *app) {
     try {
@@ -46,6 +48,8 @@ void android_main(struct android_app *app) {
         program->InitializeDevice();
         program->InitializeSession();
         program->CreateSwapchains();
+
+        auto str = gst_version_string();
 
         while (!app->destroyRequested) {
             for (;;) {

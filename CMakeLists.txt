@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.10)
+project(but_telepresence)
 
 add_definitions(-DXR_USE_PLATFORM_ANDROID)
 add_definitions(-DXR_USE_GRAPHICS_API_OPENGL_ES)
 add_definitions(-Werror)
+
+set(GSTREAMER_ROOT ${GSTREAMER_SDK_DIR}/${ANDROID_ABI})
 
 find_library(ANDROID_LIBRARY NAMES android)
 find_library(ANDROID_LOG_LIBRARY NAMES log)
@@ -24,8 +27,22 @@ set_property(
         ${OVR_OPENXR_MOBILE_SDK_DIR}/OpenXR/Libs/Android/${ANDROID_ABI}/${CMAKE_BUILD_TYPE}/libopenxr_loader.so
 )
 
+include_directories(
+        ${ANDROID_NATIVE_APP_GLUE}
+        ${OpenGLES_V3_INCLUDE_DIR}
+        ${OpenGLES_V32_INCLUDE_DIR}
+        ${PROJECT_SOURCE_DIR}/3rdParty/OpenXR-SDK/include
+        ${GSTREAMER_ROOT}/include/gstreamer-1.0
+        ${GSTREAMER_ROOT}/include/glib-2.0
+        ${GSTREAMER_ROOT}/lib/glib-2.0/include
+)
+
+link_directories(
+        ${GSTREAMER_ROOT}/lib
+        ${GSTREAMER_ROOT}/lib/gstreamer-1.0)
+
 add_library(
-        but_telepresence MODULE
+        ${PROJECT_NAME} MODULE
 
         src/gpu_window.cpp
         src/graphics_plugin_opengles.cpp
@@ -36,19 +53,18 @@ add_library(
         $<TARGET_OBJECTS:android_native_app_glue>
 )
 
+SET(GST_LIBS gstreamer-1.0 gmodule-2.0 gobject-2.0 glib-2.0 iconv intl ffi)
+SET(GST_PLUGINS_CORE_LIBS gstaudioresample gstaudiotestsrc gstaudioconvert)
+SET(GST_PLUGINS_BASE gstautodetect gstallocators-1.0 orc-test-0.4 gstapp-1.0 gstaudio-1.0 gstfft-1.0 gstpbutils-1.0 gstriff-1.0 gstrtp-1.0 gstrtsp-1.0 gstsdp-1.0 gsttag-1.0 gstvideo-1.0 gstgl-1.0 orc-0.4 gstopensles OpenSLES gstaudio-1.0 gstbase-1.0)
+
 target_link_libraries(
-        but_telepresence
+        ${PROJECT_NAME}
         openxr_loader
         ${ANDROID_LIBRARY}
         ${ANDROID_LOG_LIBRARY}
         ${EGL_LIBRARY}
         ${OpenGLES_V3_LIBRARY}
-)
-
-target_include_directories(
-        but_telepresence
-        PRIVATE ${ANDROID_NATIVE_APP_GLUE}
-        PRIVATE ${OpenGLES_V3_INCLUDE_DIR}
-        PRIVATE ${OpenGLES_V32_INCLUDE_DIR}
-        PRIVATE ${PROJECT_SOURCE_DIR}/3rdParty/OpenXR-SDK/include
+        ${GST_LIBS}
+        ${GST_PLUGINS_CORE_LIBS}
+        ${GST_PLUGINS_BASE}
 )
