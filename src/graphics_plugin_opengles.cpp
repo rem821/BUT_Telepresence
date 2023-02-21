@@ -38,9 +38,9 @@ static const char *FragmentShaderGlsl = R"_(#version 320 es
     )_";
 
 struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
-    OpenGLESGraphicsPlugin() {}
+    OpenGLESGraphicsPlugin() = default;
 
-    ~OpenGLESGraphicsPlugin() override {}
+    ~OpenGLESGraphicsPlugin() override = default;
 
     std::vector<std::string> GetInstanceExtensions() const override {
         return {XR_KHR_OPENGL_ES_ENABLE_EXTENSION_NAME};
@@ -77,11 +77,11 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
 
         const XrVersion desiredApiVersion = XR_MAKE_VERSION(major, minor, 0);
         if (graphicsRequirements.minApiVersionSupported > desiredApiVersion) {
-            THROW("Runtime does not support desired Graphics API and/or version");
+            THROW("Runtime does not support desired Graphics API and/or version")
         }
 
         m_graphicsBinding.display = m_window->m_display;
-        m_graphicsBinding.config = (EGLConfig) 0;
+        m_graphicsBinding.config = nullptr;
         m_graphicsBinding.context = m_window->m_context;
 
         glEnable(GL_DEBUG_OUTPUT);
@@ -154,7 +154,7 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
             GLchar msg[4096] = {};
             GLsizei length;
             glGetShaderInfoLog(shader, sizeof(msg), &length, msg);
-            THROW(Fmt("Compile shader failed: %s", msg));
+            THROW(Fmt("Compile shader failed: %s", msg))
         }
     }
 
@@ -165,7 +165,7 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
             GLchar msg[4096];
             GLsizei length;
             glGetProgramInfoLog(program, sizeof(msg), &length, msg);
-            THROW(Fmt("Link program failed: %s", msg));
+            THROW(Fmt("Link program failed: %s", msg))
         }
     }
 
@@ -197,7 +197,7 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
                                                     supportedColorSwapchainFormats.begin(),
                                                     supportedColorSwapchainFormats.end());
         if (swapchainFormatIt == runtimeFormats.end()) {
-            THROW("No runtime swapchain format supprted for color swapchain");
+            THROW("No runtime swapchain format supprted for color swapchain")
         }
 
         return *swapchainFormatIt;
@@ -257,7 +257,7 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
     void RenderView(const XrCompositionLayerProjectionView &layerView,
                     const XrSwapchainImageBaseHeader *swapchainImage,
                     int64_t swapchainFormat, const std::vector<Cube> &cubes) override {
-        CHECK(layerView.subImage.imageArrayIndex == 0);
+        CHECK(layerView.subImage.imageArrayIndex == 0)
         (void) swapchainFormat;
 
         glBindFramebuffer(GL_FRAMEBUFFER, m_swapchainFramebuffer);
@@ -308,7 +308,8 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
                                                         &cube.Pose.orientation, &cube.Scale);
             XrMatrix4x4f mvp;
             XrMatrix4x4f_Multiply(&mvp, &vp, &model);
-            glUniformMatrix4fv(m_modelViewProjectionUniformLocation, 1, GL_FALSE,
+            glUniformMatrix4fv(static_cast<GLint>(m_modelViewProjectionUniformLocation), 1,
+                               GL_FALSE,
                                reinterpret_cast<const GLfloat *>(&mvp));
             glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_cubeIndices)),
                            GL_UNSIGNED_SHORT,
@@ -337,7 +338,7 @@ private:
     GLuint m_cubeIndexBuffer{0};
 
     std::map<uint32_t, uint32_t> m_colorToDepthMap;
-    std::array<float, 4> m_clearColor;
+    std::array<float, 4> m_clearColor{};
     std::shared_ptr<IGpuWindow> m_window;
     XrGraphicsBindingOpenGLESAndroidKHR m_graphicsBinding{
             XR_TYPE_GRAPHICS_BINDING_OPENGL_ES_ANDROID_KHR};

@@ -5,6 +5,8 @@
 #include "platform_plugin.h"
 #include "program.h"
 
+#include <utility>
+
 namespace Side {
     const int LEFT = 0;
     const int RIGHT = 1;
@@ -76,22 +78,22 @@ GetXrReferenceSpaceCreateInfo(const std::string &referenceSpaceTypeStr) {
 
 
 struct OpenXrProgram : IOpenXrProgram {
-    OpenXrProgram(const std::shared_ptr<IPlatformPlugin> &platformPlugin,
-                  const std::shared_ptr<IGraphicsPlugin> &graphicsPlugin)
-            : m_platformPlugin(platformPlugin),
-              m_graphicsPlugin(graphicsPlugin),
+    OpenXrProgram(std::shared_ptr<IPlatformPlugin> platformPlugin,
+                  std::shared_ptr<IGraphicsPlugin> graphicsPlugin)
+            : m_platformPlugin(std::move(platformPlugin)),
+              m_graphicsPlugin(std::move(graphicsPlugin)),
               m_acceptableBlendModes{XR_ENVIRONMENT_BLEND_MODE_OPAQUE,
                                      XR_ENVIRONMENT_BLEND_MODE_ADDITIVE,
                                      XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND} {}
 
-    ~OpenXrProgram() override {}
+    ~OpenXrProgram() override = default;
 
     static void LogLayersAndExtensions() {
         const auto logExtensions = [](const char *layerName, int indent = 0) {
             uint32_t instanceExtensionCount;
             CHECK_XRCMD(
                     xrEnumerateInstanceExtensionProperties(layerName, 0, &instanceExtensionCount,
-                                                           nullptr));
+                                                           nullptr))
 
             std::vector<XrExtensionProperties> extensions(instanceExtensionCount);
             for (XrExtensionProperties &extension: extensions) {
@@ -101,7 +103,7 @@ struct OpenXrProgram : IOpenXrProgram {
             CHECK_XRCMD(
                     xrEnumerateInstanceExtensionProperties(layerName, (uint32_t) extensions.size(),
                                                            &instanceExtensionCount,
-                                                           extensions.data()));
+                                                           extensions.data()))
 
             const std::string indentStr(indent, ' ');
             LOG_INFO("%sAvailable Extensions: (%d)", indentStr.c_str(), instanceExtensionCount);
@@ -117,7 +119,7 @@ struct OpenXrProgram : IOpenXrProgram {
         // Log layers and any of their extensions.
         {
             uint32_t layerCount;
-            CHECK_XRCMD(xrEnumerateApiLayerProperties(0, &layerCount, nullptr));
+            CHECK_XRCMD(xrEnumerateApiLayerProperties(0, &layerCount, nullptr))
 
             std::vector<XrApiLayerProperties> layers(layerCount);
             for (XrApiLayerProperties &layer: layers) {
@@ -125,7 +127,7 @@ struct OpenXrProgram : IOpenXrProgram {
             }
 
             CHECK_XRCMD(xrEnumerateApiLayerProperties((uint32_t) layers.size(), &layerCount,
-                                                      layers.data()));
+                                                      layers.data()))
 
             LOG_INFO("Available Layers: (%d)", layerCount);
             for (const XrApiLayerProperties &layer: layers) {
@@ -140,17 +142,17 @@ struct OpenXrProgram : IOpenXrProgram {
     }
 
     void LogInstanceInfo() {
-        CHECK(m_instance != XR_NULL_HANDLE);
+        CHECK(m_instance != XR_NULL_HANDLE)
 
         XrInstanceProperties instanceProperties{XR_TYPE_INSTANCE_PROPERTIES};
-        CHECK_XRCMD(xrGetInstanceProperties(m_instance, &instanceProperties));
+        CHECK_XRCMD(xrGetInstanceProperties(m_instance, &instanceProperties))
 
         LOG_INFO("Instance RuntimeName=%s RuntimeVersion=%s", instanceProperties.runtimeName,
                  GetXrVersionString(instanceProperties.runtimeVersion).c_str());
     }
 
     void CreateInstanceInternal() {
-        CHECK(m_instance == XR_NULL_HANDLE);
+        CHECK(m_instance == XR_NULL_HANDLE)
 
         // Create union of extensions required by platform and graphics plugins.
         std::vector<const char *> extensions;
@@ -170,10 +172,10 @@ struct OpenXrProgram : IOpenXrProgram {
         createInfo.enabledExtensionCount = (uint32_t) extensions.size();
         createInfo.enabledExtensionNames = extensions.data();
 
-        strcpy(createInfo.applicationInfo.applicationName, "HelloXR");
+        strcpy(createInfo.applicationInfo.applicationName, "BUT_Telepresence");
         createInfo.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
 
-        CHECK_XRCMD(xrCreateInstance(&createInfo, &m_instance));
+        CHECK_XRCMD(xrCreateInstance(&createInfo, &m_instance))
     }
 
     void CreateInstance() override {
@@ -185,17 +187,17 @@ struct OpenXrProgram : IOpenXrProgram {
     }
 
     void LogViewConfigurations() {
-        CHECK(m_instance != XR_NULL_HANDLE);
-        CHECK(m_systemId != XR_NULL_SYSTEM_ID);
+        CHECK(m_instance != XR_NULL_HANDLE)
+        CHECK(m_systemId != XR_NULL_SYSTEM_ID)
 
         uint32_t viewConfigTypeCount;
         CHECK_XRCMD(xrEnumerateViewConfigurations(m_instance, m_systemId, 0, &viewConfigTypeCount,
-                                                  nullptr));
+                                                  nullptr))
         std::vector<XrViewConfigurationType> viewConfigTypes(viewConfigTypeCount);
         CHECK_XRCMD(xrEnumerateViewConfigurations(m_instance, m_systemId, viewConfigTypeCount,
                                                   &viewConfigTypeCount,
-                                                  viewConfigTypes.data()));
-        CHECK((uint32_t) viewConfigTypes.size() == viewConfigTypeCount);
+                                                  viewConfigTypes.data()))
+        CHECK((uint32_t) viewConfigTypes.size() == viewConfigTypeCount)
 
         LOG_INFO("Available View Configuration Types: (%d)", viewConfigTypeCount);
         for (auto viewConfigType: viewConfigTypes) {
@@ -206,7 +208,7 @@ struct OpenXrProgram : IOpenXrProgram {
             XrViewConfigurationProperties viewConfigProperties{
                     XR_TYPE_VIEW_CONFIGURATION_PROPERTIES};
             CHECK_XRCMD(xrGetViewConfigurationProperties(m_instance, m_systemId, viewConfigType,
-                                                         &viewConfigProperties));
+                                                         &viewConfigProperties))
 
             LOG_INFO("  View Configuration FovMutable=%s",
                      viewConfigProperties.fovMutable == XR_TRUE ? "True" : "False");
@@ -214,7 +216,7 @@ struct OpenXrProgram : IOpenXrProgram {
             uint32_t viewCount;
             CHECK_XRCMD(xrEnumerateViewConfigurationViews(m_instance, m_systemId, viewConfigType, 0,
                                                           &viewCount,
-                                                          nullptr));
+                                                          nullptr))
             if (viewCount > 0) {
                 std::vector<XrViewConfigurationView> views(viewCount,
                                                            {XR_TYPE_VIEW_CONFIGURATION_VIEW});
@@ -222,7 +224,7 @@ struct OpenXrProgram : IOpenXrProgram {
                         xrEnumerateViewConfigurationViews(m_instance, m_systemId, viewConfigType,
                                                           viewCount,
                                                           &viewCount,
-                                                          views.data()));
+                                                          views.data()))
 
                 for (uint32_t i = 0; i < views.size(); i++) {
                     const XrViewConfigurationView &view = views[i];
@@ -242,19 +244,19 @@ struct OpenXrProgram : IOpenXrProgram {
     }
 
     void LogEnvironmentBlendMode(XrViewConfigurationType type) {
-        CHECK(m_instance != XR_NULL_HANDLE);
-        CHECK(m_systemId != XR_NULL_SYSTEM_ID);
+        CHECK(m_instance != XR_NULL_HANDLE)
+        CHECK(m_systemId != XR_NULL_SYSTEM_ID)
 
         uint32_t count;
         CHECK_XRCMD(xrEnumerateEnvironmentBlendModes(m_instance, m_systemId, type, 0, &count,
-                                                     nullptr));
-        CHECK(count > 0);
+                                                     nullptr))
+        CHECK(count > 0)
 
         LOG_INFO("Available Environment Blend Mode count: (%u)", count);
 
         std::vector<XrEnvironmentBlendMode> blendModes(count);
         CHECK_XRCMD(xrEnumerateEnvironmentBlendModes(m_instance, m_systemId, type, count, &count,
-                                                     blendModes.data()));
+                                                     blendModes.data()))
         bool blendModeFound = false;
         for (auto mode: blendModes) {
             const bool blendModeMatch = (mode == m_preferredBlendMode);
@@ -262,7 +264,7 @@ struct OpenXrProgram : IOpenXrProgram {
                      blendModeMatch ? "(Selected)" : "");
             blendModeFound |= blendModeMatch;
         }
-        CHECK(blendModeFound);
+        CHECK(blendModeFound)
     }
 
     XrEnvironmentBlendMode GetPreferredBlendMode() const override {
@@ -274,13 +276,13 @@ struct OpenXrProgram : IOpenXrProgram {
         CHECK_XRCMD(xrEnumerateEnvironmentBlendModes(m_instance, m_systemId,
                                                      XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0,
                                                      &count,
-                                                     nullptr));
-        CHECK(count > 0);
+                                                     nullptr))
+        CHECK(count > 0)
 
         std::vector<XrEnvironmentBlendMode> blendModes(count);
         CHECK_XRCMD(xrEnumerateEnvironmentBlendModes(m_instance, m_systemId,
                                                      XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,
-                                                     count, &count, blendModes.data()));
+                                                     count, &count, blendModes.data()))
         for (const auto &blendMode: blendModes) {
             if (m_acceptableBlendModes.count(blendMode)) {
                 LOG_INFO("Preferred Blend Mode: %s", to_string(blendMode));
@@ -288,21 +290,21 @@ struct OpenXrProgram : IOpenXrProgram {
                 return;
             }
         }
-        THROW("No acceptable blend mode returned from the xrEnumerateEnvironmentBlendModes");
+        THROW("No acceptable blend mode returned from the xrEnumerateEnvironmentBlendModes")
     }
 
     void InitializeSystem() override {
-        CHECK(m_instance != XR_NULL_HANDLE);
-        CHECK(m_systemId == XR_NULL_SYSTEM_ID);
+        CHECK(m_instance != XR_NULL_HANDLE)
+        CHECK(m_systemId == XR_NULL_SYSTEM_ID)
 
         XrSystemGetInfo systemInfo{XR_TYPE_SYSTEM_GET_INFO};
         systemInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
-        CHECK_XRCMD(xrGetSystem(m_instance, &systemInfo, &m_systemId));
+        CHECK_XRCMD(xrGetSystem(m_instance, &systemInfo, &m_systemId))
 
         LOG_INFO("Using system %llu for form factor %s", (unsigned long long) m_systemId,
                  to_string(XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY));
-        CHECK(m_instance != XR_NULL_HANDLE);
-        CHECK(m_systemId != XR_NULL_SYSTEM_ID);
+
+        CHECK(m_systemId != XR_NULL_SYSTEM_ID)
 
         UpdatePreferredBlendMode();
     }
@@ -314,12 +316,12 @@ struct OpenXrProgram : IOpenXrProgram {
     }
 
     void LogReferenceSpaces() {
-        CHECK(m_session != XR_NULL_HANDLE);
+        CHECK(m_session != XR_NULL_HANDLE)
 
         uint32_t spaceCount;
-        CHECK_XRCMD(xrEnumerateReferenceSpaces(m_session, 0, &spaceCount, nullptr));
+        CHECK_XRCMD(xrEnumerateReferenceSpaces(m_session, 0, &spaceCount, nullptr))
         std::vector<XrReferenceSpaceType> spaces(spaceCount);
-        CHECK_XRCMD(xrEnumerateReferenceSpaces(m_session, spaceCount, &spaceCount, spaces.data()));
+        CHECK_XRCMD(xrEnumerateReferenceSpaces(m_session, spaceCount, &spaceCount, spaces.data()))
 
         LOG_INFO("Available reference spaces: %d", spaceCount);
         for (auto space: spaces) {
@@ -339,7 +341,7 @@ struct OpenXrProgram : IOpenXrProgram {
             strcpy(actionSetInfo.actionSetName, "gameplay");
             strcpy(actionSetInfo.localizedActionSetName, "Gameplay");
             actionSetInfo.priority = 0;
-            CHECK_XRCMD(xrCreateActionSet(m_instance, &actionSetInfo, &m_input.actionSet));
+            CHECK_XRCMD(xrCreateActionSet(m_instance, &actionSetInfo, &m_input.actionSet))
         }
 
         // Bind actions
@@ -350,18 +352,18 @@ struct OpenXrProgram : IOpenXrProgram {
             strcpy(actionInfo.localizedActionName, "Quit Session");
             actionInfo.countSubactionPaths = 0;
             actionInfo.subactionPaths = nullptr;
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.quitAction));
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.quitAction))
         }
 
-        std::array<XrPath, Side::COUNT> menuClickPath;
+        std::array<XrPath, Side::COUNT> menuClickPath{};
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/menu/click",
-                                   &menuClickPath[Side::RIGHT]));
+                                   &menuClickPath[Side::RIGHT]))
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/menu/click",
-                                   &menuClickPath[Side::LEFT]));
+                                   &menuClickPath[Side::LEFT]))
         {
             XrPath khrSimpleInteractionProfilePath;
             CHECK_XRCMD(xrStringToPath(m_instance, "/interaction_profiles/khr/simple_controller",
-                                       &khrSimpleInteractionProfilePath));
+                                       &khrSimpleInteractionProfilePath))
             std::vector<XrActionSuggestedBinding> bindings{
                     {
                             {m_input.quitAction, menuClickPath[Side::LEFT]},
@@ -373,13 +375,13 @@ struct OpenXrProgram : IOpenXrProgram {
             suggestedBindings.interactionProfile = khrSimpleInteractionProfilePath;
             suggestedBindings.suggestedBindings = bindings.data();
             suggestedBindings.countSuggestedBindings = (uint32_t) bindings.size();
-            CHECK_XRCMD(xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings));
+            CHECK_XRCMD(xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings))
         }
 
         {
             XrPath oculusTouchInteractionProfilePath;
             CHECK_XRCMD(xrStringToPath(m_instance, "/interaction_profiles/oculus/touch_controller",
-                                       &oculusTouchInteractionProfilePath));
+                                       &oculusTouchInteractionProfilePath))
             std::vector<XrActionSuggestedBinding> bindings{
                     {
                             {m_input.quitAction, menuClickPath[Side::LEFT]},
@@ -390,17 +392,17 @@ struct OpenXrProgram : IOpenXrProgram {
             suggestedBindings.interactionProfile = oculusTouchInteractionProfilePath;
             suggestedBindings.suggestedBindings = bindings.data();
             suggestedBindings.countSuggestedBindings = (uint32_t) bindings.size();
-            CHECK_XRCMD(xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings));
+            CHECK_XRCMD(xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings))
         }
 
         XrSessionActionSetsAttachInfo attachInfo{XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};
         attachInfo.countActionSets = 1;
         attachInfo.actionSets = &m_input.actionSet;
-        CHECK_XRCMD(xrAttachSessionActionSets(m_session, &attachInfo));
+        CHECK_XRCMD(xrAttachSessionActionSets(m_session, &attachInfo))
     }
 
     void CreateVisualizedSpaces() {
-        CHECK(m_session != XR_NULL_HANDLE);
+        CHECK(m_session != XR_NULL_HANDLE)
 
         std::string visualizedSpaces[] = {
                 "ViewFront", "Local", "Stage", "StageLeft", "StageRight",
@@ -422,15 +424,15 @@ struct OpenXrProgram : IOpenXrProgram {
     }
 
     void InitializeSession() override {
-        CHECK(m_instance != XR_NULL_HANDLE);
-        CHECK(m_session == XR_NULL_HANDLE);
+        CHECK(m_instance != XR_NULL_HANDLE)
+        CHECK(m_session == XR_NULL_HANDLE)
 
         {
             LOG_INFO("Creating session...");
             XrSessionCreateInfo createInfo{XR_TYPE_SESSION_CREATE_INFO};
             createInfo.next = m_graphicsPlugin->GetGraphicsBinding();
             createInfo.systemId = m_systemId;
-            CHECK_XRCMD(xrCreateSession(m_instance, &createInfo, &m_session));
+            CHECK_XRCMD(xrCreateSession(m_instance, &createInfo, &m_session))
         }
 
         LogReferenceSpaces();
@@ -440,18 +442,18 @@ struct OpenXrProgram : IOpenXrProgram {
         {
             XrReferenceSpaceCreateInfo referenceSpaceCreateInfo
                     = GetXrReferenceSpaceCreateInfo("Local");
-            CHECK_XRCMD(xrCreateReferenceSpace(m_session, &referenceSpaceCreateInfo, &m_appSpace));
+            CHECK_XRCMD(xrCreateReferenceSpace(m_session, &referenceSpaceCreateInfo, &m_appSpace))
         }
     }
 
     void CreateSwapchains() override {
-        CHECK(m_session != XR_NULL_HANDLE);
-        CHECK(m_swapchains.empty());
-        CHECK(m_configViews.empty());
+        CHECK(m_session != XR_NULL_HANDLE)
+        CHECK(m_swapchains.empty())
+        CHECK(m_configViews.empty())
 
         // REad graphics properties for preferred swapchain length and logging
         XrSystemProperties systemProperties{XR_TYPE_SYSTEM_PROPERTIES};
-        CHECK_XRCMD(xrGetSystemProperties(m_instance, m_systemId, &systemProperties));
+        CHECK_XRCMD(xrGetSystemProperties(m_instance, m_systemId, &systemProperties))
 
         // Log system properties
         LOG_INFO("System Properties: Name=%s VendorId=%d", systemProperties.systemName,
@@ -469,11 +471,11 @@ struct OpenXrProgram : IOpenXrProgram {
         uint32_t viewCount;
         CHECK_XRCMD(xrEnumerateViewConfigurationViews(
                 m_instance, m_systemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,
-                0, &viewCount, nullptr));
+                0, &viewCount, nullptr))
         m_configViews.resize(viewCount, {XR_TYPE_VIEW_CONFIGURATION_VIEW});
         CHECK_XRCMD(xrEnumerateViewConfigurationViews(
                 m_instance, m_systemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,
-                viewCount, &viewCount, m_configViews.data()));
+                viewCount, &viewCount, m_configViews.data()))
 
 
         // Create and cache view buffer for xrLocateViews later.
@@ -481,11 +483,11 @@ struct OpenXrProgram : IOpenXrProgram {
 
         if (viewCount > 0) {
             uint32_t swapchainFormatCount;
-            CHECK_XRCMD(xrEnumerateSwapchainFormats(m_session, 0, &swapchainFormatCount, nullptr));
+            CHECK_XRCMD(xrEnumerateSwapchainFormats(m_session, 0, &swapchainFormatCount, nullptr))
             std::vector<int64_t> swapchainFormats(swapchainFormatCount);
             CHECK_XRCMD(xrEnumerateSwapchainFormats(m_session, swapchainFormatCount,
                                                     &swapchainFormatCount,
-                                                    swapchainFormats.data()));
+                                                    swapchainFormats.data()))
             m_colorSwapchainFormat = m_graphicsPlugin->SelectColorSwapchainFormat(swapchainFormats);
 
             // Print swapchain formats and the selected one
@@ -525,19 +527,19 @@ struct OpenXrProgram : IOpenXrProgram {
                         vp);
                 swapchainCreateInfo.usageFlags =
                         XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
-                Swapchain swapchain;
-                swapchain.width = swapchainCreateInfo.width;
-                swapchain.height = swapchainCreateInfo.height;
-                CHECK_XRCMD(xrCreateSwapchain(m_session, &swapchainCreateInfo, &swapchain.handle));
+                Swapchain swapchain{};
+                swapchain.width = static_cast<int32_t>(swapchainCreateInfo.width);
+                swapchain.height = static_cast<int32_t>(swapchainCreateInfo.height);
+                CHECK_XRCMD(xrCreateSwapchain(m_session, &swapchainCreateInfo, &swapchain.handle))
 
                 m_swapchains.push_back(swapchain);
                 uint32_t imageCount;
-                CHECK_XRCMD(xrEnumerateSwapchainImages(swapchain.handle, 0, &imageCount, nullptr));
+                CHECK_XRCMD(xrEnumerateSwapchainImages(swapchain.handle, 0, &imageCount, nullptr))
                 std::vector<XrSwapchainImageBaseHeader *> swapchainImages =
                         m_graphicsPlugin->AllocateSwapchainImageStructs(imageCount,
                                                                         swapchainCreateInfo);
                 CHECK_XRCMD(xrEnumerateSwapchainImages(swapchain.handle, imageCount, &imageCount,
-                                                       swapchainImages[0]));
+                                                       swapchainImages[0]))
                 m_swapchainImages.insert(
                         std::make_pair(swapchain.handle, std::move(swapchainImages)));
             }
@@ -545,12 +547,12 @@ struct OpenXrProgram : IOpenXrProgram {
     }
 
     const XrEventDataBaseHeader *TryReadNextEvent() {
-        XrEventDataBaseHeader *baseHeader = reinterpret_cast<XrEventDataBaseHeader *>(&m_eventDataBuffer);
+        auto *baseHeader = reinterpret_cast<XrEventDataBaseHeader *>(&m_eventDataBuffer);
         *baseHeader = {XR_TYPE_EVENT_DATA_BUFFER};
         const XrResult xr = xrPollEvent(m_instance, &m_eventDataBuffer);
         if (xr == XR_SUCCESS) {
             if (baseHeader->type == XR_TYPE_EVENT_DATA_EVENTS_LOST) {
-                const XrEventDataEventsLost *const eventsLost = reinterpret_cast<const XrEventDataEventsLost *>(baseHeader);
+                const auto *const eventsLost = reinterpret_cast<const XrEventDataEventsLost *>(baseHeader);
                 LOG_INFO("%d events lost", eventsLost->lostEventCount);
             }
             return baseHeader;
@@ -558,7 +560,7 @@ struct OpenXrProgram : IOpenXrProgram {
         if (xr == XR_EVENT_UNAVAILABLE) {
             return nullptr;
         }
-        THROW_XR(xr, "xrPollEvent");
+        THROW_XR(xr, "xrPollEvent")
     }
 
     void PollEvents(bool *exitRenderLoop, bool *requestRestart) override {
@@ -610,17 +612,17 @@ struct OpenXrProgram : IOpenXrProgram {
 
         switch (m_sessionState) {
             case XR_SESSION_STATE_READY: {
-                CHECK(m_session != XR_NULL_HANDLE);
+                CHECK(m_session != XR_NULL_HANDLE)
                 XrSessionBeginInfo sessionBeginInfo{XR_TYPE_SESSION_BEGIN_INFO};
                 sessionBeginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
-                CHECK_XRCMD(xrBeginSession(m_session, &sessionBeginInfo));
+                CHECK_XRCMD(xrBeginSession(m_session, &sessionBeginInfo))
                 m_sessionRunning = true;
                 break;
             }
             case XR_SESSION_STATE_STOPPING: {
-                CHECK(m_session != XR_NULL_HANDLE);
+                CHECK(m_session != XR_NULL_HANDLE)
                 m_sessionRunning = false;
-                CHECK_XRCMD(xrEndSession(m_session));
+                CHECK_XRCMD(xrEndSession(m_session))
                 break;
             }
             case XR_SESSION_STATE_EXITING: {
@@ -643,10 +645,10 @@ struct OpenXrProgram : IOpenXrProgram {
                 XR_TYPE_BOUND_SOURCES_FOR_ACTION_ENUMERATE_INFO};
         getInfo.action = action;
         uint32_t pathCount = 0;
-        CHECK_XRCMD(xrEnumerateBoundSourcesForAction(m_session, &getInfo, 0, &pathCount, nullptr));
+        CHECK_XRCMD(xrEnumerateBoundSourcesForAction(m_session, &getInfo, 0, &pathCount, nullptr))
         std::vector<XrPath> paths(pathCount);
         CHECK_XRCMD(xrEnumerateBoundSourcesForAction(m_session, &getInfo, uint32_t(paths.size()),
-                                                     &pathCount, paths.data()));
+                                                     &pathCount, paths.data()))
 
         std::string sourceName;
         for (uint32_t i = 0; i < pathCount; ++i) {
@@ -660,11 +662,11 @@ struct OpenXrProgram : IOpenXrProgram {
             nameInfo.whichComponents = all;
 
             uint32_t size = 0;
-            CHECK_XRCMD(xrGetInputSourceLocalizedName(m_session, &nameInfo, 0, &size, nullptr));
+            CHECK_XRCMD(xrGetInputSourceLocalizedName(m_session, &nameInfo, 0, &size, nullptr))
             std::vector<char> grabSource(size);
             CHECK_XRCMD(
                     xrGetInputSourceLocalizedName(m_session, &nameInfo, uint32_t(grabSource.size()),
-                                                  &size, grabSource.data()));
+                                                  &size, grabSource.data()))
             if (!sourceName.empty()) {
                 sourceName += " and ";
             }
@@ -686,27 +688,27 @@ struct OpenXrProgram : IOpenXrProgram {
         XrActionsSyncInfo syncInfo{XR_TYPE_ACTIONS_SYNC_INFO};
         syncInfo.countActiveActionSets = 1;
         syncInfo.activeActionSets = &activeActionSet;
-        CHECK_XRCMD(xrSyncActions(m_session, &syncInfo));
+        CHECK_XRCMD(xrSyncActions(m_session, &syncInfo))
 
         XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.quitAction,
                                      XR_NULL_PATH};
         XrActionStateBoolean quitValue{XR_TYPE_ACTION_STATE_BOOLEAN};
-        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &quitValue));
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &quitValue))
         if ((quitValue.isActive == XR_TRUE) && (quitValue.changedSinceLastSync == XR_TRUE) &&
             (quitValue.currentState == XR_TRUE)) {
-            CHECK_XRCMD(xrRequestExitSession(m_session));
+            CHECK_XRCMD(xrRequestExitSession(m_session))
         }
     }
 
     void RenderFrame() override {
-        CHECK(m_session != XR_NULL_HANDLE);
+        CHECK(m_session != XR_NULL_HANDLE)
 
         XrFrameWaitInfo frameWaitInfo{XR_TYPE_FRAME_WAIT_INFO};
         XrFrameState frameState{XR_TYPE_FRAME_STATE};
-        CHECK_XRCMD(xrWaitFrame(m_session, &frameWaitInfo, &frameState));
+        CHECK_XRCMD(xrWaitFrame(m_session, &frameWaitInfo, &frameState))
 
         XrFrameBeginInfo frameBeginInfo{XR_TYPE_FRAME_BEGIN_INFO};
-        CHECK_XRCMD(xrBeginFrame(m_session, &frameBeginInfo));
+        CHECK_XRCMD(xrBeginFrame(m_session, &frameBeginInfo))
 
         std::vector<XrCompositionLayerBaseHeader *> layers;
         XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
@@ -722,7 +724,7 @@ struct OpenXrProgram : IOpenXrProgram {
         frameEndInfo.environmentBlendMode = m_preferredBlendMode;
         frameEndInfo.layerCount = (uint32_t) layers.size();
         frameEndInfo.layers = layers.data();
-        CHECK_XRCMD(xrEndFrame(m_session, &frameEndInfo));
+        CHECK_XRCMD(xrEndFrame(m_session, &frameEndInfo))
     }
 
     bool RenderLayer(XrTime predictedDisplayTime,
@@ -731,7 +733,7 @@ struct OpenXrProgram : IOpenXrProgram {
         XrResult res;
 
         XrViewState viewState{XR_TYPE_VIEW_STATE};
-        uint32_t viewCapacityInput = (uint32_t) m_views.size();
+        auto viewCapacityInput = (uint32_t) m_views.size();
         uint32_t viewCountOutput;
 
         XrViewLocateInfo viewLocateInfo{XR_TYPE_VIEW_LOCATE_INFO};
@@ -741,15 +743,15 @@ struct OpenXrProgram : IOpenXrProgram {
 
         res = xrLocateViews(m_session, &viewLocateInfo, &viewState, viewCapacityInput,
                             &viewCountOutput, m_views.data());
-        CHECK_XRRESULT(res, "xrLocateViews");
+        CHECK_XRRESULT(res, "xrLocateViews")
         if ((viewState.viewStateFlags & XR_VIEW_STATE_POSITION_VALID_BIT) == 0 ||
             (viewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT) == 0) {
             return false;
         }
 
-        CHECK(viewCountOutput == viewCapacityInput);
-        CHECK(viewCountOutput == m_configViews.size());
-        CHECK(viewCountOutput == m_swapchains.size());
+        CHECK(viewCountOutput == viewCapacityInput)
+        CHECK(viewCountOutput == m_configViews.size())
+        CHECK(viewCountOutput == m_swapchains.size())
 
         projectionLayerViews.resize(viewCountOutput);
 
@@ -758,7 +760,7 @@ struct OpenXrProgram : IOpenXrProgram {
         for (XrSpace visualizedSpace: m_visualizedSpaces) {
             XrSpaceLocation spaceLocation{XR_TYPE_SPACE_LOCATION};
             res = xrLocateSpace(visualizedSpace, m_appSpace, predictedDisplayTime, &spaceLocation);
-            CHECK_XRRESULT(res, "xrLocateSpace");
+            CHECK_XRRESULT(res, "xrLocateSpace")
             if (XR_UNQUALIFIED_SUCCESS(res)) {
                 if ((spaceLocation.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
                     (spaceLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
@@ -777,11 +779,11 @@ struct OpenXrProgram : IOpenXrProgram {
 
             uint32_t swapchainImageIndex;
             CHECK_XRCMD(xrAcquireSwapchainImage(viewSwapchain.handle, &acquireInfo,
-                                                &swapchainImageIndex));
+                                                &swapchainImageIndex))
 
             XrSwapchainImageWaitInfo waitInfo{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
             waitInfo.timeout = XR_INFINITE_DURATION;
-            CHECK_XRCMD(xrWaitSwapchainImage(viewSwapchain.handle, &waitInfo));
+            CHECK_XRCMD(xrWaitSwapchainImage(viewSwapchain.handle, &waitInfo))
 
             projectionLayerViews[i] = {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
             projectionLayerViews[i].pose = m_views[i].pose;
@@ -796,7 +798,7 @@ struct OpenXrProgram : IOpenXrProgram {
                                          m_colorSwapchainFormat, cubes);
 
             XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-            CHECK_XRCMD(xrReleaseSwapchainImage(viewSwapchain.handle, &releaseInfo));
+            CHECK_XRCMD(xrReleaseSwapchainImage(viewSwapchain.handle, &releaseInfo))
         }
 
         layer.space = m_appSpace;
@@ -832,7 +834,7 @@ private:
     XrSessionState m_sessionState{XR_SESSION_STATE_UNKNOWN};
     bool m_sessionRunning{false};
 
-    XrEventDataBuffer m_eventDataBuffer;
+    XrEventDataBuffer m_eventDataBuffer{};
     InputState m_input;
 
     const std::set<XrEnvironmentBlendMode> m_acceptableBlendModes;
