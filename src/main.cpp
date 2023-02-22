@@ -7,6 +7,8 @@
 #include "program.h"
 #include <gst/gst.h>
 #include <gio/gio.h>
+#include "BS_thread_pool.hpp"
+#include "gstreamer_player.h"
 
 void android_main(struct android_app *app) {
     try {
@@ -49,7 +51,9 @@ void android_main(struct android_app *app) {
         program->InitializeSession();
         program->CreateSwapchains();
 
-        auto str = gst_version_string();
+        BS::thread_pool threadPool;
+        GstreamerPlayer gstreamerPlayer{threadPool};
+        gstreamerPlayer.play();
 
         while (!app->destroyRequested) {
             for (;;) {
