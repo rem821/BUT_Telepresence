@@ -8,6 +8,8 @@ add_definitions(-DXR_USE_GRAPHICS_API_OPENGL_ES)
 add_definitions(-Werror)
 
 set(GSTREAMER_ROOT ${GSTREAMER_SDK_DIR}/${ANDROID_ABI})
+set(ENV{GST_PLUGIN_PATH} "${GSTREAMER_ROOT}/lib/gstreamer-1.0")
+set(ENV{GST_REGISTRY} "${GSTREAMER_ROOT}/registry.bin")
 
 find_library(ANDROID_LIBRARY NAMES android)
 find_library(ANDROID_LOG_LIBRARY NAMES log)
