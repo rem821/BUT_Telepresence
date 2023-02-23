@@ -1,5 +1,7 @@
+#include "pch.h"
 #include <gst/gst.h>
 #include <gio/gio.h>
+#include "log.h"
 #include "BS_thread_pool.hpp"
 
 #pragma once
