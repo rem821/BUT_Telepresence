@@ -24,14 +24,11 @@ private:
     static void stateChangedCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
     static void errorCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
 
-    GstElement* pipeline_{};
-    GMainContext* context_{};
-    GMainLoop* mainLoop_{};
-    GstElement* videoSink_{};
-
-    pthread_t gstThread_{};
+    GstElement *pipeline_{};
+    GMainContext *context_{};
+    GMainLoop *mainLoop_{};
 
     bool isInitialized_ = false;
 
-    GstreamerFrame *gstreamerFrame_{};
+    GstreamerFrame gstreamerFrame_{};
 };

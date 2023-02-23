@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.10)
-project(but_telepresence)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -46,7 +45,7 @@ link_directories(
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0)
 
 add_library(
-        ${PROJECT_NAME} SHARED
+        but_telepresence SHARED
 
         src/gpu_window.cpp
         src/graphics_plugin_opengles.cpp
@@ -58,22 +57,14 @@ add_library(
         $<TARGET_OBJECTS:android_native_app_glue>
 )
 
-SET(GST_LIBS gstreamer-1.0 gmodule-2.0 gobject-2.0 glib-2.0 iconv intl ffi)
-SET(GST_PLUGINS_CORE_LIBS gstaudioresample gstaudiotestsrc gstaudioconvert)
-SET(GST_PLUGINS_BASE gstautodetect gstallocators-1.0
-        orc-test-0.4 gstapp-1.0 gstaudio-1.0 gstfft-1.0
-        gstpbutils-1.0 gstriff-1.0 gstrtp-1.0 gstrtsp-1.0
-        gstsdp-1.0 gsttag-1.0 gstvideo-1.0 gstgl-1.0 orc-0.4
-        gstopensles OpenSLES gstaudio-1.0 gstbase-1.0 gstplayback)
+set(GSTREAMER_LIBRARIES "${GSTREAMER_ROOT}/lib/libgstreamer_android.so")
 
 target_link_libraries(
-        ${PROJECT_NAME}
+        but_telepresence
         openxr_loader
         ${ANDROID_LIBRARY}
         ${ANDROID_LOG_LIBRARY}
         ${EGL_LIBRARY}
         ${OpenGLES_V3_LIBRARY}
-        ${GST_LIBS}
-        ${GST_PLUGINS_CORE_LIBS}
-        ${GST_PLUGINS_BASE}
+        ${GSTREAMER_LIBRARIES}
 )

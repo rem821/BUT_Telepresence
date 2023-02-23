@@ -3,7 +3,6 @@
 
 GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
     gst_init(nullptr, nullptr);
-
     GST_DEBUG_CATEGORY_INIT(GST_CAT_DEFAULT, "BUT_Telepresence", 0,
                             "Telepresence system for robots made by BUT");
     gst_debug_set_threshold_for_name("BUT_Telepresence", GST_LEVEL_LOG);
@@ -18,8 +17,8 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
     /* Build pipeline */
     //pipeline_ = gst_parse_launch("rtspsrc location=rtsp://192.168.1.239:8554/left ! application/x-rtp,encoding-name=H264,payload=96 ! rtph264depay ! decodebin ! videoconvert ! video/x-raw,width=1920,height=1080,format=RGBA ! appsink emit-signals=true name=wallesink sync=false", &error);
     //pipeline_ = gst_parse_launch("rtspsrc location=rtsp://192.168.1.239:8556/right ! application/x-rtp,encoding-name=H264,payload=96 ! decodebin ! videoconvert ! video/x-raw,width=1920,height=1080,format=RGBA ! appsink emit-signals=true name=wallesink sync=false", &error);
-    pipeline_ = gst_parse_launch("playbin uri=https://www.freedesktop.org/software/gstreamer-sdk/data/media/sintel_trailer-480p.webm ! appsink emit-signals=true name=telepresencesink",&error);
-    //pipeline_ = gst_parse_launch("videotestsrc pattern=ball ! video/x-raw,width=1920,height=1080,format=RGBA ! appsink emit-signals=true name=telepresencesink", &error);
+    //pipeline_ = gst_parse_launch("playbin uri=https://www.freedesktop.org/software/gstreamer-sdk/data/media/sintel_trailer-480p.webm ! appsink emit-signals=true name=telepresencesink",&error);
+    pipeline_ = gst_parse_launch("videotestsrc pattern=ball ! video/x-raw,width=1920,height=1080,format=RGBA ! appsink emit-signals=true name=telepresencesink", &error);
 
     if (error) {
         std::cout << "Unable to build pipeline: " << error->message << std::endl;
@@ -40,7 +39,7 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
     g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback,
                      pipeline_);
     g_signal_connect(G_OBJECT(appsink), "new-sample", (GCallback) newFrameCallback,
-                     gstreamerFrame_);
+                     &gstreamerFrame_);
     gst_object_unref(bus);
 
     /* Create a GLib Main Loop and set it to run */
@@ -67,7 +66,7 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GstreamerFrame
         std::cout << "GStreamer new frame arrived!" << std::endl;
 
         GstBuffer *buffer;
-        GstMapInfo mapInfo;
+        GstMapInfo mapInfo{};
 
         buffer = gst_sample_get_buffer(sample);
         gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
