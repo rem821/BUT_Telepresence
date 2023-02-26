@@ -1,9 +1,13 @@
+
 #include "pch.h"
 #include "log.h"
 #include "check.h"
 #include "graphics_plugin.h"
 #include "platform_plugin.h"
+#include "BS_thread_pool.hpp"
+#include "gstreamer_player.h"
 #include "program.h"
+
 
 #include <utility>
 
@@ -446,12 +450,16 @@ struct OpenXrProgram : IOpenXrProgram {
         }
     }
 
+    void InitializeStreaming() override {
+        gstreamerPlayer.play();
+    }
+
     void CreateSwapchains() override {
         CHECK(m_session != XR_NULL_HANDLE)
         CHECK(m_swapchains.empty())
         CHECK(m_configViews.empty())
 
-        // REad graphics properties for preferred swapchain length and logging
+        // Read graphics properties for preferred swapchain length and logging
         XrSystemProperties systemProperties{XR_TYPE_SYSTEM_PROPERTIES};
         CHECK_XRCMD(xrGetSystemProperties(m_instance, m_systemId, &systemProperties))
 
@@ -755,20 +763,20 @@ struct OpenXrProgram : IOpenXrProgram {
 
         projectionLayerViews.resize(viewCountOutput);
 
-        std::vector<Cube> cubes;
+        Quad quad{};
 
-        for (XrSpace visualizedSpace: m_visualizedSpaces) {
-            XrSpaceLocation spaceLocation{XR_TYPE_SPACE_LOCATION};
-            res = xrLocateSpace(visualizedSpace, m_appSpace, predictedDisplayTime, &spaceLocation);
-            CHECK_XRRESULT(res, "xrLocateSpace")
-            if (XR_UNQUALIFIED_SUCCESS(res)) {
-                if ((spaceLocation.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
-                    (spaceLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
-                    cubes.push_back(Cube{spaceLocation.pose, {0.25f, 0.25f, 0.25f}});
-                }
-            } else {
-                LOG_INFO("Unable to locate a visualized reference space in app space: %d", res);
+        XrSpaceLocation spaceLocation{XR_TYPE_SPACE_LOCATION};
+
+        // Locate "ViewFront" space
+        res = xrLocateSpace(m_visualizedSpaces[0], m_appSpace, predictedDisplayTime, &spaceLocation);
+        CHECK_XRRESULT(res, "xrLocateSpace")
+        if (XR_UNQUALIFIED_SUCCESS(res)) {
+            if ((spaceLocation.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
+                (spaceLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
+                quad = Quad{spaceLocation.pose, {3.556f, 2.0f, 0.0f}};
             }
+        } else {
+            LOG_INFO("Unable to locate a visualized reference space in app space: %d", res);
         }
 
         // Render view to the appropriate part of the swapchain image.
@@ -795,7 +803,7 @@ struct OpenXrProgram : IOpenXrProgram {
 
             const XrSwapchainImageBaseHeader *const swapchainImage = m_swapchainImages[viewSwapchain.handle][swapchainImageIndex];
             m_graphicsPlugin->RenderView(projectionLayerViews[i], swapchainImage,
-                                         m_colorSwapchainFormat, cubes);
+                                         m_colorSwapchainFormat, quad, gstreamerPlayer.getFrame().dataHandle);
 
             XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
             CHECK_XRCMD(xrReleaseSwapchainImage(viewSwapchain.handle, &releaseInfo))
@@ -815,6 +823,9 @@ struct OpenXrProgram : IOpenXrProgram {
 private:
     std::shared_ptr<IPlatformPlugin> m_platformPlugin;
     std::shared_ptr<IGraphicsPlugin> m_graphicsPlugin;
+
+    BS::thread_pool threadPool;
+    GstreamerPlayer gstreamerPlayer{threadPool};
 
     XrSpace m_appSpace{XR_NULL_HANDLE};
     XrInstance m_instance{XR_NULL_HANDLE};

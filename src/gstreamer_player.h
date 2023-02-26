@@ -11,7 +11,7 @@ class GstreamerPlayer {
 public:
     struct GstreamerFrame {
         unsigned long memorySize;
-        void* dataHandle;
+        void *dataHandle;
     };
 
     GstreamerPlayer(BS::thread_pool &threadPool);
@@ -20,11 +20,25 @@ public:
 
     void play();
 
+    GstreamerFrame getFrame() const { return gstreamerFrame_; }
+
 private:
 
     static GstFlowReturn newFrameCallback(GstElement *sink, GstreamerFrame *frame);
+
     static void stateChangedCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
+
+    static void infoCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
+
+    static void warningCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
+
     static void errorCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
+
+    void dumpGstreamerFeatures();
+
+    static gboolean printGstreamerFeature(const GstPluginFeature *feature, gpointer user_data);
+
+    static void *YUV420toRGB(void *image);
 
     GstElement *pipeline_{};
     GMainContext *context_{};

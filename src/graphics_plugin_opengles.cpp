@@ -13,27 +13,30 @@
 // The version statement has come on first line.
 static const char *VertexShaderGlsl = R"_(#version 320 es
 
-    in vec3 VertexPos;
-    in vec3 VertexColor;
+    in vec3 position;
+    in lowp vec2 texCoord;
 
-    out vec3 PSVertexColor;
+    out lowp vec2 v_TexCoord;
 
-    uniform mat4 ModelViewProjection;
+    uniform mat4 u_ModelViewProjection;
 
     void main() {
-       gl_Position = ModelViewProjection * vec4(VertexPos, 1.0);
-       PSVertexColor = VertexColor;
+       gl_Position = u_ModelViewProjection * vec4(position, 1.0);
+       v_TexCoord = texCoord;
     }
     )_";
 
 // The version statement has come on first line.
 static const char *FragmentShaderGlsl = R"_(#version 320 es
 
-    in lowp vec3 PSVertexColor;
-    out lowp vec4 FragColor;
+    in lowp vec2 v_TexCoord;
+
+    out lowp vec4 color;
+
+    uniform sampler2D u_Texture;
 
     void main() {
-       FragColor = vec4(PSVertexColor, 1);
+       color = texture(u_Texture, v_TexCoord);
     }
     )_";
 
@@ -119,33 +122,47 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
         glDeleteShader(fragmentShader);
 
         m_modelViewProjectionUniformLocation = glGetUniformLocation(m_program,
-                                                                    "ModelViewProjection");
+                                                                    "u_ModelViewProjection");
+        m_texture2DUniformLocation = glGetUniformLocation(m_program,
+                                                                    "u_Texture");
 
-        m_vertexAttribCoords = glGetAttribLocation(m_program, "VertexPos");
-        m_vertexAttribColor = glGetAttribLocation(m_program, "VertexColor");
+        m_vertexAttribCoords = glGetAttribLocation(m_program, "position");
+        m_vertexAttribTexCoord = glGetAttribLocation(m_program, "texCoord");
 
         glGenBuffers(1, &m_cubeVertexBuffer);
         glBindBuffer(GL_ARRAY_BUFFER, m_cubeVertexBuffer);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(Geometry::c_cubeVertices), Geometry::c_cubeVertices,
+        glBufferData(GL_ARRAY_BUFFER, sizeof(Geometry::c_quadVertices), Geometry::c_quadVertices,
                      GL_STATIC_DRAW);
 
         glGenBuffers(1, &m_cubeIndexBuffer);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_cubeIndexBuffer);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Geometry::c_cubeIndices),
-                     Geometry::c_cubeIndices, GL_STATIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Geometry::c_quadIndices),
+                     Geometry::c_quadIndices, GL_STATIC_DRAW);
 
         glGenVertexArrays(1, &m_vao);
         glBindVertexArray(m_vao);
         glEnableVertexAttribArray(m_vertexAttribCoords);
-        glEnableVertexAttribArray(m_vertexAttribColor);
+        glEnableVertexAttribArray(m_vertexAttribTexCoord);
         glBindBuffer(GL_ARRAY_BUFFER, m_cubeVertexBuffer);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_cubeIndexBuffer);
         glVertexAttribPointer(m_vertexAttribCoords, 3, GL_FLOAT, GL_FALSE, sizeof(Geometry::Vertex),
                               nullptr);
-        glVertexAttribPointer(m_vertexAttribColor, 3, GL_FLOAT, GL_FALSE,
+        glVertexAttribPointer(m_vertexAttribTexCoord, 2, GL_FLOAT, GL_FALSE,
                               sizeof(Geometry::Vertex),
                               reinterpret_cast<const void *>(sizeof(XrVector3f)));
+
+        glGenTextures(1, &m_texture2D);
+        glBindTexture(GL_TEXTURE_2D, m_texture2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1920, 1080, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
+
 
     void CheckShader(GLuint shader) {
         GLint r = 0;
@@ -256,7 +273,7 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
 
     void RenderView(const XrCompositionLayerProjectionView &layerView,
                     const XrSwapchainImageBaseHeader *swapchainImage,
-                    int64_t swapchainFormat, const std::vector<Cube> &cubes) override {
+                    int64_t swapchainFormat, const Quad &quad, const void* image) override {
         CHECK(layerView.subImage.imageArrayIndex == 0)
         (void) swapchainFormat;
 
@@ -302,19 +319,23 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
 
         glBindVertexArray(m_vao);
 
-        for (const Cube &cube: cubes) {
-            XrMatrix4x4f model;
-            XrMatrix4x4f_CreateTranslationRotationScale(&model, &cube.Pose.position,
-                                                        &cube.Pose.orientation, &cube.Scale);
-            XrMatrix4x4f mvp;
-            XrMatrix4x4f_Multiply(&mvp, &vp, &model);
-            glUniformMatrix4fv(static_cast<GLint>(m_modelViewProjectionUniformLocation), 1,
-                               GL_FALSE,
-                               reinterpret_cast<const GLfloat *>(&mvp));
-            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_cubeIndices)),
-                           GL_UNSIGNED_SHORT,
-                           nullptr);
-        }
+        XrMatrix4x4f model;
+        XrMatrix4x4f_CreateTranslationRotationScale(&model, &quad.Pose.position,
+                                                    &quad.Pose.orientation, &quad.Scale);
+        XrMatrix4x4f mvp;
+        XrMatrix4x4f_Multiply(&mvp, &vp, &model);
+        glUniformMatrix4fv(static_cast<GLint>(m_modelViewProjectionUniformLocation), 1,
+                           GL_FALSE,
+                           reinterpret_cast<const GLfloat *>(&mvp));
+        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)),
+                       GL_UNSIGNED_SHORT,
+                       nullptr);
+
+        //glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, m_texture2D);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1920, 1080, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+
+        //glUniform1i(m_texture2DUniformLocation, 0);
 
         glBindVertexArray(0);
         glUseProgram(0);
@@ -330,9 +351,11 @@ private:
 
     GLuint m_swapchainFramebuffer{0};
     GLuint m_program{0};
-    GLuint m_modelViewProjectionUniformLocation{0};
+    GLint m_modelViewProjectionUniformLocation{0};
+    GLint m_texture2DUniformLocation{0};
     GLuint m_vertexAttribCoords{0};
-    GLuint m_vertexAttribColor{0};
+    GLuint m_vertexAttribTexCoord{0};
+    GLuint m_texture2D{0};
     GLuint m_vao{0};
     GLuint m_cubeVertexBuffer{0};
     GLuint m_cubeIndexBuffer{0};
