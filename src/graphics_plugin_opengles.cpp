@@ -22,7 +22,7 @@ static const char *VertexShaderGlsl = R"_(#version 320 es
 
     void main() {
        gl_Position = u_ModelViewProjection * vec4(position, 1.0);
-       v_TexCoord = texCoord;
+       v_TexCoord = vec2(texCoord.s, 1.0 - texCoord.t);
     }
     )_";
 
@@ -272,20 +272,24 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
     }
 
     void separateYUVPlanes(const unsigned char *image) {
-        for (int y = 0; y < textureHeight; y++) {
-            for (int x = 0; x < textureWidth; x++) {
-                yPlane[y * textureWidth + x] = image[y * textureWidth + x];
+        const int width = textureWidth;
+        const int height = textureHeight;
+        const int uvWidth = width / 2;
+        const int uvHeight = height / 2;
 
-                if (x % 2 == 0 && y % 2 == 0) {
-                    uPlane[(y / 2) * (textureWidth / 2) + (x / 2)]
-                            = image[textureWidth * textureHeight + (y / 2) * (textureWidth / 2) +
-                                    (x / 2)];
+        for (int y = 0; y < height; y++) {
+            const int yIdx = y * width;
+            unsigned char* yPtr = yPlane + yIdx;
+            memcpy(yPtr, image + yIdx, width);
+        }
 
-                    vPlane[(y / 2) * (textureWidth / 2) + (x / 2)]
-                            = image[textureWidth * textureHeight * 5 / 4 +
-                                    (y / 2) * (textureWidth / 2) +
-                                    (x / 2)];
-                }
+        if (width % 2 == 0 && height % 2 == 0) {
+            for (int y = 0; y < uvHeight; y++) {
+                const int uvIdx = y * uvWidth;
+                unsigned char* uPtr = uPlane + uvIdx;
+                unsigned char* vPtr = vPlane + uvIdx;
+                memcpy(uPtr, image + width * height + uvIdx, uvWidth);
+                memcpy(vPtr, image + width * height * 5 / 4 + uvIdx, uvWidth);
             }
         }
     }
