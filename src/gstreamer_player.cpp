@@ -7,6 +7,12 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         gst_debug_set_threshold_for_name("BUT_Telepresence", GST_LEVEL_LOG);
         //dumpGstreamerFeatures();
 
+        //Init the GstreamerFrame data structure
+        gstreamerFrame_.memorySize = 1920 * 1080 * 1.5; // Size of single Full HD YUV 4:2:0 frame
+        auto *emptyFrame = new unsigned char[gstreamerFrame_.memorySize];
+        memset(emptyFrame, 0, sizeof(emptyFrame));
+        gstreamerFrame_.dataHandle = (void *) emptyFrame;
+
         GstBus *bus;
         GSource *bus_source;
         GError *error = nullptr;
