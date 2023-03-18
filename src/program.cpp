@@ -802,8 +802,9 @@ struct OpenXrProgram : IOpenXrProgram {
                                                                  viewSwapchain.height};
 
             const XrSwapchainImageBaseHeader *const swapchainImage = m_swapchainImages[viewSwapchain.handle][swapchainImageIndex];
+
             m_graphicsPlugin->RenderView(projectionLayerViews[i], swapchainImage,
-                                         m_colorSwapchainFormat, quad, gstreamerPlayer.getFrame().dataHandle);
+                                         m_colorSwapchainFormat, quad, i == 0 ? gstreamerPlayer.getFrameRight().dataHandle : gstreamerPlayer.getFrameLeft().dataHandle);
 
             XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
             CHECK_XRCMD(xrReleaseSwapchainImage(viewSwapchain.handle, &releaseInfo))

@@ -20,7 +20,8 @@ public:
 
     void play();
 
-    GstreamerFrame getFrame() const { return gstreamerFrame_; }
+    GstreamerFrame getFrameLeft() const { return gstreamerFrameLeft_; }
+    GstreamerFrame getFrameRight() const { return gstreamerFrameRight_; }
 
 private:
 
@@ -40,11 +41,13 @@ private:
 
     static void *YUV420toRGB(void *image);
 
-    GstElement *pipeline_{};
+    GstElement *pipelineLeft_{};
+    GstElement *pipelineRight_{};
     GMainContext *context_{};
     GMainLoop *mainLoop_{};
 
     bool isInitialized_ = false;
 
-    GstreamerFrame gstreamerFrame_{};
+    GstreamerFrame gstreamerFrameLeft_{};
+    GstreamerFrame gstreamerFrameRight_{};
 };

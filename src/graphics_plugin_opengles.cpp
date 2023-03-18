@@ -10,7 +10,6 @@
 #include <GLES3/gl3.h>
 #include <GLES3/gl32.h>
 
-// The version statement has come on first line.
 static const char *VertexShaderGlsl = R"_(#version 320 es
 
     in vec3 position;
@@ -22,11 +21,10 @@ static const char *VertexShaderGlsl = R"_(#version 320 es
 
     void main() {
        gl_Position = u_ModelViewProjection * vec4(position, 1.0);
-       v_TexCoord = vec2(texCoord.s, 1.0 - texCoord.t);
+       v_TexCoord = vec2(texCoord.s, texCoord.t);
     }
     )_";
 
-// The version statement has come on first line.
 static const char *FragmentShaderGlsl = R"_(#version 320 es
     precision highp float;
 
@@ -98,13 +96,9 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
         m_graphicsBinding.context = m_window->m_context;
 
         glEnable(GL_DEBUG_OUTPUT);
-        glDebugMessageCallback(
-                [](GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length,
-                   const GLchar *message, const void *userParam) {
-                    ((OpenGLESGraphicsPlugin *) userParam)->DebugMessageCallback(source, type, id,
-                                                                                 severity, length,
-                                                                                 message);
-                }, this);
+        glDebugMessageCallback([](GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam) {
+            ((OpenGLESGraphicsPlugin *) userParam)->DebugMessageCallback(source, type, id, severity, length, message);
+        }, this);
 
         InitializeResources();
     }
@@ -131,8 +125,7 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
 
-        m_modelViewProjectionUniformLocation = glGetUniformLocation(m_program,
-                                                                    "u_ModelViewProjection");
+        m_modelViewProjectionUniformLocation = glGetUniformLocation(m_program,"u_ModelViewProjection");
         //m_texture2DUniformLocation = glGetUniformLocation(m_program,"u_Texture");
         m_textureYUVUniformLocations.at(0) = glGetUniformLocation(m_program, "u_Texture_Y");
         m_textureYUVUniformLocations.at(1) = glGetUniformLocation(m_program, "u_Texture_U");
@@ -143,13 +136,11 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
 
         glGenBuffers(1, &m_cubeVertexBuffer);
         glBindBuffer(GL_ARRAY_BUFFER, m_cubeVertexBuffer);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(Geometry::c_quadVertices), Geometry::c_quadVertices,
-                     GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(Geometry::c_quadVertices), Geometry::c_quadVertices, GL_STATIC_DRAW);
 
         glGenBuffers(1, &m_cubeIndexBuffer);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_cubeIndexBuffer);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Geometry::c_quadIndices),
-                     Geometry::c_quadIndices, GL_STATIC_DRAW);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Geometry::c_quadIndices), Geometry::c_quadIndices, GL_STATIC_DRAW);
 
         glGenVertexArrays(1, &m_vao);
         glBindVertexArray(m_vao);
@@ -157,11 +148,8 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
         glEnableVertexAttribArray(m_vertexAttribTexCoord);
         glBindBuffer(GL_ARRAY_BUFFER, m_cubeVertexBuffer);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_cubeIndexBuffer);
-        glVertexAttribPointer(m_vertexAttribCoords, 3, GL_FLOAT, GL_FALSE, sizeof(Geometry::Vertex),
-                              nullptr);
-        glVertexAttribPointer(m_vertexAttribTexCoord, 2, GL_FLOAT, GL_FALSE,
-                              sizeof(Geometry::Vertex),
-                              reinterpret_cast<const void *>(sizeof(XrVector3f)));
+        glVertexAttribPointer(m_vertexAttribCoords, 3, GL_FLOAT, GL_FALSE, sizeof(Geometry::Vertex), nullptr);
+        glVertexAttribPointer(m_vertexAttribTexCoord, 2, GL_FLOAT, GL_FALSE, sizeof(Geometry::Vertex), reinterpret_cast<const void *>(sizeof(XrVector3f)));
 
         /*
         // For RGB image
@@ -279,15 +267,15 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
 
         for (int y = 0; y < height; y++) {
             const int yIdx = y * width;
-            unsigned char* yPtr = yPlane + yIdx;
+            unsigned char *yPtr = yPlane + yIdx;
             memcpy(yPtr, image + yIdx, width);
         }
 
         if (width % 2 == 0 && height % 2 == 0) {
             for (int y = 0; y < uvHeight; y++) {
                 const int uvIdx = y * uvWidth;
-                unsigned char* uPtr = uPlane + uvIdx;
-                unsigned char* vPtr = vPlane + uvIdx;
+                unsigned char *uPtr = uPlane + uvIdx;
+                unsigned char *vPtr = vPlane + uvIdx;
                 memcpy(uPtr, image + width * height + uvIdx, uvWidth);
                 memcpy(vPtr, image + width * height * 5 / 4 + uvIdx, uvWidth);
             }
@@ -360,8 +348,7 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
         XrMatrix4x4f_CreateProjectionFov(&proj, layerView.fov, 0.05f, 100.0f);
         XrMatrix4x4f toView;
         XrVector3f scale{1.f, 1.f, 1.f};
-        XrMatrix4x4f_CreateTranslationRotationScale(
-                &toView, &pose.position, &pose.orientation, &scale);
+        XrMatrix4x4f_CreateTranslationRotationScale(&toView, &pose.position, &pose.orientation, &scale);
         XrMatrix4x4f view;
         XrMatrix4x4f_InvertRigidBody(&view, &toView);
         XrMatrix4x4f vp;
@@ -370,16 +357,11 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
         glBindVertexArray(m_vao);
 
         XrMatrix4x4f model;
-        XrMatrix4x4f_CreateTranslationRotationScale(&model, &quad.Pose.position,
-                                                    &quad.Pose.orientation, &quad.Scale);
+        XrMatrix4x4f_CreateTranslationRotationScale(&model, &quad.Pose.position, &quad.Pose.orientation, &quad.Scale);
         XrMatrix4x4f mvp;
         XrMatrix4x4f_Multiply(&mvp, &vp, &model);
-        glUniformMatrix4fv(static_cast<GLint>(m_modelViewProjectionUniformLocation), 1,
-                           GL_FALSE,
-                           reinterpret_cast<const GLfloat *>(&mvp));
-        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)),
-                       GL_UNSIGNED_SHORT,
-                       nullptr);
+        glUniformMatrix4fv(static_cast<GLint>(m_modelViewProjectionUniformLocation), 1, GL_FALSE, reinterpret_cast<const GLfloat *>(&mvp));
+        glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)), GL_UNSIGNED_SHORT, nullptr);
 
         /*
         // For RGB image

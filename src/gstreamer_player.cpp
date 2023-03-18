@@ -8,10 +8,15 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         //dumpGstreamerFeatures();
 
         //Init the GstreamerFrame data structure
-        gstreamerFrame_.memorySize = 1920 * 1080 * 1.5; // Size of single Full HD YUV 4:2:0 frame
-        auto *emptyFrame = new unsigned char[gstreamerFrame_.memorySize];
-        memset(emptyFrame, 0, sizeof(emptyFrame));
-        gstreamerFrame_.dataHandle = (void *) emptyFrame;
+        gstreamerFrameLeft_.memorySize = 1920 * 1080 * 1.5; // Size of single Full HD YUV 4:2:0 frame
+        auto *emptyFrameLeft = new unsigned char[gstreamerFrameLeft_.memorySize];
+        memset(emptyFrameLeft, 0, sizeof(emptyFrameLeft));
+        gstreamerFrameLeft_.dataHandle = (void *) emptyFrameLeft;
+
+        gstreamerFrameRight_.memorySize = 1920 * 1080 * 1.5; // Size of single Full HD YUV 4:2:0 frame
+        auto *emptyFrameRight = new unsigned char[gstreamerFrameLeft_.memorySize];
+        memset(emptyFrameRight, 0, sizeof(emptyFrameRight));
+        gstreamerFrameRight_.dataHandle = (void *) emptyFrameRight;
 
         GstBus *bus;
         GSource *bus_source;
@@ -21,44 +26,54 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         g_main_context_push_thread_default(context_);
 
         /* Build pipeline */
-        pipeline_ = gst_parse_launch(
-                "rtspsrc location=rtsp://192.168.1.239:8554/left latency=0 ! application/x-rtp,encoding-name=H264 ! decodebin3 ! video/x-raw,width=1920,height=1080,format=I420 ! appsink emit-signals=true name=telepresencesink",
+        pipelineLeft_ = gst_parse_launch(
+                "rtspsrc location=rtsp://192.168.1.239:8556/right latency=0 ! application/x-rtp,encoding-name=H264 ! decodebin3 ! video/x-raw,width=1920,height=1080,format=I420 ! appsink emit-signals=true name=leftsink",
                 &error);
-        //pipeline_ = gst_parse_launch(
-        //        "rtspsrc location=rtsp://192.168.1.239:8556/right latency=0 ! application/x-rtp,encoding-name=H264 ! decodebin3 ! video/x-raw,width=1920,height=1080,format=I420 ! appsink emit-signals=true name=telepresencesink",
-        //        &error);
-        //pipeline_ = gst_parse_launch("videotestsrc pattern=snow ! video/x-raw,width=1920,height=1080,format=RGBA ! appsink emit-signals=true name=telepresencesink", &error);
+        pipelineRight_ = gst_parse_launch(
+                "rtspsrc location=rtsp://192.168.1.239:8554/left latency=0 ! application/x-rtp,encoding-name=H264 ! decodebin3 ! video/x-raw,width=1920,height=1080,format=I420 ! videoflip method=rotate-180 ! appsink emit-signals=true name=rightsink",
+                &error);
 
         if (error) {
             LOG_ERROR("Unable to build pipeline");
             throw std::runtime_error("Unable to build pipeline!");
         }
 
-        GstElement *appsink = gst_bin_get_by_name(GST_BIN(pipeline_), "telepresencesink");
-        /* Set the pipeline to READY, so it can already accept a window handle, if we have one */
-        gst_element_set_state(pipeline_, GST_STATE_READY);
+        GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "leftsink");
+        gst_element_set_state(pipelineLeft_, GST_STATE_READY);
 
-        /* Instruct the bus to emit signals for each received message, and connect to the interesting signals */
-        bus = gst_element_get_bus(pipeline_);
+        bus = gst_element_get_bus(pipelineLeft_);
         bus_source = gst_bus_create_watch(bus);
-        g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr,
-                              nullptr);
+        g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
         g_source_attach(bus_source, context_);
         g_source_unref(bus_source);
 
-        g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipeline_);
-        g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipeline_);
-        g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipeline_);
-        g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback,
-                         pipeline_);
-        g_signal_connect(G_OBJECT(appsink), "new-sample", (GCallback) newFrameCallback,
-                         &gstreamerFrame_);
+        g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineLeft_);
+        g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineLeft_);
+        g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineLeft_);
+        g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineLeft_);
+        g_signal_connect(G_OBJECT(leftappsink), "new-sample", (GCallback) newFrameCallback, &gstreamerFrameLeft_);
+        gst_object_unref(bus);
+
+        GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rightsink");
+        gst_element_set_state(pipelineLeft_, GST_STATE_READY);
+
+        bus = gst_element_get_bus(pipelineRight_);
+        bus_source = gst_bus_create_watch(bus);
+        g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
+        g_source_attach(bus_source, context_);
+        g_source_unref(bus_source);
+
+        g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineRight_);
+        g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineRight_);
+        g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineRight_);
+        g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineRight_);
+        g_signal_connect(G_OBJECT(rightappsink), "new-sample", (GCallback) newFrameCallback, &gstreamerFrameRight_);
         gst_object_unref(bus);
 
         /* Create a GLib Main Loop and set it to run */
         LOG_INFO("GStreamer entering the main loop");
         mainLoop_ = g_main_loop_new(context_, FALSE);
-        gst_element_set_state(pipeline_, GST_STATE_PLAYING);
+        play();
 
         g_main_loop_run(mainLoop_);
         LOG_INFO("GStreamer exited the main loop");
@@ -69,7 +84,8 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
 
 void GstreamerPlayer::play() {
     LOG_INFO("GStreamer setting state to PLAYING");
-    gst_element_set_state(pipeline_, GST_STATE_PLAYING);
+    gst_element_set_state(pipelineLeft_, GST_STATE_PLAYING);
+    gst_element_set_state(pipelineRight_, GST_STATE_PLAYING);
 }
 
 GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GstreamerFrame *frame) {
