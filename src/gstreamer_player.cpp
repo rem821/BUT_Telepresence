@@ -27,10 +27,10 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
 
         /* Build pipeline */
         pipelineLeft_ = gst_parse_launch(
-                "rtspsrc location=rtsp://192.168.1.239:8556/right latency=0 ! application/x-rtp,encoding-name=H264 ! decodebin3 ! video/x-raw,width=1920,height=1080,format=I420 ! appsink emit-signals=true name=leftsink",
+                "udpsrc port=8554 ! application/x-rtp,encoding-name=JPEG,payload=26 ! rtpjpegdepay ! jpegdec ! queue ! appsink emit-signals=true name=leftsink",
                 &error);
         pipelineRight_ = gst_parse_launch(
-                "rtspsrc location=rtsp://192.168.1.239:8554/left latency=0 ! application/x-rtp,encoding-name=H264 ! decodebin3 ! video/x-raw,width=1920,height=1080,format=I420 ! videoflip method=rotate-180 ! appsink emit-signals=true name=rightsink",
+                "udpsrc port=8556 ! application/x-rtp,encoding-name=JPEG,payload=26 ! rtpjpegdepay ! jpegdec ! queue ! appsink emit-signals=true name=rightsink",
                 &error);
 
         if (error) {
