@@ -17,29 +17,27 @@ namespace Side {
     const int COUNT = 2;
 }  // namespace Side
 
-namespace Math {
-    namespace Pose {
-        XrPosef Identity() {
-            XrPosef t{};
-            t.orientation.w = 1;
-            return t;
-        }
+namespace Math::Pose {
+    XrPosef Identity() {
+        XrPosef t{};
+        t.orientation.w = 1;
+        return t;
+    }
 
-        XrPosef Translation(const XrVector3f &translation) {
-            XrPosef t = Identity();
-            t.position = translation;
-            return t;
-        }
+    XrPosef Translation(const XrVector3f &translation) {
+        XrPosef t = Identity();
+        t.position = translation;
+        return t;
+    }
 
-        XrPosef RotateCCWAboutYAxis(float radians, XrVector3f translation) {
-            XrPosef t = Identity();
-            t.orientation.x = 0.f;
-            t.orientation.y = std::sin(radians * 0.5f);
-            t.orientation.z = 0.f;
-            t.orientation.w = std::cos(radians * 0.5f);
-            t.position = translation;
-            return t;
-        }
+    XrPosef RotateCCWAboutYAxis(float radians, XrVector3f translation) {
+        XrPosef t = Identity();
+        t.orientation.x = 0.f;
+        t.orientation.y = std::sin(radians * 0.5f);
+        t.orientation.z = 0.f;
+        t.orientation.w = std::cos(radians * 0.5f);
+        t.position = translation;
+        return t;
     }
 }
 
@@ -58,36 +56,28 @@ GetXrReferenceSpaceCreateInfo(const std::string &referenceSpaceTypeStr) {
     } else if (EqualsIgnoreCase(referenceSpaceTypeStr, "Stage")) {
         referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
     } else if (EqualsIgnoreCase(referenceSpaceTypeStr, "StageLeft")) {
-        referenceSpaceCreateInfo.poseInReferenceSpace
-                = Math::Pose::RotateCCWAboutYAxis(0.f, {-2.f, 0.f, -2.f});
+        referenceSpaceCreateInfo.poseInReferenceSpace = Math::Pose::RotateCCWAboutYAxis(0.f, {-2.f, 0.f, -2.f});
         referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
     } else if (EqualsIgnoreCase(referenceSpaceTypeStr, "StageRight")) {
-        referenceSpaceCreateInfo.poseInReferenceSpace
-                = Math::Pose::RotateCCWAboutYAxis(0.f, {2.f, 0.f, -2.f});
+        referenceSpaceCreateInfo.poseInReferenceSpace = Math::Pose::RotateCCWAboutYAxis(0.f, {2.f, 0.f, -2.f});
         referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
     } else if (EqualsIgnoreCase(referenceSpaceTypeStr, "StageLeftRotated")) {
-        referenceSpaceCreateInfo.poseInReferenceSpace
-                = Math::Pose::RotateCCWAboutYAxis(3.14f / 3.f, {-2.f, 0.5f, -2.f});
+        referenceSpaceCreateInfo.poseInReferenceSpace = Math::Pose::RotateCCWAboutYAxis(3.14f / 3.f, {-2.f, 0.5f, -2.f});
         referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
     } else if (EqualsIgnoreCase(referenceSpaceTypeStr, "StageRightRotated")) {
-        referenceSpaceCreateInfo.poseInReferenceSpace
-                = Math::Pose::RotateCCWAboutYAxis(-3.14f / 3.f, {2.f, 0.5f, -2.f});
+        referenceSpaceCreateInfo.poseInReferenceSpace = Math::Pose::RotateCCWAboutYAxis(-3.14f / 3.f, {2.f, 0.5f, -2.f});
         referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
     } else {
-        throw std::invalid_argument(
-                Fmt("Unknown reference space type '%s'", referenceSpaceTypeStr.c_str()));
+        throw std::invalid_argument(Fmt("Unknown reference space type '%s'", referenceSpaceTypeStr.c_str()));
     }
     return referenceSpaceCreateInfo;
 }
 
 
 struct OpenXrProgram : IOpenXrProgram {
-    OpenXrProgram(std::shared_ptr<IPlatformPlugin> platformPlugin,
-                  std::shared_ptr<IGraphicsPlugin> graphicsPlugin)
-            : m_platformPlugin(std::move(platformPlugin)),
-              m_graphicsPlugin(std::move(graphicsPlugin)),
-              m_acceptableBlendModes{XR_ENVIRONMENT_BLEND_MODE_OPAQUE,
-                                     XR_ENVIRONMENT_BLEND_MODE_ADDITIVE,
+    OpenXrProgram(std::shared_ptr<IPlatformPlugin> platformPlugin, std::shared_ptr<IGraphicsPlugin> graphicsPlugin)
+            : m_platformPlugin(std::move(platformPlugin)), m_graphicsPlugin(std::move(graphicsPlugin)),
+              m_acceptableBlendModes{XR_ENVIRONMENT_BLEND_MODE_OPAQUE, XR_ENVIRONMENT_BLEND_MODE_ADDITIVE,
                                      XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND} {}
 
     ~OpenXrProgram() override = default;
@@ -95,25 +85,22 @@ struct OpenXrProgram : IOpenXrProgram {
     static void LogLayersAndExtensions() {
         const auto logExtensions = [](const char *layerName, int indent = 0) {
             uint32_t instanceExtensionCount;
-            CHECK_XRCMD(
-                    xrEnumerateInstanceExtensionProperties(layerName, 0, &instanceExtensionCount,
-                                                           nullptr))
+            CHECK_XRCMD(xrEnumerateInstanceExtensionProperties(layerName, 0, &instanceExtensionCount,
+                                                               nullptr))
 
             std::vector<XrExtensionProperties> extensions(instanceExtensionCount);
             for (XrExtensionProperties &extension: extensions) {
                 extension.type = XR_TYPE_EXTENSION_PROPERTIES;
             }
 
-            CHECK_XRCMD(
-                    xrEnumerateInstanceExtensionProperties(layerName, (uint32_t) extensions.size(),
-                                                           &instanceExtensionCount,
-                                                           extensions.data()))
+            CHECK_XRCMD(xrEnumerateInstanceExtensionProperties(layerName, (uint32_t) extensions.size(),
+                                                               &instanceExtensionCount,
+                                                               extensions.data()))
 
             const std::string indentStr(indent, ' ');
             LOG_INFO("%sAvailable Extensions: (%d)", indentStr.c_str(), instanceExtensionCount);
             for (const XrExtensionProperties &extension: extensions) {
-                LOG_INFO("%s  Name=%s SpecVersion=%d", indentStr.c_str(), extension.extensionName,
-                         extension.extensionVersion);
+                LOG_INFO("%s  Name=%s SpecVersion=%d", indentStr.c_str(), extension.extensionName, extension.extensionVersion);
             }
         };
 
@@ -130,16 +117,12 @@ struct OpenXrProgram : IOpenXrProgram {
                 layer.type = XR_TYPE_API_LAYER_PROPERTIES;
             }
 
-            CHECK_XRCMD(xrEnumerateApiLayerProperties((uint32_t) layers.size(), &layerCount,
-                                                      layers.data()))
+            CHECK_XRCMD(xrEnumerateApiLayerProperties((uint32_t) layers.size(), &layerCount, layers.data()))
 
             LOG_INFO("Available Layers: (%d)", layerCount);
             for (const XrApiLayerProperties &layer: layers) {
-                LOG_INFO(
-                        "  Name=%s SpecVersion=%s LayerVersion=%d Description=%s",
-                        layer.layerName,
-                        GetXrVersionString(layer.specVersion).c_str(), layer.layerVersion,
-                        layer.description);
+                LOG_INFO("  Name=%s SpecVersion=%s LayerVersion=%d Description=%s", layer.layerName,
+                         GetXrVersionString(layer.specVersion).c_str(), layer.layerVersion, layer.description);
                 logExtensions(layer.layerName, 4);
             }
         }
@@ -206,24 +189,20 @@ struct OpenXrProgram : IOpenXrProgram {
         LOG_INFO("Available View Configuration Types: (%d)", viewConfigTypeCount);
         for (auto viewConfigType: viewConfigTypes) {
             LOG_INFO("  View Configuration Type: %s %s", to_string(viewConfigType),
-                     viewConfigType == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO ? "(Selected)"
-                                                                                 : "");
+                     viewConfigType == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO ? "(Selected)" : "");
 
-            XrViewConfigurationProperties viewConfigProperties{
-                    XR_TYPE_VIEW_CONFIGURATION_PROPERTIES};
+            XrViewConfigurationProperties viewConfigProperties{XR_TYPE_VIEW_CONFIGURATION_PROPERTIES};
             CHECK_XRCMD(xrGetViewConfigurationProperties(m_instance, m_systemId, viewConfigType,
                                                          &viewConfigProperties))
 
-            LOG_INFO("  View Configuration FovMutable=%s",
-                     viewConfigProperties.fovMutable == XR_TRUE ? "True" : "False");
+            LOG_INFO("  View Configuration FovMutable=%s", viewConfigProperties.fovMutable == XR_TRUE ? "True" : "False");
 
             uint32_t viewCount;
             CHECK_XRCMD(xrEnumerateViewConfigurationViews(m_instance, m_systemId, viewConfigType, 0,
                                                           &viewCount,
                                                           nullptr))
             if (viewCount > 0) {
-                std::vector<XrViewConfigurationView> views(viewCount,
-                                                           {XR_TYPE_VIEW_CONFIGURATION_VIEW});
+                std::vector<XrViewConfigurationView> views(viewCount, {XR_TYPE_VIEW_CONFIGURATION_VIEW});
                 CHECK_XRCMD(
                         xrEnumerateViewConfigurationViews(m_instance, m_systemId, viewConfigType,
                                                           viewCount,
@@ -305,8 +284,7 @@ struct OpenXrProgram : IOpenXrProgram {
         systemInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
         CHECK_XRCMD(xrGetSystem(m_instance, &systemInfo, &m_systemId))
 
-        LOG_INFO("Using system %llu for form factor %s", (unsigned long long) m_systemId,
-                 to_string(XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY));
+        LOG_INFO("Using system %llu for form factor %s", (unsigned long long) m_systemId, to_string(XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY));
 
         CHECK(m_systemId != XR_NULL_SYSTEM_ID)
 
@@ -336,6 +314,8 @@ struct OpenXrProgram : IOpenXrProgram {
     struct InputState {
         XrActionSet actionSet{XR_NULL_HANDLE};
         XrAction quitAction{XR_NULL_HANDLE};
+        XrAction controllerPoseAction{XR_NULL_HANDLE};
+        XrAction thumbstickAction{XR_NULL_HANDLE};
     };
 
     void InitializeActions() {
@@ -348,22 +328,48 @@ struct OpenXrProgram : IOpenXrProgram {
             CHECK_XRCMD(xrCreateActionSet(m_instance, &actionSetInfo, &m_input.actionSet))
         }
 
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right", &handSubactionPath[Side::RIGHT]))
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left", &handSubactionPath[Side::LEFT]))
+
         // Bind actions
         {
-            XrActionCreateInfo actionInfo{XR_TYPE_ACTION_CREATE_INFO};
-            actionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
-            strcpy(actionInfo.actionName, "quit_session");
-            strcpy(actionInfo.localizedActionName, "Quit Session");
-            actionInfo.countSubactionPaths = 0;
-            actionInfo.subactionPaths = nullptr;
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &actionInfo, &m_input.quitAction))
+            XrActionCreateInfo quitActionInfo{XR_TYPE_ACTION_CREATE_INFO};
+            quitActionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
+            strcpy(quitActionInfo.actionName, "quit_session");
+            strcpy(quitActionInfo.localizedActionName, "Quit Session");
+            quitActionInfo.countSubactionPaths = 0;
+            quitActionInfo.subactionPaths = nullptr;
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &quitActionInfo, &m_input.quitAction))
+
+            XrActionCreateInfo controllerPoseActionInfo{XR_TYPE_ACTION_CREATE_INFO};
+            controllerPoseActionInfo.actionType = XR_ACTION_TYPE_POSE_INPUT;
+            strcpy(controllerPoseActionInfo.actionName, "controller_pose");
+            strcpy(controllerPoseActionInfo.localizedActionName, "Controller Pose");
+            controllerPoseActionInfo.countSubactionPaths = Side::COUNT;
+            controllerPoseActionInfo.subactionPaths = handSubactionPath;
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &controllerPoseActionInfo, &m_input.controllerPoseAction))
+
+            XrActionCreateInfo thumbstickPoseActionInfo{XR_TYPE_ACTION_CREATE_INFO};
+            thumbstickPoseActionInfo.actionType = XR_ACTION_TYPE_VECTOR2F_INPUT;
+            strcpy(thumbstickPoseActionInfo.actionName, "thumbstick");
+            strcpy(thumbstickPoseActionInfo.localizedActionName, "Thumbstick");
+            thumbstickPoseActionInfo.countSubactionPaths = Side::COUNT;
+            thumbstickPoseActionInfo.subactionPaths = handSubactionPath;
+            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &thumbstickPoseActionInfo, &m_input.thumbstickAction))
         }
 
         std::array<XrPath, Side::COUNT> menuClickPath{};
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/menu/click",
-                                   &menuClickPath[Side::RIGHT]))
-        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/menu/click",
-                                   &menuClickPath[Side::LEFT]))
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/menu/click", &menuClickPath[Side::RIGHT]))
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/menu/click", &menuClickPath[Side::LEFT]))
+
+        std::array<XrPath, Side::COUNT> controllerPosePath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/aim/pose", &controllerPosePath[Side::RIGHT]))
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/aim/pose", &controllerPosePath[Side::LEFT]))
+
+        std::array<XrPath, Side::COUNT> thumbstickPosePath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/thumbstick", &thumbstickPosePath[Side::RIGHT]))
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/thumbstick", &thumbstickPosePath[Side::LEFT]))
+
         {
             XrPath khrSimpleInteractionProfilePath;
             CHECK_XRCMD(xrStringToPath(m_instance, "/interaction_profiles/khr/simple_controller",
@@ -371,11 +377,11 @@ struct OpenXrProgram : IOpenXrProgram {
             std::vector<XrActionSuggestedBinding> bindings{
                     {
                             {m_input.quitAction, menuClickPath[Side::LEFT]},
-                            {m_input.quitAction, menuClickPath[Side::RIGHT]},
+                            {m_input.quitAction, menuClickPath[Side::RIGHT]}
                     }
             };
-            XrInteractionProfileSuggestedBinding suggestedBindings{
-                    XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+
+            XrInteractionProfileSuggestedBinding suggestedBindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
             suggestedBindings.interactionProfile = khrSimpleInteractionProfilePath;
             suggestedBindings.suggestedBindings = bindings.data();
             suggestedBindings.countSuggestedBindings = (uint32_t) bindings.size();
@@ -389,15 +395,26 @@ struct OpenXrProgram : IOpenXrProgram {
             std::vector<XrActionSuggestedBinding> bindings{
                     {
                             {m_input.quitAction, menuClickPath[Side::LEFT]},
+                            {m_input.controllerPoseAction, controllerPosePath[Side::LEFT]},
+                            {m_input.controllerPoseAction, controllerPosePath[Side::RIGHT]},
+                            {m_input.thumbstickAction, thumbstickPosePath[Side::LEFT]},
+                            {m_input.thumbstickAction, thumbstickPosePath[Side::RIGHT]},
                     }
             };
-            XrInteractionProfileSuggestedBinding suggestedBindings{
-                    XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+            XrInteractionProfileSuggestedBinding suggestedBindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
             suggestedBindings.interactionProfile = oculusTouchInteractionProfilePath;
             suggestedBindings.suggestedBindings = bindings.data();
             suggestedBindings.countSuggestedBindings = (uint32_t) bindings.size();
             CHECK_XRCMD(xrSuggestInteractionProfileBindings(m_instance, &suggestedBindings))
         }
+
+        XrActionSpaceCreateInfo actionSpaceInfo = {XR_TYPE_ACTION_SPACE_CREATE_INFO};
+        actionSpaceInfo.action = m_input.controllerPoseAction;
+        actionSpaceInfo.poseInActionSpace.orientation.w = 1.0f;
+        actionSpaceInfo.subactionPath = handSubactionPath[Side::LEFT];
+        CHECK_XRCMD(xrCreateActionSpace(m_session, &actionSpaceInfo, &controllerSpace[Side::LEFT]))
+        actionSpaceInfo.subactionPath = handSubactionPath[Side::RIGHT];
+        CHECK_XRCMD(xrCreateActionSpace(m_session, &actionSpaceInfo, &controllerSpace[Side::RIGHT]))
 
         XrSessionActionSetsAttachInfo attachInfo{XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};
         attachInfo.countActionSets = 1;
@@ -698,13 +715,49 @@ struct OpenXrProgram : IOpenXrProgram {
         syncInfo.activeActionSets = &activeActionSet;
         CHECK_XRCMD(xrSyncActions(m_session, &syncInfo))
 
-        XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.quitAction,
-                                     XR_NULL_PATH};
+        XrActionStateGetInfo getQuitInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.quitAction,
+                                         XR_NULL_PATH};
         XrActionStateBoolean quitValue{XR_TYPE_ACTION_STATE_BOOLEAN};
-        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getInfo, &quitValue))
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getQuitInfo, &quitValue))
         if ((quitValue.isActive == XR_TRUE) && (quitValue.changedSinceLastSync == XR_TRUE) &&
             (quitValue.currentState == XR_TRUE)) {
             CHECK_XRCMD(xrRequestExitSession(m_session))
+        }
+
+        //TODO: Thumbstick positions here!
+
+        // Thumbsticks
+        XrActionStateGetInfo getThumbstickRightInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickAction, handSubactionPath[1]};
+        XrActionStateGetInfo getThumbstickLeftInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickAction, handSubactionPath[0]};
+        XrActionStateVector2f thumbstickValue{XR_TYPE_ACTION_STATE_VECTOR2F};
+
+        CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getThumbstickRightInfo, &thumbstickValue))
+        //LOG_INFO("Left thumbstick pose: %f %f", thumbstickValue.currentState.x, thumbstickValue.currentState.y);
+
+        CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getThumbstickLeftInfo, &thumbstickValue))
+        //LOG_INFO("Right thumbstick pose: %f %f", thumbstickValue.currentState.x, thumbstickValue.currentState.y);
+    }
+
+    void PollPoses(XrTime predictedDisplayTime) {
+        const XrActiveActionSet activeActionSet{m_input.actionSet, XR_NULL_PATH};
+        XrActionsSyncInfo syncInfo{XR_TYPE_ACTIONS_SYNC_INFO};
+        syncInfo.countActiveActionSets = 1;
+        syncInfo.activeActionSets = &activeActionSet;
+        CHECK_XRCMD(xrSyncActions(m_session, &syncInfo))
+
+        // Controller poses
+        for (int i = 0; i < Side::COUNT; i++) {
+            XrSpaceVelocity vel = {XR_TYPE_SPACE_VELOCITY};
+            XrSpaceLocation loc = {XR_TYPE_SPACE_LOCATION};
+            loc.next = &vel;
+
+            CHECK_XRCMD(xrLocateSpace(controllerSpace[i], m_appSpace, predictedDisplayTime, &loc))
+            if ((loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
+                //TODO: Controller Pose here!
+//                LOG_INFO("%s controller pose: pos: %f %f %f ori: %f %f %f %f", i == 0 ? "Left" : "Right", loc.pose.position.x,
+//                         loc.pose.position.y, loc.pose.position.z, loc.pose.orientation.x, loc.pose.orientation.y, loc.pose.orientation.z,
+//                         loc.pose.orientation.w);
+            }
         }
     }
 
@@ -717,6 +770,8 @@ struct OpenXrProgram : IOpenXrProgram {
 
         XrFrameBeginInfo frameBeginInfo{XR_TYPE_FRAME_BEGIN_INFO};
         CHECK_XRCMD(xrBeginFrame(m_session, &frameBeginInfo))
+
+        PollPoses(frameState.predictedDisplayTime);
 
         std::vector<XrCompositionLayerBaseHeader *> layers;
         XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
@@ -735,8 +790,7 @@ struct OpenXrProgram : IOpenXrProgram {
         CHECK_XRCMD(xrEndFrame(m_session, &frameEndInfo))
     }
 
-    bool RenderLayer(XrTime predictedDisplayTime,
-                     std::vector<XrCompositionLayerProjectionView> &projectionLayerViews,
+    bool RenderLayer(XrTime predictedDisplayTime, std::vector<XrCompositionLayerProjectionView> &projectionLayerViews,
                      XrCompositionLayerProjection &layer) {
         XrResult res;
 
@@ -773,7 +827,12 @@ struct OpenXrProgram : IOpenXrProgram {
         if (XR_UNQUALIFIED_SUCCESS(res)) {
             if ((spaceLocation.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
                 (spaceLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
-                quad = Quad{spaceLocation.pose, {3.556f, 2.0f, 0.0f}};
+                quad = Quad{spaceLocation.pose, {4.45f, 2.5f, 0.0f}};
+                //TODO: HMD Pose here!
+//                LOG_INFO("HMD pose: pos: %f %f %f ori: %f %f %f %f", spaceLocation.pose.position.x,
+//                         spaceLocation.pose.position.y, spaceLocation.pose.position.z, spaceLocation.pose.orientation.x,
+//                         spaceLocation.pose.orientation.y, spaceLocation.pose.orientation.z,
+//                         spaceLocation.pose.orientation.w);
             }
         } else {
             LOG_INFO("Unable to locate a visualized reference space in app space: %d", res);
@@ -804,7 +863,9 @@ struct OpenXrProgram : IOpenXrProgram {
             const XrSwapchainImageBaseHeader *const swapchainImage = m_swapchainImages[viewSwapchain.handle][swapchainImageIndex];
 
             m_graphicsPlugin->RenderView(projectionLayerViews[i], swapchainImage,
-                                         m_colorSwapchainFormat, quad, i == 0 ? gstreamerPlayer.getFrameRight().dataHandle : gstreamerPlayer.getFrameLeft().dataHandle);
+                                         m_colorSwapchainFormat, quad,
+                                         i == 0 ? gstreamerPlayer.getFrameRight().dataHandle
+                                                : gstreamerPlayer.getFrameLeft().dataHandle);
 
             XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
             CHECK_XRCMD(xrReleaseSwapchainImage(viewSwapchain.handle, &releaseInfo))
@@ -842,9 +903,12 @@ private:
     int64_t m_colorSwapchainFormat{-1};
 
     std::vector<XrSpace> m_visualizedSpaces;
+    XrSpace controllerSpace[Side::COUNT];
 
     XrSessionState m_sessionState{XR_SESSION_STATE_UNKNOWN};
     bool m_sessionRunning{false};
+
+    XrPath handSubactionPath[Side::COUNT];
 
     XrEventDataBuffer m_eventDataBuffer{};
     InputState m_input;

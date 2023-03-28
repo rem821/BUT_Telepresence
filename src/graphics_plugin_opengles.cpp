@@ -246,7 +246,7 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
 
         switch (blendMode) {
             case XR_ENVIRONMENT_BLEND_MODE_OPAQUE:
-                m_clearColor = SlateGrey;
+                m_clearColor = Black;
                 break;
             case XR_ENVIRONMENT_BLEND_MODE_ADDITIVE:
                 m_clearColor = Black;
@@ -356,8 +356,9 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
 
         glBindVertexArray(m_vao);
 
+        auto pos = XrVector3f{quad.Pose.position.x, quad.Pose.position.y - 0.3f, quad.Pose.position.z};
         XrMatrix4x4f model;
-        XrMatrix4x4f_CreateTranslationRotationScale(&model, &quad.Pose.position, &quad.Pose.orientation, &quad.Scale);
+        XrMatrix4x4f_CreateTranslationRotationScale(&model, &pos, &quad.Pose.orientation, &quad.Scale);
         XrMatrix4x4f mvp;
         XrMatrix4x4f_Multiply(&mvp, &vp, &model);
         glUniformMatrix4fv(static_cast<GLint>(m_modelViewProjectionUniformLocation), 1, GL_FALSE, reinterpret_cast<const GLfloat *>(&mvp));
