@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-
+project(but_telepresence)
 set(CMAKE_CXX_STANDARD 17)
 
 add_definitions(-DXR_USE_PLATFORM_ANDROID)
@@ -45,7 +45,7 @@ link_directories(
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0)
 
 add_library(
-        but_telepresence SHARED
+        ${PROJECT_NAME} SHARED
 
         src/gpu_window.cpp
         src/graphics_plugin_opengles.cpp
@@ -53,6 +53,7 @@ add_library(
         src/platform_plugin_android.cpp
         src/program.cpp
         src/gstreamer_player.cpp
+        src/udp_socket.cpp
 
         $<TARGET_OBJECTS:android_native_app_glue>
 )
@@ -60,7 +61,7 @@ add_library(
 set(GSTREAMER_LIBRARIES "${GSTREAMER_ROOT}/lib/libgstreamer_android.so")
 
 target_link_libraries(
-        but_telepresence
+        ${PROJECT_NAME}
         openxr_loader
         ${ANDROID_LIBRARY}
         ${ANDROID_LOG_LIBRARY}

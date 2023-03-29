@@ -6,16 +6,11 @@
 #include "platform_plugin.h"
 #include "BS_thread_pool.hpp"
 #include "gstreamer_player.h"
+#include "udp_socket.h"
 #include "program.h"
 
 
 #include <utility>
-
-namespace Side {
-    const int LEFT = 0;
-    const int RIGHT = 1;
-    const int COUNT = 2;
-}  // namespace Side
 
 namespace Math::Pose {
     XrPosef Identity() {
@@ -471,6 +466,14 @@ struct OpenXrProgram : IOpenXrProgram {
         gstreamerPlayer.play();
     }
 
+    void InitializeControllerStream() override {
+        udpSocket = createSocket();
+    }
+
+    void SendControllerDatagram() override {
+        sendUDPPacket(udpSocket, userState);
+    }
+
     void CreateSwapchains() override {
         CHECK(m_session != XR_NULL_HANDLE)
         CHECK(m_swapchains.empty())
@@ -724,18 +727,16 @@ struct OpenXrProgram : IOpenXrProgram {
             CHECK_XRCMD(xrRequestExitSession(m_session))
         }
 
-        //TODO: Thumbstick positions here!
-
         // Thumbsticks
         XrActionStateGetInfo getThumbstickRightInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickAction, handSubactionPath[1]};
         XrActionStateGetInfo getThumbstickLeftInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickAction, handSubactionPath[0]};
         XrActionStateVector2f thumbstickValue{XR_TYPE_ACTION_STATE_VECTOR2F};
 
         CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getThumbstickRightInfo, &thumbstickValue))
-        //LOG_INFO("Left thumbstick pose: %f %f", thumbstickValue.currentState.x, thumbstickValue.currentState.y);
+        userState.thumbstickPose[1] = thumbstickValue.currentState;
 
         CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getThumbstickLeftInfo, &thumbstickValue))
-        //LOG_INFO("Right thumbstick pose: %f %f", thumbstickValue.currentState.x, thumbstickValue.currentState.y);
+        userState.thumbstickPose[0] = thumbstickValue.currentState;
     }
 
     void PollPoses(XrTime predictedDisplayTime) {
@@ -753,10 +754,7 @@ struct OpenXrProgram : IOpenXrProgram {
 
             CHECK_XRCMD(xrLocateSpace(controllerSpace[i], m_appSpace, predictedDisplayTime, &loc))
             if ((loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
-                //TODO: Controller Pose here!
-//                LOG_INFO("%s controller pose: pos: %f %f %f ori: %f %f %f %f", i == 0 ? "Left" : "Right", loc.pose.position.x,
-//                         loc.pose.position.y, loc.pose.position.z, loc.pose.orientation.x, loc.pose.orientation.y, loc.pose.orientation.z,
-//                         loc.pose.orientation.w);
+                userState.controllerPose[i] = loc.pose;
             }
         }
     }
@@ -828,11 +826,7 @@ struct OpenXrProgram : IOpenXrProgram {
             if ((spaceLocation.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
                 (spaceLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
                 quad = Quad{spaceLocation.pose, {4.45f, 2.5f, 0.0f}};
-                //TODO: HMD Pose here!
-//                LOG_INFO("HMD pose: pos: %f %f %f ori: %f %f %f %f", spaceLocation.pose.position.x,
-//                         spaceLocation.pose.position.y, spaceLocation.pose.position.z, spaceLocation.pose.orientation.x,
-//                         spaceLocation.pose.orientation.y, spaceLocation.pose.orientation.z,
-//                         spaceLocation.pose.orientation.w);
+                userState.hmdPose = spaceLocation.pose;
             }
         } else {
             LOG_INFO("Unable to locate a visualized reference space in app space: %d", res);
@@ -914,6 +908,10 @@ private:
     InputState m_input;
 
     const std::set<XrEnvironmentBlendMode> m_acceptableBlendModes;
+
+    UserState userState{};
+
+    int udpSocket;
 };
 
 std::shared_ptr<IOpenXrProgram>

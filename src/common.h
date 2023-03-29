@@ -39,3 +39,15 @@ template<typename T, size_t Size>
 constexpr size_t ArraySize(const T (&/* unused */)[Size]) noexcept {
     return Size;
 }
+
+namespace Side {
+    const int LEFT = 0;
+    const int RIGHT = 1;
+    const int COUNT = 2;
+}
+
+struct UserState {
+    XrPosef hmdPose;
+    XrPosef controllerPose[Side::COUNT];
+    XrVector2f thumbstickPose[Side::COUNT];
+};

@@ -18,6 +18,12 @@ struct IOpenXrProgram {
     // Create Gstreamer instance and start receiving video
     virtual void InitializeStreaming() = 0;
 
+    // Create UDP socket
+    virtual void InitializeControllerStream() = 0;
+
+    // Send UDP packet
+    virtual void SendControllerDatagram() = 0;
+
     // Create a Swapchain which requires coordinating with the graphics plugin to select the format, getting the system graphics
     // properties, getting the view configuration and grabbing the resulting swapchain images.
     virtual void CreateSwapchains() = 0;
