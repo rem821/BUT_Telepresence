@@ -50,4 +50,17 @@ struct UserState {
     XrPosef hmdPose;
     XrPosef controllerPose[Side::COUNT];
     XrVector2f thumbstickPose[Side::COUNT];
+    bool thumbstickPressed[Side::COUNT];
+    bool thumbstickTouched[Side::COUNT];
+    float squeezeValue[Side::COUNT];
+    float triggerValue[Side::COUNT];
+    bool triggerTouched[Side::COUNT];
+    bool aPressed;
+    bool aTouched;
+    bool bPressed;
+    bool bTouched;
+    bool xPressed;
+    bool xTouched;
+    bool yPressed;
+    bool yTouched;
 };

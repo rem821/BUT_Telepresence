@@ -310,8 +310,39 @@ struct OpenXrProgram : IOpenXrProgram {
         XrActionSet actionSet{XR_NULL_HANDLE};
         XrAction quitAction{XR_NULL_HANDLE};
         XrAction controllerPoseAction{XR_NULL_HANDLE};
-        XrAction thumbstickAction{XR_NULL_HANDLE};
+        XrAction thumbstickPoseAction{XR_NULL_HANDLE};
+        XrAction thumbstickPressedAction{XR_NULL_HANDLE};
+        XrAction thumbstickTouchedAction{XR_NULL_HANDLE};
+        XrAction buttonAPressedAction{XR_NULL_HANDLE};
+        XrAction buttonATouchedAction{XR_NULL_HANDLE};
+        XrAction buttonBPressedAction{XR_NULL_HANDLE};
+        XrAction buttonBTouchedAction{XR_NULL_HANDLE};
+        XrAction buttonXPressedAction{XR_NULL_HANDLE};
+        XrAction buttonXTouchedAction{XR_NULL_HANDLE};
+        XrAction buttonYPressedAction{XR_NULL_HANDLE};
+        XrAction buttonYTouchedAction{XR_NULL_HANDLE};
+        XrAction squeezeValueAction{XR_NULL_HANDLE};
+        XrAction triggerValueAction{XR_NULL_HANDLE};
+        XrAction triggerTouchedAction{XR_NULL_HANDLE};
     };
+
+    void CreateAction(XrActionSet &actionSet, XrActionType type, const char *actionName, const char *localizedName, int countSubactionPaths,
+                      const XrPath *subactionPaths, XrAction *action) {
+        LOG_INFO("CreateAction %s, %d", actionName, countSubactionPaths);
+
+        XrActionCreateInfo aci = {};
+        aci.type = XR_TYPE_ACTION_CREATE_INFO;
+        aci.next = nullptr;
+        aci.actionType = type;
+
+        aci.countSubactionPaths = countSubactionPaths;
+        aci.subactionPaths = subactionPaths;
+
+        strcpy(aci.actionName, actionName);
+        strcpy(aci.localizedActionName, localizedName ? localizedName : actionName);
+
+        CHECK_XRCMD(xrCreateAction(actionSet, &aci, action))
+    }
 
     void InitializeActions() {
         // Create an action set
@@ -328,29 +359,133 @@ struct OpenXrProgram : IOpenXrProgram {
 
         // Bind actions
         {
-            XrActionCreateInfo quitActionInfo{XR_TYPE_ACTION_CREATE_INFO};
-            quitActionInfo.actionType = XR_ACTION_TYPE_BOOLEAN_INPUT;
-            strcpy(quitActionInfo.actionName, "quit_session");
-            strcpy(quitActionInfo.localizedActionName, "Quit Session");
-            quitActionInfo.countSubactionPaths = 0;
-            quitActionInfo.subactionPaths = nullptr;
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &quitActionInfo, &m_input.quitAction))
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "quit_session",
+                         "Quit Session",
+                         0,
+                         nullptr,
+                         &m_input.quitAction);
 
-            XrActionCreateInfo controllerPoseActionInfo{XR_TYPE_ACTION_CREATE_INFO};
-            controllerPoseActionInfo.actionType = XR_ACTION_TYPE_POSE_INPUT;
-            strcpy(controllerPoseActionInfo.actionName, "controller_pose");
-            strcpy(controllerPoseActionInfo.localizedActionName, "Controller Pose");
-            controllerPoseActionInfo.countSubactionPaths = Side::COUNT;
-            controllerPoseActionInfo.subactionPaths = handSubactionPath;
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &controllerPoseActionInfo, &m_input.controllerPoseAction))
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_POSE_INPUT,
+                         "controller_pose",
+                         "Controller Pose",
+                         Side::COUNT,
+                         handSubactionPath,
+                         &m_input.controllerPoseAction);
 
-            XrActionCreateInfo thumbstickPoseActionInfo{XR_TYPE_ACTION_CREATE_INFO};
-            thumbstickPoseActionInfo.actionType = XR_ACTION_TYPE_VECTOR2F_INPUT;
-            strcpy(thumbstickPoseActionInfo.actionName, "thumbstick");
-            strcpy(thumbstickPoseActionInfo.localizedActionName, "Thumbstick");
-            thumbstickPoseActionInfo.countSubactionPaths = Side::COUNT;
-            thumbstickPoseActionInfo.subactionPaths = handSubactionPath;
-            CHECK_XRCMD(xrCreateAction(m_input.actionSet, &thumbstickPoseActionInfo, &m_input.thumbstickAction))
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_VECTOR2F_INPUT,
+                         "thumbstick_pose",
+                         "Thumbstick Pose",
+                         Side::COUNT,
+                         handSubactionPath,
+                         &m_input.thumbstickPoseAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "thumbstick_pressed",
+                         "Thumbstick Pressed",
+                         Side::COUNT,
+                         handSubactionPath,
+                         &m_input.thumbstickPressedAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "thumbstick_touched",
+                         "Thumbstick Touched",
+                         Side::COUNT,
+                         handSubactionPath,
+                         &m_input.thumbstickTouchedAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "button_a_pressed",
+                         "Button A Pressed",
+                         1,
+                         &handSubactionPath[Side::RIGHT],
+                         &m_input.buttonAPressedAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "button_a_touched",
+                         "Button A Touched",
+                         1,
+                         &handSubactionPath[Side::RIGHT],
+                         &m_input.buttonATouchedAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "button_b_pressed",
+                         "Button B Pressed",
+                         1,
+                         &handSubactionPath[Side::RIGHT],
+                         &m_input.buttonBPressedAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "button_b_touched",
+                         "Button B Touched",
+                         1,
+                         &handSubactionPath[Side::RIGHT],
+                         &m_input.buttonBTouchedAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "button_x_pressed",
+                         "Button X Pressed",
+                         1,
+                         &handSubactionPath[Side::LEFT],
+                         &m_input.buttonXPressedAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "button_x_touched",
+                         "Button X Touched",
+                         1,
+                         &handSubactionPath[Side::LEFT],
+                         &m_input.buttonXTouchedAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "button_y_pressed",
+                         "Button Y Pressed",
+                         1,
+                         &handSubactionPath[Side::LEFT],
+                         &m_input.buttonYPressedAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "button_y_touched",
+                         "Button Y Touched",
+                         1,
+                         &handSubactionPath[Side::LEFT],
+                         &m_input.buttonYTouchedAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_FLOAT_INPUT,
+                         "squeeze_value",
+                         "Squeeze Value",
+                         2,
+                         handSubactionPath,
+                         &m_input.squeezeValueAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_FLOAT_INPUT,
+                         "trigger_value",
+                         "Trigger Value",
+                         2,
+                         handSubactionPath,
+                         &m_input.triggerValueAction);
+
+            CreateAction(m_input.actionSet,
+                         XR_ACTION_TYPE_BOOLEAN_INPUT,
+                         "squeeze_touched",
+                         "Squeeze Touched",
+                         2,
+                         handSubactionPath,
+                         &m_input.triggerTouchedAction);
         }
 
         std::array<XrPath, Side::COUNT> menuClickPath{};
@@ -364,6 +499,46 @@ struct OpenXrProgram : IOpenXrProgram {
         std::array<XrPath, Side::COUNT> thumbstickPosePath{};
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/thumbstick", &thumbstickPosePath[Side::RIGHT]))
         CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/thumbstick", &thumbstickPosePath[Side::LEFT]))
+
+        std::array<XrPath, Side::COUNT> thumbstickPressedPath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/thumbstick/click", &thumbstickPressedPath[Side::RIGHT]))
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/thumbstick/click", &thumbstickPressedPath[Side::LEFT]))
+
+        std::array<XrPath, Side::COUNT> thumbstickTouchedPath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/thumbstick/touch", &thumbstickTouchedPath[Side::RIGHT]))
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/thumbstick/touch", &thumbstickTouchedPath[Side::LEFT]))
+
+        XrPath buttonAPressedPath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/a/click", &buttonAPressedPath))
+        XrPath buttonATouchedPath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/a/touch", &buttonATouchedPath))
+
+        XrPath buttonBPressedPath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/b/click", &buttonBPressedPath))
+        XrPath buttonBTouchedPath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/b/touch", &buttonBTouchedPath))
+
+        XrPath buttonXPressedPath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/x/click", &buttonXPressedPath))
+        XrPath buttonXTouchedPath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/x/touch", &buttonXTouchedPath))
+
+        XrPath buttonYPressedPath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/y/click", &buttonYPressedPath))
+        XrPath buttonYTouchedPath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/y/touch", &buttonYTouchedPath))
+
+        std::array<XrPath, Side::COUNT> squeezeValuePath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/squeeze/value", &squeezeValuePath[Side::RIGHT]))
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/squeeze/value", &squeezeValuePath[Side::LEFT]))
+
+        std::array<XrPath, Side::COUNT> triggerValuePath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/trigger/value", &triggerValuePath[Side::RIGHT]))
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/trigger/value", &triggerValuePath[Side::LEFT]))
+
+        std::array<XrPath, Side::COUNT> triggerTouchedPath{};
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/right/input/trigger/touch", &triggerTouchedPath[Side::RIGHT]))
+        CHECK_XRCMD(xrStringToPath(m_instance, "/user/hand/left/input/trigger/touch", &triggerTouchedPath[Side::LEFT]))
 
         {
             XrPath khrSimpleInteractionProfilePath;
@@ -392,8 +567,26 @@ struct OpenXrProgram : IOpenXrProgram {
                             {m_input.quitAction, menuClickPath[Side::LEFT]},
                             {m_input.controllerPoseAction, controllerPosePath[Side::LEFT]},
                             {m_input.controllerPoseAction, controllerPosePath[Side::RIGHT]},
-                            {m_input.thumbstickAction, thumbstickPosePath[Side::LEFT]},
-                            {m_input.thumbstickAction, thumbstickPosePath[Side::RIGHT]},
+                            {m_input.thumbstickPoseAction, thumbstickPosePath[Side::LEFT]},
+                            {m_input.thumbstickPoseAction, thumbstickPosePath[Side::RIGHT]},
+                            {m_input.thumbstickPressedAction, thumbstickPressedPath[Side::LEFT]},
+                            {m_input.thumbstickPressedAction, thumbstickPressedPath[Side::RIGHT]},
+                            {m_input.thumbstickTouchedAction, thumbstickTouchedPath[Side::LEFT]},
+                            {m_input.thumbstickTouchedAction, thumbstickTouchedPath[Side::RIGHT]},
+                            {m_input.buttonAPressedAction, buttonAPressedPath},
+                            {m_input.buttonATouchedAction, buttonATouchedPath},
+                            {m_input.buttonBPressedAction, buttonBPressedPath},
+                            {m_input.buttonBTouchedAction, buttonBTouchedPath},
+                            {m_input.buttonXPressedAction, buttonXPressedPath},
+                            {m_input.buttonXTouchedAction, buttonXTouchedPath},
+                            {m_input.buttonYPressedAction, buttonYPressedPath},
+                            {m_input.buttonYTouchedAction, buttonYTouchedPath},
+                            {m_input.squeezeValueAction, squeezeValuePath[Side::LEFT]},
+                            {m_input.squeezeValueAction, squeezeValuePath[Side::RIGHT]},
+                            {m_input.triggerValueAction, triggerValuePath[Side::LEFT]},
+                            {m_input.triggerValueAction, triggerValuePath[Side::RIGHT]},
+                            {m_input.triggerTouchedAction, triggerTouchedPath[Side::LEFT]},
+                            {m_input.triggerTouchedAction, triggerTouchedPath[Side::RIGHT]},
                     }
             };
             XrInteractionProfileSuggestedBinding suggestedBindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
@@ -452,12 +645,13 @@ struct OpenXrProgram : IOpenXrProgram {
         }
 
         LogReferenceSpaces();
+
         InitializeActions();
+
         CreateVisualizedSpaces();
 
         {
-            XrReferenceSpaceCreateInfo referenceSpaceCreateInfo
-                    = GetXrReferenceSpaceCreateInfo("Local");
+            XrReferenceSpaceCreateInfo referenceSpaceCreateInfo = GetXrReferenceSpaceCreateInfo("Local");
             CHECK_XRCMD(xrCreateReferenceSpace(m_session, &referenceSpaceCreateInfo, &m_appSpace))
         }
     }
@@ -563,13 +757,11 @@ struct OpenXrProgram : IOpenXrProgram {
                 m_swapchains.push_back(swapchain);
                 uint32_t imageCount;
                 CHECK_XRCMD(xrEnumerateSwapchainImages(swapchain.handle, 0, &imageCount, nullptr))
-                std::vector<XrSwapchainImageBaseHeader *> swapchainImages =
-                        m_graphicsPlugin->AllocateSwapchainImageStructs(imageCount,
-                                                                        swapchainCreateInfo);
+                std::vector<XrSwapchainImageBaseHeader *> swapchainImages = m_graphicsPlugin->AllocateSwapchainImageStructs(imageCount,
+                                                                                                                            swapchainCreateInfo);
                 CHECK_XRCMD(xrEnumerateSwapchainImages(swapchain.handle, imageCount, &imageCount,
                                                        swapchainImages[0]))
-                m_swapchainImages.insert(
-                        std::make_pair(swapchain.handle, std::move(swapchainImages)));
+                m_swapchainImages.insert(std::make_pair(swapchain.handle, std::move(swapchainImages)));
             }
         }
     }
@@ -727,16 +919,127 @@ struct OpenXrProgram : IOpenXrProgram {
             CHECK_XRCMD(xrRequestExitSession(m_session))
         }
 
-        // Thumbsticks
-        XrActionStateGetInfo getThumbstickRightInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickAction, handSubactionPath[1]};
-        XrActionStateGetInfo getThumbstickLeftInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickAction, handSubactionPath[0]};
-        XrActionStateVector2f thumbstickValue{XR_TYPE_ACTION_STATE_VECTOR2F};
+        // Thumbstick pose
+        XrActionStateGetInfo getThumbstickPoseRightInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickPoseAction,
+                                                        handSubactionPath[Side::RIGHT]};
+        XrActionStateGetInfo getThumbstickPoseLeftInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickPoseAction,
+                                                       handSubactionPath[Side::LEFT]};
+        XrActionStateVector2f thumbstickPose{XR_TYPE_ACTION_STATE_VECTOR2F};
 
-        CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getThumbstickRightInfo, &thumbstickValue))
-        userState.thumbstickPose[1] = thumbstickValue.currentState;
+        CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getThumbstickPoseRightInfo, &thumbstickPose))
+        userState.thumbstickPose[Side::RIGHT] = thumbstickPose.currentState;
 
-        CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getThumbstickLeftInfo, &thumbstickValue))
-        userState.thumbstickPose[0] = thumbstickValue.currentState;
+        CHECK_XRCMD(xrGetActionStateVector2f(m_session, &getThumbstickPoseLeftInfo, &thumbstickPose))
+        userState.thumbstickPose[Side::LEFT] = thumbstickPose.currentState;
+
+        // Thumbstick pressed
+        XrActionStateGetInfo getThumbstickPressedRightInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickPressedAction,
+                                                           handSubactionPath[Side::RIGHT]};
+        XrActionStateGetInfo getThumbstickPressedLeftInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickPressedAction,
+                                                          handSubactionPath[Side::LEFT]};
+        XrActionStateBoolean thumbstickPressed{XR_TYPE_ACTION_STATE_BOOLEAN};
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getThumbstickPressedRightInfo, &thumbstickPressed))
+        userState.thumbstickPressed[Side::RIGHT] = thumbstickPressed.currentState;
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getThumbstickPressedLeftInfo, &thumbstickPressed))
+        userState.thumbstickPressed[Side::LEFT] = thumbstickPressed.currentState;
+
+        // Thumbstick touched
+        XrActionStateGetInfo getThumbstickTouchedRightInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickTouchedAction,
+                                                           handSubactionPath[Side::RIGHT]};
+        XrActionStateGetInfo getThumbstickTouchedLeftInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.thumbstickTouchedAction,
+                                                          handSubactionPath[Side::LEFT]};
+        XrActionStateBoolean thumbstickTouched{XR_TYPE_ACTION_STATE_BOOLEAN};
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getThumbstickTouchedRightInfo, &thumbstickTouched))
+        userState.thumbstickTouched[Side::RIGHT] = thumbstickTouched.currentState;
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getThumbstickTouchedLeftInfo, &thumbstickTouched))
+        userState.thumbstickTouched[Side::LEFT] = thumbstickTouched.currentState;
+
+        // Button A
+        XrActionStateGetInfo getButtonAPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.buttonAPressedAction, XR_NULL_PATH};
+        XrActionStateGetInfo getButtonATouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.buttonATouchedAction, XR_NULL_PATH};
+        XrActionStateBoolean buttonA{XR_TYPE_ACTION_STATE_BOOLEAN};
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getButtonAPressedInfo, &buttonA))
+        userState.aPressed = buttonA.currentState;
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getButtonATouchedInfo, &buttonA))
+        userState.aTouched = buttonA.currentState;
+
+        // Button B
+        XrActionStateGetInfo getButtonBPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.buttonBPressedAction, XR_NULL_PATH};
+        XrActionStateGetInfo getButtonBTouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.buttonBTouchedAction, XR_NULL_PATH};
+        XrActionStateBoolean buttonB{XR_TYPE_ACTION_STATE_BOOLEAN};
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getButtonBPressedInfo, &buttonB))
+        userState.bPressed = buttonB.currentState;
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getButtonBTouchedInfo, &buttonB))
+        userState.bTouched = buttonB.currentState;
+
+        // Button X
+        XrActionStateGetInfo getButtonXPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.buttonXPressedAction, XR_NULL_PATH};
+        XrActionStateGetInfo getButtonXTouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.buttonXTouchedAction, XR_NULL_PATH};
+        XrActionStateBoolean buttonX{XR_TYPE_ACTION_STATE_BOOLEAN};
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getButtonXPressedInfo, &buttonX))
+        userState.xPressed = buttonX.currentState;
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getButtonXTouchedInfo, &buttonX))
+        userState.xTouched = buttonX.currentState;
+
+        // Button Y
+        XrActionStateGetInfo getButtonYPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.buttonYPressedAction, XR_NULL_PATH};
+        XrActionStateGetInfo getButtonYTouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.buttonYTouchedAction, XR_NULL_PATH};
+        XrActionStateBoolean buttonY{XR_TYPE_ACTION_STATE_BOOLEAN};
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getButtonYPressedInfo, &buttonY))
+        userState.yPressed = buttonY.currentState;
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getButtonYTouchedInfo, &buttonY))
+        userState.yTouched = buttonY.currentState;
+
+        // Squeeze
+        XrActionStateGetInfo getSqueezeValueRightInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.squeezeValueAction,
+                                                      handSubactionPath[Side::RIGHT]};
+        XrActionStateGetInfo getSqueezeValueLeftInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.squeezeValueAction,
+                                                     handSubactionPath[Side::LEFT]};
+        XrActionStateFloat squeezeValue{XR_TYPE_ACTION_STATE_FLOAT};
+
+        CHECK_XRCMD(xrGetActionStateFloat(m_session, &getSqueezeValueRightInfo, &squeezeValue))
+        userState.squeezeValue[Side::RIGHT] = squeezeValue.currentState;
+
+        CHECK_XRCMD(xrGetActionStateFloat(m_session, &getSqueezeValueLeftInfo, &squeezeValue))
+        userState.squeezeValue[Side::LEFT] = squeezeValue.currentState;
+
+        // Trigger value
+        XrActionStateGetInfo getTriggerValueRightInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.triggerValueAction,
+                                                      handSubactionPath[Side::RIGHT]};
+        XrActionStateGetInfo getTriggerValueLeftInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.triggerValueAction,
+                                                     handSubactionPath[Side::LEFT]};
+        XrActionStateFloat triggerValue{XR_TYPE_ACTION_STATE_FLOAT};
+
+        CHECK_XRCMD(xrGetActionStateFloat(m_session, &getTriggerValueRightInfo, &triggerValue))
+        userState.triggerValue[Side::RIGHT] = triggerValue.currentState;
+
+        CHECK_XRCMD(xrGetActionStateFloat(m_session, &getTriggerValueLeftInfo, &triggerValue))
+        userState.triggerValue[Side::LEFT] = triggerValue.currentState;
+
+        // Trigger touched
+        XrActionStateGetInfo getTriggerTouchedRightInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.triggerTouchedAction,
+                                                      handSubactionPath[Side::RIGHT]};
+        XrActionStateGetInfo getTriggerTouchedLeftInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.triggerTouchedAction,
+                                                     handSubactionPath[Side::LEFT]};
+        XrActionStateBoolean triggerTouched{XR_TYPE_ACTION_STATE_BOOLEAN};
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getTriggerTouchedRightInfo, &triggerTouched))
+        userState.triggerTouched[Side::RIGHT] = triggerTouched.currentState;
+
+        CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getTriggerTouchedLeftInfo, &triggerTouched))
+        userState.triggerTouched[Side::LEFT] = triggerTouched.currentState;
     }
 
     void PollPoses(XrTime predictedDisplayTime) {
@@ -801,8 +1104,7 @@ struct OpenXrProgram : IOpenXrProgram {
         viewLocateInfo.displayTime = predictedDisplayTime;
         viewLocateInfo.space = m_appSpace;
 
-        res = xrLocateViews(m_session, &viewLocateInfo, &viewState, viewCapacityInput,
-                            &viewCountOutput, m_views.data());
+        res = xrLocateViews(m_session, &viewLocateInfo, &viewState, viewCapacityInput, &viewCountOutput, m_views.data());
         CHECK_XRRESULT(res, "xrLocateViews")
         if ((viewState.viewStateFlags & XR_VIEW_STATE_POSITION_VALID_BIT) == 0 ||
             (viewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT) == 0) {

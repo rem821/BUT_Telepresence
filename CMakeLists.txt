@@ -38,6 +38,7 @@ include_directories(
         ${GSTREAMER_ROOT}/include/gstreamer-1.0
         ${GSTREAMER_ROOT}/include/glib-2.0
         ${GSTREAMER_ROOT}/lib/glib-2.0/include
+        ${OVR_OPENXR_MOBILE_SDK_DIR}/SampleCommon/Src
 )
 
 link_directories(

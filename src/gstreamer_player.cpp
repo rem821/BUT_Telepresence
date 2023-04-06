@@ -4,7 +4,7 @@
 GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
     threadPool.push_task([&]() {
         gst_init(nullptr, nullptr);
-        gst_debug_set_threshold_for_name("BUT_Telepresence", GST_LEVEL_LOG);
+        gst_debug_set_threshold_for_name("BUT_Telepresence", GST_LEVEL_TRACE);
         //dumpGstreamerFeatures();
 
         //Init the GstreamerFrame data structure

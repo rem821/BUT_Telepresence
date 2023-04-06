@@ -74,6 +74,7 @@ void android_main(struct android_app *app) {
             }
 
             program->PollActions();
+            program->SendControllerDatagram();
             program->RenderFrame();
         }
 
