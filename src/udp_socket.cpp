@@ -46,28 +46,62 @@ unsigned long sendUDPPacket(int socket, const UserState &state) {
         std::string w_s = w_b.to_string();
 
         std::string headDatagram = "#H" + x_s + y_s + z_s + w_s + "XX";
-        //LOG_INFO("%s", headDatagram.c_str());
+        LOG_INFO("%s", headDatagram.c_str());
     }
 
     {
-        std::bitset<sizeof(float) * 8> x_b, y_b, s_b, t_b;
-        std::memcpy(&x_b, &state.thumbstickPose[Side::LEFT].x, sizeof(float));
-        std::memcpy(&y_b, &state.thumbstickPose[Side::LEFT].y, sizeof(float));
-        std::memcpy(&s_b, &state.squeezeValue[Side::LEFT], sizeof(float));
-        std::memcpy(&t_b, &state.triggerValue[Side::LEFT], sizeof(float));
-        std::string x = x_b.to_string();
-        std::string y = y_b.to_string();
-        std::string squeeze = s_b.to_string();
-        std::string trigger = t_b.to_string();
+        static int pass = 0;
+        if (pass > 3) {
+            pass = 0;
 
-        std::string button_thumbstick = buttonToByte(state.thumbstickPressed[Side::LEFT], state.thumbstickTouched[Side::LEFT]);
-        std::string button_trigger = buttonToByte(state.triggerValue[Side::LEFT] > 0.5, state.triggerTouched[Side::LEFT]);
+            {
+                // LEFT
+                std::bitset<sizeof(float) * 8> x_b, y_b, s_b, t_b;
+                std::memcpy(&x_b, &state.thumbstickPose[Side::LEFT].x, sizeof(float));
+                std::memcpy(&y_b, &state.thumbstickPose[Side::LEFT].y, sizeof(float));
+                std::memcpy(&s_b, &state.squeezeValue[Side::LEFT], sizeof(float));
+                std::memcpy(&t_b, &state.triggerValue[Side::LEFT], sizeof(float));
+                std::string x = x_b.to_string();
+                std::string y = y_b.to_string();
+                std::string squeeze = s_b.to_string();
+                std::string trigger = t_b.to_string();
 
-        std::string button_x = buttonToByte(state.xPressed, state.xTouched);
-        std::string button_y = buttonToByte(state.yPressed, state.yTouched);
+                std::string button_thumbstick = buttonToByte(state.thumbstickPressed[Side::LEFT], state.thumbstickTouched[Side::LEFT]);
+                std::string button_trigger = buttonToByte(state.triggerValue[Side::LEFT] > 0.8, state.triggerTouched[Side::LEFT]);
 
-        std::string leftControllerDatagram = "#L" + x + y + squeeze + trigger + button_thumbstick + button_trigger + button_x + button_y + "XX";
-        //LOG_INFO("%s", leftControllerDatagram.c_str());
+                std::string button_x = buttonToByte(state.xPressed, state.xTouched);
+                std::string button_y = buttonToByte(state.yPressed, state.yTouched);
+
+                std::string leftControllerDatagram =
+                        "#L" + x + y + squeeze + trigger + button_thumbstick + button_trigger + button_x + button_y + "XX";
+                LOG_INFO("%s", leftControllerDatagram.c_str());
+            }
+
+
+            {
+                // RIGHT
+                std::bitset<sizeof(float) * 8> x_b, y_b, s_b, t_b;
+                std::memcpy(&x_b, &state.thumbstickPose[Side::RIGHT].x, sizeof(float));
+                std::memcpy(&y_b, &state.thumbstickPose[Side::RIGHT].y, sizeof(float));
+                std::memcpy(&s_b, &state.squeezeValue[Side::RIGHT], sizeof(float));
+                std::memcpy(&t_b, &state.triggerValue[Side::RIGHT], sizeof(float));
+                std::string x = x_b.to_string();
+                std::string y = y_b.to_string();
+                std::string squeeze = s_b.to_string();
+                std::string trigger = t_b.to_string();
+
+                std::string button_thumbstick = buttonToByte(state.thumbstickPressed[Side::RIGHT], state.thumbstickTouched[Side::RIGHT]);
+                std::string button_trigger = buttonToByte(state.triggerValue[Side::RIGHT] > 0.8, state.triggerTouched[Side::RIGHT]);
+
+                std::string button_a = buttonToByte(state.aPressed, state.aTouched);
+                std::string button_b = buttonToByte(state.bPressed, state.bTouched);
+
+                std::string leftControllerDatagram =
+                        "#R" + x + y + squeeze + trigger + button_thumbstick + button_trigger + button_a + button_b + "XX";
+                LOG_INFO("%s", leftControllerDatagram.c_str());
+            }
+        }
+        pass++;
     }
 
 //    LOG_INFO(
