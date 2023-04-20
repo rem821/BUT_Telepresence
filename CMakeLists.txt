@@ -55,6 +55,7 @@ add_library(
         src/program.cpp
         src/gstreamer_player.cpp
         src/udp_socket.cpp
+        src/servo_communicator.cpp
 
         $<TARGET_OBJECTS:android_native_app_glue>
 )

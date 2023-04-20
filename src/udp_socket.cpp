@@ -46,7 +46,38 @@ unsigned long sendUDPPacket(int socket, const UserState &state) {
         std::string w_s = w_b.to_string();
 
         std::string headDatagram = "#H" + x_s + y_s + z_s + w_s + "XX";
-        LOG_INFO("%s", headDatagram.c_str());
+        //LOG_INFO("%s", headDatagram.c_str());
+
+        double sinr_cosp =
+                2 * (state.hmdPose.orientation.w * state.hmdPose.orientation.x + state.hmdPose.orientation.y * state.hmdPose.orientation.z);
+        double cosr_cosp = 1 - 2 * (state.hmdPose.orientation.x * state.hmdPose.orientation.x +
+                                    state.hmdPose.orientation.y * state.hmdPose.orientation.y);
+        double elevation = std::atan2(sinr_cosp, cosr_cosp);
+
+        double sinp =
+                2 * (state.hmdPose.orientation.w * state.hmdPose.orientation.y - state.hmdPose.orientation.z * state.hmdPose.orientation.x);
+
+        double heading = std::asin(sinp);
+        if (std::abs(sinp) >= 1) {
+            heading = std::copysign(M_PI / 2, sinp);
+        }
+
+        double siny_cosp = 2 * (state.hmdPose.orientation.w * state.hmdPose.orientation.z + state.hmdPose.orientation.x * state.hmdPose.orientation.y);
+        double cosy_cosp = 1 - 2 * (state.hmdPose.orientation.y * state.hmdPose.orientation.y + state.hmdPose.orientation.z * state.hmdPose.orientation.z);
+        double roll = std::atan2(siny_cosp, cosy_cosp);
+
+        std::string q = std::string("Head quaternion: ")
+                        + "x:" + std::to_string(state.hmdPose.orientation.x)
+                        + ", y: " + std::to_string(state.hmdPose.orientation.y)
+                        + ", z: " + std::to_string(state.hmdPose.orientation.z)
+                        + ", w: " + std::to_string(state.hmdPose.orientation.w);
+
+        std::string reh = std::string("Head pose: ")
+                        + "roll:" + std::to_string(roll)
+                        + ", elevation: " + std::to_string(elevation)
+                        + ", heading: " + std::to_string(heading);
+
+        LOG_INFO("%s", reh.c_str());
     }
 
     {
@@ -74,7 +105,7 @@ unsigned long sendUDPPacket(int socket, const UserState &state) {
 
                 std::string leftControllerDatagram =
                         "#L" + x + y + squeeze + trigger + button_thumbstick + button_trigger + button_x + button_y + "XX";
-                LOG_INFO("%s", leftControllerDatagram.c_str());
+                //LOG_INFO("%s", leftControllerDatagram.c_str());
             }
 
 
@@ -98,7 +129,7 @@ unsigned long sendUDPPacket(int socket, const UserState &state) {
 
                 std::string leftControllerDatagram =
                         "#R" + x + y + squeeze + trigger + button_thumbstick + button_trigger + button_a + button_b + "XX";
-                LOG_INFO("%s", leftControllerDatagram.c_str());
+                //LOG_INFO("%s", leftControllerDatagram.c_str());
             }
         }
         pass++;

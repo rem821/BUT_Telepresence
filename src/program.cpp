@@ -7,6 +7,7 @@
 #include "BS_thread_pool.hpp"
 #include "gstreamer_player.h"
 #include "udp_socket.h"
+#include "servo_communicator.h"
 #include "program.h"
 
 
@@ -666,6 +667,12 @@ struct OpenXrProgram : IOpenXrProgram {
 
     void SendControllerDatagram() override {
         sendUDPPacket(udpSocket, userState);
+        if (!servoComm.servosEnabled()) {
+            servoComm.enableServos(true, threadPool);
+        }
+        if (servoComm.isReady()) {
+            servoComm.setPose(userState.hmdPose.orientation, threadPool);
+        }
     }
 
     void CreateSwapchains() override {
@@ -1030,9 +1037,9 @@ struct OpenXrProgram : IOpenXrProgram {
 
         // Trigger touched
         XrActionStateGetInfo getTriggerTouchedRightInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.triggerTouchedAction,
-                                                      handSubactionPath[Side::RIGHT]};
+                                                        handSubactionPath[Side::RIGHT]};
         XrActionStateGetInfo getTriggerTouchedLeftInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, m_input.triggerTouchedAction,
-                                                     handSubactionPath[Side::LEFT]};
+                                                       handSubactionPath[Side::LEFT]};
         XrActionStateBoolean triggerTouched{XR_TYPE_ACTION_STATE_BOOLEAN};
 
         CHECK_XRCMD(xrGetActionStateBoolean(m_session, &getTriggerTouchedRightInfo, &triggerTouched))
@@ -1214,6 +1221,7 @@ private:
     UserState userState{};
 
     int udpSocket;
+    ServoCommunicator servoComm{threadPool};
 };
 
 std::shared_ptr<IOpenXrProgram>
