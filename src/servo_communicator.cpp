@@ -190,13 +190,13 @@ void ServoCommunicator::setPose(XrQuaternionf quatPose, BS::thread_pool &threadP
         if (elevation > ELEVATION_MAX_VALUE) elevation = ELEVATION_MAX_VALUE;
 
         int32_t azRevol = 0, elRevol = 0;
-        if(azimuth < 0) azRevol = -1;
-        if(elevation < 0) elRevol = -1;
+        if (azimuth < 0) azRevol = -1;
+        if (elevation < 0) elRevol = -1;
 
         auto azAngleBytes = serializeLEInt(azimuth);
-        auto azRevolBytes= serializeLEInt(azRevol);
+        auto azRevolBytes = serializeLEInt(azRevol);
         auto elAngleBytes = serializeLEInt(elevation);
-        auto elRevolBytes= serializeLEInt(elRevol);
+        auto elRevolBytes = serializeLEInt(elRevol);
 
         std::vector<unsigned char> const angleBuffer = {IDENTIFIER_1, IDENTIFIER_2,
                                                         Operation::WRITE_CONTINUOS,
@@ -267,7 +267,7 @@ void ServoCommunicator::sendMessage(const std::vector<unsigned char> &message) {
     isReady_ = false;
 }
 
-bool ServoCommunicator::waitForResponse(const std::vector<uint32_t>& statusBytes) {
+bool ServoCommunicator::waitForResponse(const std::vector<uint32_t> &statusBytes) {
     std::array<char, 1024> buffer{};
     struct sockaddr_in src_addr{};
     socklen_t addrlen = sizeof(src_addr);
@@ -306,27 +306,42 @@ bool ServoCommunicator::waitForResponse(const std::vector<uint32_t>& statusBytes
     return false;
 }
 
-ServoCommunicator::AzimuthElevation ServoCommunicator::quaternionToAzimuthElevation(XrQuaternionf quat) {
-    double const sinr_cosp = 2 * (quat.w * quat.x + quat.y * quat.z);
-    double const cosr_cosp = 1 - 2 * (quat.x * quat.x + quat.y * quat.y);
-    double elevation = std::atan2(sinr_cosp, cosr_cosp);
-
-    double const sinp = 2 * (quat.w * quat.y - quat.z * quat.x);
-    double azimuth = std::asin(sinp);
-    if (std::abs(sinp) >= 1) {
-        azimuth = std::copysign(M_PI / 2, sinp);
+ServoCommunicator::AzimuthElevation ServoCommunicator::quaternionToAzimuthElevation(XrQuaternionf q) {
+    double azimuth = 0;
+    double elevation = 0;
+    double test = q.x * q.y + q.z * q.w;
+    if (test > 0.499F) { // Singularity at north pole
+        azimuth = 2 * std::atan2(q.x, q.w);
+        elevation = 0;
+        LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
+        return AzimuthElevation{azimuth, elevation};
     }
 
-    double const siny_cosp = 2 * (quat.w * quat.z + quat.x * quat.y);
-    double const cosy_cosp = 1 - 2 * (quat.y * quat.y + quat.z * quat.z);
-    double const roll = std::atan2(siny_cosp, cosy_cosp);
+    if (test < -0.499F) { // Singularity at south pole
+        azimuth = -2 * std::atan2(q.x, q.w);
+        elevation = 0;
+        LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
+        return AzimuthElevation{azimuth, elevation};
+    }
 
-    if (azimuth < -M_PI / 2) azimuth = -M_PI / 2;
-    if (azimuth > M_PI / 2) azimuth = M_PI / 2;
+    double sqx = q.x * q.x;
+    double sqy = q.y * q.y;
+    double sqz = q.z * q.z;
+    azimuth = atan2(2 * q.y * q.w - 2 * q.x * q.z, 1 - 2 * sqy - 2 * sqz);
+    elevation = atan2(2*q.x*q.w-2*q.y*q.z , 1 - 2*sqx - 2*sqz);
 
-    if (elevation < -M_PI / 2) elevation = -M_PI / 2;
-    if (elevation > M_PI / 2) elevation = M_PI / 2;
+//    if (elevation < -M_PI / 2) {
+//        elevation = -M_PI / 2;
+//    }
+//    if (elevation > M_PI / 2) {
+//        elevation = M_PI / 2;
+//    }
 
+//    if (azimuth < -M_PI / 2) azimuth = -M_PI / 2;
+//    if (azimuth > M_PI / 2) azimuth = M_PI / 2;
+//
+
+
+    LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
     return AzimuthElevation{-azimuth, -elevation};
-
 }
