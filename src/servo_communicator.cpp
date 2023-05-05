@@ -182,7 +182,7 @@ void ServoCommunicator::setPose(XrQuaternionf quatPose, BS::thread_pool &threadP
         auto elevation_center = ELEVATION_MAX_VALUE - elevation_max_side;
 
         auto azimuth = int32_t(((azimuthElevation.azimuth * 2.0F) / M_PI) * azimuth_max_side + azimuth_center);
-        auto elevation = int32_t(((azimuthElevation.elevation * 2.0F) / M_PI) * elevation_max_side + elevation_center);
+        auto elevation = -int32_t(((azimuthElevation.elevation * 2.0F) / M_PI) * elevation_max_side + elevation_center);
 
         if (azimuth < AZIMUTH_MIN_VALUE) azimuth = AZIMUTH_MIN_VALUE;
         if (azimuth > AZIMUTH_MAX_VALUE) azimuth = AZIMUTH_MAX_VALUE;
