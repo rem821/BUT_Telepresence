@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "log.h"
+#include "options.h"
 #include "platform_data.h"
 #include "platform_plugin.h"
 #include "graphics_plugin.h"
@@ -8,28 +9,132 @@
 #include <gst/gst.h>
 #include <gio/gio.h>
 
+struct AndroidAppState {
+    ANativeWindow *NativeWindow = nullptr;
+    bool Resumed = false;
+};
+
+/**
+ * Process the next main command.
+ */
+static void app_handle_cmd(struct android_app *app, int32_t cmd) {
+    auto *appState = (AndroidAppState *) app->userData;
+
+    switch (cmd) {
+        // There is no APP_CMD_CREATE. The ANativeActivity creates the
+        // application thread from onCreate(). The application thread
+        // then calls android_main().
+        case APP_CMD_START: {
+            LOG_INFO("    APP_CMD_START");
+            LOG_INFO("onStart()");
+            break;
+        }
+        case APP_CMD_RESUME: {
+            LOG_INFO("onResume()");
+            LOG_INFO("    APP_CMD_RESUME");
+            appState->Resumed = true;
+            break;
+        }
+        case APP_CMD_PAUSE: {
+            LOG_INFO("onPause()");
+            LOG_INFO("    APP_CMD_PAUSE");
+            appState->Resumed = false;
+            break;
+        }
+        case APP_CMD_STOP: {
+            LOG_INFO("onStop()");
+            LOG_INFO("    APP_CMD_STOP");
+            break;
+        }
+        case APP_CMD_DESTROY: {
+            LOG_INFO("onDestroy()");
+            LOG_INFO("    APP_CMD_DESTROY");
+            appState->NativeWindow = nullptr;
+            break;
+        }
+        case APP_CMD_INIT_WINDOW: {
+            LOG_INFO("surfaceCreated()");
+            LOG_INFO("    APP_CMD_INIT_WINDOW");
+            appState->NativeWindow = app->window;
+            break;
+        }
+        case APP_CMD_TERM_WINDOW: {
+            LOG_INFO("surfaceDestroyed()");
+            LOG_INFO("    APP_CMD_TERM_WINDOW");
+            appState->NativeWindow = nullptr;
+            break;
+        }
+        default :
+            break;
+    }
+}
+
+void ShowHelp() {
+    LOG_INFO("adb shell setprop debug.xr.graphicsPlugin Vulkan");
+    LOG_INFO("adb shell setprop debug.xr.formFactor Hmd|Handheld");
+    LOG_INFO("adb shell setprop debug.xr.viewConfiguration Stereo|Mono");
+    LOG_INFO("adb shell setprop debug.xr.blendMode Opaque|Additive|AlphaBlend");
+}
+
+bool UpdateOptionsFromSystemProperties(Options &options) {
+    options.GraphicsPlugin = "Vulkan";
+
+    char value[PROP_VALUE_MAX] = {};
+    if (__system_property_get("debug.xr.graphicsPlugin", value) != 0) {
+        options.GraphicsPlugin = value;
+    }
+
+    if (__system_property_get("debug.xr.formFactor", value) != 0) {
+        options.FormFactor = value;
+    }
+
+    if (__system_property_get("debug.xr.viewConfiguration", value) != 0) {
+        options.ViewConfiguration = value;
+    }
+
+    if (__system_property_get("debug.xr.blendMode", value) != 0) {
+        options.EnvironmentBlendMode = value;
+    }
+
+    try {
+        options.ParseStrings();
+    } catch (std::invalid_argument &ia) {
+        LOG_ERROR("%s", ia.what());
+        ShowHelp();
+        return false;
+    }
+    return true;
+}
+
 void android_main(struct android_app *app) {
     try {
         JNIEnv *Env;
         app->activity->vm->AttachCurrentThread(&Env, nullptr);
 
-        std::shared_ptr <PlatformData> data = std::make_shared<PlatformData>();
+        AndroidAppState appState = {};
+
+        app->userData = &appState;
+        app->onAppCmd = app_handle_cmd;
+
+        std::shared_ptr<Options> options = std::make_shared<Options>();
+
+        std::shared_ptr<PlatformData> data = std::make_shared<PlatformData>();
         data->applicationVM = app->activity->vm;
         data->applicationActivity = app->activity->clazz;
 
         bool requestRestart = false;
         bool exitRenderLoop = false;
 
-        std::shared_ptr <IPlatformPlugin> platformPlugin = CreatePlatformPlugin(data);
-        std::shared_ptr <IGraphicsPlugin> graphicsPlugin = CreateGraphicsPlugin();
-
-        std::shared_ptr <IOpenXrProgram> program = CreateOpenXrProgram(platformPlugin,
-                                                                       graphicsPlugin);
+        std::shared_ptr<IPlatformPlugin> platformPlugin = CreatePlatformPlugin(data);
+        std::shared_ptr<IGraphicsPlugin> graphicsPlugin = CreateGraphicsPlugin(options);
+        std::shared_ptr<IOpenXrProgram> program = CreateOpenXrProgram(options,
+                                                                      platformPlugin,
+                                                                      graphicsPlugin);
 
         PFN_xrInitializeLoaderKHR initializeLoader = nullptr;
         if (XR_SUCCEEDED(xrGetInstanceProcAddr(XR_NULL_HANDLE,
                                                "xrInitializeLoaderKHR",
-                                               (PFN_xrVoidFunction * )(&initializeLoader)))) {
+                                               (PFN_xrVoidFunction *) (&initializeLoader)))) {
             XrLoaderInitInfoAndroidKHR loaderInitInfoAndroid;
             memset(&loaderInitInfoAndroid, 0, sizeof(loaderInitInfoAndroid));
             loaderInitInfoAndroid.type = XR_TYPE_LOADER_INIT_INFO_ANDROID_KHR;
@@ -42,8 +147,9 @@ void android_main(struct android_app *app) {
         program->CreateInstance();
         program->InitializeSystem();
 
-        XrEnvironmentBlendMode blendMode = program->GetPreferredBlendMode();
-        graphicsPlugin->SetBlendMode(blendMode);
+        options->SetEnvironmentBlendMode(program->GetPreferredBlendMode());
+        UpdateOptionsFromSystemProperties(*options);
+        graphicsPlugin->UpdateOptions(options);
 
         program->InitializeDevice();
         program->InitializeSession();
@@ -54,7 +160,12 @@ void android_main(struct android_app *app) {
                 int events;
                 struct android_poll_source *source;
 
-                if (ALooper_pollAll(0, nullptr, &events, (void **) &source) < 0) {
+                // If the timeout is zero, returns immediately without blocking.
+                // If the timeout is negative, waits indefinitely until an event appears.
+                const int timeoutMilliseconds =
+                        (!appState.Resumed && !program->IsSessionRunning() &&
+                         app->destroyRequested == 0) ? -1 : 0;
+                if (ALooper_pollAll(timeoutMilliseconds, nullptr, &events, (void **) &source) < 0) {
                     break;
                 }
 
@@ -65,7 +176,8 @@ void android_main(struct android_app *app) {
 
             program->PollEvents(&exitRenderLoop, &requestRestart);
             if (exitRenderLoop) {
-                break;
+                ANativeActivity_finish(app->activity);
+                continue;
             }
 
             if (!program->IsSessionRunning()) {

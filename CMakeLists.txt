@@ -3,7 +3,7 @@ project(but_telepresence)
 set(CMAKE_CXX_STANDARD 17)
 
 add_definitions(-DXR_USE_PLATFORM_ANDROID)
-add_definitions(-DXR_USE_GRAPHICS_API_OPENGL_ES)
+add_definitions(-DXR_USE_GRAPHICS_API_VULKAN)
 add_definitions(-Werror)
 
 set(GSTREAMER_ROOT ${GSTREAMER_SDK_DIR}/${ANDROID_ABI})
@@ -14,6 +14,7 @@ find_library(ANDROID_LIBRARY NAMES android)
 find_library(ANDROID_LOG_LIBRARY NAMES log)
 find_library(EGL_LIBRARY NAMES EGL)
 find_library(OpenGLES_V3_LIBRARY NAMES GLESv3)
+find_library(Vulkan NAMES vulkan)
 
 find_path(ANDROID_NATIVE_APP_GLUE android_native_app_glue.h PATHS ${ANDROID_NDK}/sources/android/native_app_glue)
 find_path(OpenGLES_V3_INCLUDE_DIR NAMES GLES3/gl3.h)
@@ -32,8 +33,7 @@ set_property(
 
 include_directories(
         ${ANDROID_NATIVE_APP_GLUE}
-        ${OpenGLES_V3_INCLUDE_DIR}
-        ${OpenGLES_V32_INCLUDE_DIR}
+        ${Vulkan_INCLUDE_DIR}
         ${PROJECT_SOURCE_DIR}/3rdParty/OpenXR-SDK/include
         ${GSTREAMER_ROOT}/include/gstreamer-1.0
         ${GSTREAMER_ROOT}/include/glib-2.0
@@ -48,8 +48,7 @@ link_directories(
 add_library(
         ${PROJECT_NAME} SHARED
 
-        src/gpu_window.cpp
-        src/graphics_plugin_opengles.cpp
+        src/graphics_plugin_vulkan.cpp
         src/main.cpp
         src/platform_plugin_android.cpp
         src/program.cpp
@@ -67,7 +66,6 @@ target_link_libraries(
         openxr_loader
         ${ANDROID_LIBRARY}
         ${ANDROID_LOG_LIBRARY}
-        ${EGL_LIBRARY}
-        ${OpenGLES_V3_LIBRARY}
+        ${Vulkan_LIBRARY}
         ${GSTREAMER_LIBRARIES}
 )

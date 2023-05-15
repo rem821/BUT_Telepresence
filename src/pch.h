@@ -33,8 +33,9 @@
 #include <sys/system_properties.h>
 #endif
 
-#ifdef XR_USE_GRAPHICS_API_OPENGL_ES
-#include <EGL/egl.h>
+#ifdef XR_USE_GRAPHICS_API_VULKAN
+#define VK_USE_PLATFORM_ANDROID_KHR
+#include <vulkan/vulkan.h>
 #endif
 
 #include <openxr/openxr.h>

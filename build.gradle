@@ -4,7 +4,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.0.0'
+        classpath 'com.android.tools.build:gradle:8.0.1'
     }
 }
 
@@ -52,8 +52,8 @@ android {
             manifest.srcFile 'AndroidManifest.xml'
             res.srcDir 'android_resources'
         }
-        OpenGLES {
-            res.srcDir 'android_resources/opengles'
+        Vulkan {
+            res.srcDir 'android_resources/vulkan'
         }
     }
 
@@ -72,12 +72,12 @@ android {
     flavorDimensions 'api'
 
     productFlavors {
-        OpenGLES {
+        Vulkan {
             dimension 'api'
-            applicationIdSuffix '.opengles'
-            externalNativeBuild.cmake.cppFlags '-DDEFAULT_GRAPHICS_PLUGIN_OPENGLES'
+            applicationIdSuffix '.vulkan'
+            externalNativeBuild.cmake.cppFlags '-DDEFAULT_GRAPHICS_PLUGIN_VULKAN'
 
-            resValue "string", "app_name", "BUT Telepresence (Opengl ES)"
+            resValue "string", "app_name", "BUT Telepresence (Vulkan)"
         }
     }
 }

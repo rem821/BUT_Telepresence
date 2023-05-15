@@ -1,6 +1,7 @@
 
 #include "pch.h"
 #include "log.h"
+#include "options.h"
 #include "check.h"
 #include "graphics_plugin.h"
 #include "platform_plugin.h"
@@ -37,6 +38,11 @@ namespace Math::Pose {
     }
 }
 
+
+inline std::string GetXrVersionString(XrVersion ver) {
+    return Fmt("%d.%d.%d", XR_VERSION_MAJOR(ver), XR_VERSION_MINOR(ver), XR_VERSION_PATCH(ver));
+}
+
 inline XrReferenceSpaceCreateInfo
 GetXrReferenceSpaceCreateInfo(const std::string &referenceSpaceTypeStr) {
     XrReferenceSpaceCreateInfo referenceSpaceCreateInfo{XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
@@ -52,31 +58,68 @@ GetXrReferenceSpaceCreateInfo(const std::string &referenceSpaceTypeStr) {
     } else if (EqualsIgnoreCase(referenceSpaceTypeStr, "Stage")) {
         referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
     } else if (EqualsIgnoreCase(referenceSpaceTypeStr, "StageLeft")) {
-        referenceSpaceCreateInfo.poseInReferenceSpace = Math::Pose::RotateCCWAboutYAxis(0.f, {-2.f, 0.f, -2.f});
+        referenceSpaceCreateInfo.poseInReferenceSpace
+                = Math::Pose::RotateCCWAboutYAxis(0.f, {-2.f, 0.f, -2.f});
         referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
     } else if (EqualsIgnoreCase(referenceSpaceTypeStr, "StageRight")) {
-        referenceSpaceCreateInfo.poseInReferenceSpace = Math::Pose::RotateCCWAboutYAxis(0.f, {2.f, 0.f, -2.f});
+        referenceSpaceCreateInfo.poseInReferenceSpace
+                = Math::Pose::RotateCCWAboutYAxis(0.f, {2.f, 0.f, -2.f});
         referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
     } else if (EqualsIgnoreCase(referenceSpaceTypeStr, "StageLeftRotated")) {
-        referenceSpaceCreateInfo.poseInReferenceSpace = Math::Pose::RotateCCWAboutYAxis(3.14f / 3.f, {-2.f, 0.5f, -2.f});
+        referenceSpaceCreateInfo.poseInReferenceSpace
+                = Math::Pose::RotateCCWAboutYAxis(3.14f / 3.f, {-2.f, 0.5f, -2.f});
         referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
     } else if (EqualsIgnoreCase(referenceSpaceTypeStr, "StageRightRotated")) {
-        referenceSpaceCreateInfo.poseInReferenceSpace = Math::Pose::RotateCCWAboutYAxis(-3.14f / 3.f, {2.f, 0.5f, -2.f});
+        referenceSpaceCreateInfo.poseInReferenceSpace
+                = Math::Pose::RotateCCWAboutYAxis(-3.14f / 3.f, {2.f, 0.5f, -2.f});
         referenceSpaceCreateInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
     } else {
-        throw std::invalid_argument(Fmt("Unknown reference space type '%s'", referenceSpaceTypeStr.c_str()));
+        throw std::invalid_argument(
+                Fmt("Unknown reference space type '%s'", referenceSpaceTypeStr.c_str()));
     }
     return referenceSpaceCreateInfo;
 }
 
 
 struct OpenXrProgram : IOpenXrProgram {
-    OpenXrProgram(std::shared_ptr<IPlatformPlugin> platformPlugin, std::shared_ptr<IGraphicsPlugin> graphicsPlugin)
-            : m_platformPlugin(std::move(platformPlugin)), m_graphicsPlugin(std::move(graphicsPlugin)),
-              m_acceptableBlendModes{XR_ENVIRONMENT_BLEND_MODE_OPAQUE, XR_ENVIRONMENT_BLEND_MODE_ADDITIVE,
+    OpenXrProgram(const std::shared_ptr<Options> &options,
+                  std::shared_ptr<IPlatformPlugin> platformPlugin,
+                  std::shared_ptr<IGraphicsPlugin> graphicsPlugin)
+            : m_options(options),
+              m_platformPlugin(std::move(platformPlugin)),
+              m_graphicsPlugin(std::move(graphicsPlugin)),
+              m_acceptableBlendModes{XR_ENVIRONMENT_BLEND_MODE_OPAQUE,
+                                     XR_ENVIRONMENT_BLEND_MODE_ADDITIVE,
                                      XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND} {}
 
-    ~OpenXrProgram() override = default;
+    ~OpenXrProgram() override {
+        if (m_input.actionSet != XR_NULL_HANDLE) {
+            for (auto hand : {Side::LEFT, Side::RIGHT}) {
+                xrDestroySpace(controllerSpace[hand]);
+            }
+            xrDestroyActionSet(m_input.actionSet);
+        }
+
+        for (Swapchain swapchain : m_swapchains) {
+            xrDestroySwapchain(swapchain.handle);
+        }
+
+        for (XrSpace visualizedSpace : m_visualizedSpaces) {
+            xrDestroySpace(visualizedSpace);
+        }
+
+        if (m_appSpace != XR_NULL_HANDLE) {
+            xrDestroySpace(m_appSpace);
+        }
+
+        if (m_session != XR_NULL_HANDLE) {
+            xrDestroySession(m_session);
+        }
+
+        if (m_instance != XR_NULL_HANDLE) {
+            xrDestroyInstance(m_instance);
+        }
+    };
 
     static void LogLayersAndExtensions() {
         const auto logExtensions = [](const char *layerName, int indent = 0) {
@@ -185,7 +228,8 @@ struct OpenXrProgram : IOpenXrProgram {
         LOG_INFO("Available View Configuration Types: (%d)", viewConfigTypeCount);
         for (auto viewConfigType: viewConfigTypes) {
             LOG_INFO("  View Configuration Type: %s %s", to_string(viewConfigType),
-                     viewConfigType == XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO ? "(Selected)" : "");
+                     viewConfigType == m_options->Parsed.ViewConfigType ? "(Selected)"
+                                                                        : "");
 
             XrViewConfigurationProperties viewConfigProperties{XR_TYPE_VIEW_CONFIGURATION_PROPERTIES};
             CHECK_XRCMD(xrGetViewConfigurationProperties(m_instance, m_systemId, viewConfigType,
@@ -238,7 +282,7 @@ struct OpenXrProgram : IOpenXrProgram {
                                                      blendModes.data()))
         bool blendModeFound = false;
         for (auto mode: blendModes) {
-            const bool blendModeMatch = (mode == m_preferredBlendMode);
+            const bool blendModeMatch = (mode == m_options->Parsed.EnvironmentBlendMode);
             LOG_INFO("Environment Blend Mode (%s): %s", to_string(mode),
                      blendModeMatch ? "(Selected)" : "");
             blendModeFound |= blendModeMatch;
@@ -247,27 +291,19 @@ struct OpenXrProgram : IOpenXrProgram {
     }
 
     XrEnvironmentBlendMode GetPreferredBlendMode() const override {
-        return m_preferredBlendMode;
-    }
-
-    void UpdatePreferredBlendMode() {
         uint32_t count;
         CHECK_XRCMD(xrEnumerateEnvironmentBlendModes(m_instance, m_systemId,
-                                                     XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0,
+                                                     m_options->Parsed.ViewConfigType, 0,
                                                      &count,
                                                      nullptr))
         CHECK(count > 0)
 
         std::vector<XrEnvironmentBlendMode> blendModes(count);
         CHECK_XRCMD(xrEnumerateEnvironmentBlendModes(m_instance, m_systemId,
-                                                     XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,
+                                                     m_options->Parsed.ViewConfigType,
                                                      count, &count, blendModes.data()))
         for (const auto &blendMode: blendModes) {
-            if (m_acceptableBlendModes.count(blendMode)) {
-                LOG_INFO("Preferred Blend Mode: %s", to_string(blendMode));
-                m_preferredBlendMode = blendMode;
-                return;
-            }
+            if (m_acceptableBlendModes.count(blendMode)) return blendMode;
         }
         THROW("No acceptable blend mode returned from the xrEnumerateEnvironmentBlendModes")
     }
@@ -277,14 +313,14 @@ struct OpenXrProgram : IOpenXrProgram {
         CHECK(m_systemId == XR_NULL_SYSTEM_ID)
 
         XrSystemGetInfo systemInfo{XR_TYPE_SYSTEM_GET_INFO};
-        systemInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
+        systemInfo.formFactor = m_options->Parsed.FormFactor;
         CHECK_XRCMD(xrGetSystem(m_instance, &systemInfo, &m_systemId))
 
-        LOG_INFO("Using system %llu for form factor %s", (unsigned long long) m_systemId, to_string(XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY));
+        LOG_INFO("Using system %llu for form factor %s", (unsigned long long) m_systemId,
+                 to_string(m_options->Parsed.FormFactor));
 
+        CHECK(m_instance != XR_NULL_HANDLE);
         CHECK(m_systemId != XR_NULL_SYSTEM_ID)
-
-        UpdatePreferredBlendMode();
     }
 
     void InitializeDevice() override {
@@ -652,7 +688,8 @@ struct OpenXrProgram : IOpenXrProgram {
         CreateVisualizedSpaces();
 
         {
-            XrReferenceSpaceCreateInfo referenceSpaceCreateInfo = GetXrReferenceSpaceCreateInfo("Local");
+            XrReferenceSpaceCreateInfo referenceSpaceCreateInfo = GetXrReferenceSpaceCreateInfo(
+                    m_options->AppSpace);
             CHECK_XRCMD(xrCreateReferenceSpace(m_session, &referenceSpaceCreateInfo, &m_appSpace))
         }
     }
@@ -699,11 +736,11 @@ struct OpenXrProgram : IOpenXrProgram {
         // Query and cache view configuration views
         uint32_t viewCount;
         CHECK_XRCMD(xrEnumerateViewConfigurationViews(
-                m_instance, m_systemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,
+                m_instance, m_systemId, m_options->Parsed.ViewConfigType,
                 0, &viewCount, nullptr))
         m_configViews.resize(viewCount, {XR_TYPE_VIEW_CONFIGURATION_VIEW});
         CHECK_XRCMD(xrEnumerateViewConfigurationViews(
-                m_instance, m_systemId, XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,
+                m_instance, m_systemId, m_options->Parsed.ViewConfigType,
                 viewCount, &viewCount, m_configViews.data()))
 
 
@@ -841,7 +878,7 @@ struct OpenXrProgram : IOpenXrProgram {
             case XR_SESSION_STATE_READY: {
                 CHECK(m_session != XR_NULL_HANDLE)
                 XrSessionBeginInfo sessionBeginInfo{XR_TYPE_SESSION_BEGIN_INFO};
-                sessionBeginInfo.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+                sessionBeginInfo.primaryViewConfigurationType = m_options->Parsed.ViewConfigType;
                 CHECK_XRCMD(xrBeginSession(m_session, &sessionBeginInfo))
                 m_sessionRunning = true;
                 break;
@@ -1092,7 +1129,7 @@ struct OpenXrProgram : IOpenXrProgram {
 
         XrFrameEndInfo frameEndInfo{XR_TYPE_FRAME_END_INFO};
         frameEndInfo.displayTime = frameState.predictedDisplayTime;
-        frameEndInfo.environmentBlendMode = m_preferredBlendMode;
+        frameEndInfo.environmentBlendMode = m_options->Parsed.EnvironmentBlendMode;
         frameEndInfo.layerCount = (uint32_t) layers.size();
         frameEndInfo.layers = layers.data();
         CHECK_XRCMD(xrEndFrame(m_session, &frameEndInfo))
@@ -1107,7 +1144,7 @@ struct OpenXrProgram : IOpenXrProgram {
         uint32_t viewCountOutput;
 
         XrViewLocateInfo viewLocateInfo{XR_TYPE_VIEW_LOCATE_INFO};
-        viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
+        viewLocateInfo.viewConfigurationType = m_options->Parsed.ViewConfigType;
         viewLocateInfo.displayTime = predictedDisplayTime;
         viewLocateInfo.space = m_appSpace;
 
@@ -1129,7 +1166,8 @@ struct OpenXrProgram : IOpenXrProgram {
         XrSpaceLocation spaceLocation{XR_TYPE_SPACE_LOCATION};
 
         // Locate "ViewFront" space
-        res = xrLocateSpace(m_visualizedSpaces[0], m_appSpace, predictedDisplayTime, &spaceLocation);
+        res = xrLocateSpace(m_visualizedSpaces[0], m_appSpace, predictedDisplayTime,
+                            &spaceLocation);
         CHECK_XRRESULT(res, "xrLocateSpace")
         if (XR_UNQUALIFIED_SUCCESS(res)) {
             if ((spaceLocation.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
@@ -1175,10 +1213,11 @@ struct OpenXrProgram : IOpenXrProgram {
         }
 
         layer.space = m_appSpace;
-        layer.layerFlags = m_preferredBlendMode == XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND
-                           ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT |
-                             XR_COMPOSITION_LAYER_UNPREMULTIPLIED_ALPHA_BIT
-                           : 0;
+        layer.layerFlags =
+                m_options->Parsed.EnvironmentBlendMode == XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND
+                ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT |
+                  XR_COMPOSITION_LAYER_UNPREMULTIPLIED_ALPHA_BIT
+                : 0;
         layer.viewCount = (uint32_t) projectionLayerViews.size();
         layer.views = projectionLayerViews.data();
 
@@ -1186,6 +1225,7 @@ struct OpenXrProgram : IOpenXrProgram {
     }
 
 private:
+    const std::shared_ptr<const Options> m_options;
     std::shared_ptr<IPlatformPlugin> m_platformPlugin;
     std::shared_ptr<IGraphicsPlugin> m_graphicsPlugin;
 
@@ -1225,7 +1265,8 @@ private:
 };
 
 std::shared_ptr<IOpenXrProgram>
-CreateOpenXrProgram(const std::shared_ptr<IPlatformPlugin> &platformPlugin,
+CreateOpenXrProgram(const std::shared_ptr<Options> &options,
+                    const std::shared_ptr<IPlatformPlugin> &platformPlugin,
                     const std::shared_ptr<IGraphicsPlugin> &graphicsPlugin) {
-    return std::make_shared<OpenXrProgram>(platformPlugin, graphicsPlugin);
+    return std::make_shared<OpenXrProgram>(options, platformPlugin, graphicsPlugin);
 }
