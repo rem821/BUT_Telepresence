@@ -4,7 +4,6 @@
 #pragma once
 
 #include "pch.h"
-#include "log.h"
 
 #include "BS_thread_pool.hpp"
 #include <sys/socket.h>

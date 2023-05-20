@@ -1,10 +1,9 @@
 #include "pch.h"
 
-#include "log.h"
 #include "options.h"
 #include "platform_data.h"
 #include "platform_plugin.h"
-#include "graphics_plugin.h"
+#include "vulkan/VulkanGraphicsContext.h"
 #include "program.h"
 #include <gst/gst.h>
 #include <gio/gio.h>
@@ -126,10 +125,8 @@ void android_main(struct android_app *app) {
         bool exitRenderLoop = false;
 
         std::shared_ptr<IPlatformPlugin> platformPlugin = CreatePlatformPlugin(data);
-        std::shared_ptr<IGraphicsPlugin> graphicsPlugin = CreateGraphicsPlugin(options);
-        std::shared_ptr<IOpenXrProgram> program = CreateOpenXrProgram(options,
-                                                                      platformPlugin,
-                                                                      graphicsPlugin);
+        auto graphicsContext = std::make_shared<VulkanEngine::VulkanGraphicsContext>(options);
+        std::shared_ptr<OpenXrProgram> program = std::make_shared<OpenXrProgram>(options, platformPlugin, graphicsContext);
 
         PFN_xrInitializeLoaderKHR initializeLoader = nullptr;
         if (XR_SUCCEEDED(xrGetInstanceProcAddr(XR_NULL_HANDLE,
@@ -149,11 +146,10 @@ void android_main(struct android_app *app) {
 
         options->SetEnvironmentBlendMode(program->GetPreferredBlendMode());
         UpdateOptionsFromSystemProperties(*options);
-        graphicsPlugin->UpdateOptions(options);
 
         program->InitializeDevice();
         program->InitializeSession();
-        program->CreateSwapchains();
+        program->InitializeRendering();
 
         while (!app->destroyRequested) {
             for (;;) {

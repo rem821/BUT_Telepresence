@@ -5,7 +5,6 @@
 #pragma once
 
 #include "pch.h"
-#include "check.h"
 
 inline XrFormFactor GetXrFormFactor(const std::string& formFactorStr) {
     if (EqualsIgnoreCase(formFactorStr, "Hmd")) {

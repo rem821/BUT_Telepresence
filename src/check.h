@@ -4,7 +4,9 @@
 
 #pragma once
 
+#include "log.h"
 #include "common.h"
+#include <vulkan/vulkan.h>
 
 #define CHK_STRINGIFY(x) #x
 #define TOSTRING(x) CHK_STRINGIFY(x)
@@ -50,3 +52,5 @@ inline XrResult CheckXrResult(XrResult res, const char* originator = nullptr, co
 #define THROW_XR(xr, cmd) ThrowXrResult(xr, #cmd, FILE_AND_LINE);
 #define CHECK_XRCMD(cmd) CheckXrResult(cmd, #cmd, FILE_AND_LINE);
 #define CHECK_XRRESULT(res, cmdStr) CheckXrResult(res, cmdStr, FILE_AND_LINE);
+
+#define CORE_ASSERT(x, ...) { if(!(x)) { LOG_ERROR("Assertion Failed: %s", __VA_ARGS__); __builtin_trap(); } }

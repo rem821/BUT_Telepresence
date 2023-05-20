@@ -1,12 +1,14 @@
 #pragma once
 
-#include <GLES3/gl3.h>
-
 namespace Geometry {
 
+    enum DisplayType {
+        LEFT = 0, RIGHT = 1
+    };
+
     struct Vertex {
-        XrVector3f Position;
-        XrVector2f TextureCoordinates;
+        XrVector3f Position{};
+        XrVector2f TextureCoordinates{};
     };
 
     constexpr XrVector3f Red{1, 0, 0};

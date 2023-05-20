@@ -2,9 +2,14 @@
 
 === Setup
 
-Set `ovr_openxr_mobile_sdk.dir` in your `local.properties`
+Set environment variables in your `local.properties`
 
 [source,properties]
 ----
-ovr_openxr_mobile_sdk.dir=/path/to/ovr_openxr_mobile_sdk
+sdk.dir=/home/user/Android/Sdk
+ovr_openxr_mobile_sdk.dir=/home/user/ovr_openxr_mobile_sdk
+gstreamer_sdk.dir=/home/user/gstreamer
 ----
+
+Also be sure to compile ´shaderc´ in your AndroidNDK directory with c++_shared STL
+https://developer.android.com/ndk/guides/graphics/shader-compilers

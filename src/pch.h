@@ -21,25 +21,25 @@
 #include <thread>
 #include <type_traits>
 #include <vector>
+#include <unordered_map>
+#include <fstream>
 
 #include <time.h>
 #include <string.h>
 
-#ifdef XR_USE_PLATFORM_ANDROID
 #include <android/log.h>
 #include <android_native_app_glue.h>
 #include <android/native_window.h>
 #include <jni.h>
 #include <sys/system_properties.h>
-#endif
 
-#ifdef XR_USE_GRAPHICS_API_VULKAN
-#define VK_USE_PLATFORM_ANDROID_KHR
 #include <vulkan/vulkan.h>
-#endif
 
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 #include <openxr/openxr_reflection.h>
 
+#include "check.h"
 #include "common.h"
+#include "geometry.h"
+#include "log.h"

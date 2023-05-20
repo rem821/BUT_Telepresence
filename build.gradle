@@ -24,25 +24,24 @@ android {
     compileSdkVersion 29
     buildToolsVersion "30.0.3"
     ndkVersion "21.4.7075529"
-    namespace "cz.but.telepresence"
 
     defaultConfig {
         applicationId "cz.but.telepresence"
         // for Vulkan, need at least 24
         minSdkVersion 24
         compileSdkVersion 26
+        namespace "cz.but.telepresence"
 
         versionName = "1.0"
         versionCode = 1
 
         externalNativeBuild {
             ndk {
-                abiFilters 'arm64-v8a', 'armeabi-v7a'
+                abiFilters 'arm64-v8a'
             }
             cmake {
                 arguments "-DOVR_OPENXR_MOBILE_SDK_DIR:STRING=${ovr_openxr_mobile_sdk_dir}"
                 arguments "-DGSTREAMER_SDK_DIR:STRING=${gstreamer_sdk_dir}"
-                arguments "-DANDROID_STL=c++_shared"
                 cppFlags ''
             }
         }

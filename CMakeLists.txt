@@ -12,13 +12,9 @@ set(ENV{GST_REGISTRY} "${GSTREAMER_ROOT}/registry.bin")
 
 find_library(ANDROID_LIBRARY NAMES android)
 find_library(ANDROID_LOG_LIBRARY NAMES log)
-find_library(EGL_LIBRARY NAMES EGL)
-find_library(OpenGLES_V3_LIBRARY NAMES GLESv3)
-find_library(Vulkan NAMES vulkan)
+find_package(Vulkan REQUIRED)
 
 find_path(ANDROID_NATIVE_APP_GLUE android_native_app_glue.h PATHS ${ANDROID_NDK}/sources/android/native_app_glue)
-find_path(OpenGLES_V3_INCLUDE_DIR NAMES GLES3/gl3.h)
-find_path(OpenGLES_V32_INCLUDE_DIR NAMES GLES3/gl32.h)
 
 add_library(android_native_app_glue OBJECT "${ANDROID_NATIVE_APP_GLUE}/android_native_app_glue.c")
 
@@ -33,22 +29,23 @@ set_property(
 
 include_directories(
         ${ANDROID_NATIVE_APP_GLUE}
-        ${Vulkan_INCLUDE_DIR}
+        ${Vulkan_INCLUDE_DIRS}
         ${PROJECT_SOURCE_DIR}/3rdParty/OpenXR-SDK/include
         ${GSTREAMER_ROOT}/include/gstreamer-1.0
         ${GSTREAMER_ROOT}/include/glib-2.0
         ${GSTREAMER_ROOT}/lib/glib-2.0/include
-        ${OVR_OPENXR_MOBILE_SDK_DIR}/SampleCommon/Src
+        ${OVR_OPENXR_MOBILE_SDK_DIR}/3rdParty/khronos/openxr/OpenXR-SDK/include
+        ${ANDROID_NDK}/sources/third_party/shaderc/include
 )
 
 link_directories(
         ${GSTREAMER_ROOT}/lib
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0)
+        ${GSTREAMER_ROOT}/lib/gstreamer-1.0
+)
 
 add_library(
-        ${PROJECT_NAME} SHARED
+        ${PROJECT_NAME} MODULE
 
-        src/graphics_plugin_vulkan.cpp
         src/main.cpp
         src/platform_plugin_android.cpp
         src/program.cpp
@@ -56,10 +53,16 @@ add_library(
         src/udp_socket.cpp
         src/servo_communicator.cpp
 
+        src/vulkan/VulkanGraphicsContext.cpp
+        src/vulkan/VulkanDevice.cpp
+        src/vulkan/VulkanDescriptors.cpp
+        src/vulkan/VulkanPipeline.cpp
+        src/vulkan/VulkanRenderSystem.cpp
+        src/vulkan/VulkanRenderer.cpp
+        src/vulkan/VulkanSwapChain.cpp
+
         $<TARGET_OBJECTS:android_native_app_glue>
 )
-
-set(GSTREAMER_LIBRARIES "${GSTREAMER_ROOT}/lib/libgstreamer_android.so")
 
 target_link_libraries(
         ${PROJECT_NAME}
@@ -67,5 +70,6 @@ target_link_libraries(
         ${ANDROID_LIBRARY}
         ${ANDROID_LOG_LIBRARY}
         ${Vulkan_LIBRARY}
-        ${GSTREAMER_LIBRARIES}
+        ${GSTREAMER_ROOT}/lib/libgstreamer_android.so
+        ${ANDROID_NDK}/sources/third_party/shaderc/libs/c++_shared/${ANDROID_ABI}/libshaderc.a
 )
