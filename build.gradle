@@ -42,6 +42,7 @@ android {
             cmake {
                 arguments "-DOVR_OPENXR_MOBILE_SDK_DIR:STRING=${ovr_openxr_mobile_sdk_dir}"
                 arguments "-DGSTREAMER_SDK_DIR:STRING=${gstreamer_sdk_dir}"
+                arguments "-DANDROID_STL=c++_shared"
                 cppFlags ''
             }
         }

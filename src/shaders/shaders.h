@@ -4,42 +4,19 @@
 #pragma once
 
 constexpr char VertexShaderGlsl[] =
-        R"_(
-    #version 430
-    #extension GL_ARB_separate_shader_objects : enable
+        R"_(#version 450
 
-    layout (std140, push_constant) uniform buf
-    {
-        mat4 mvp;
-    } ubuf;
-
-    layout (location = 0) in vec3 Position;
-    layout (location = 1) in vec3 Color;
-
-    layout (location = 0) out vec4 oColor;
-    out gl_PerVertex
-    {
-        vec4 gl_Position;
-    };
-
-    void main()
-    {
-        oColor.rgba  = Color.rgba;
-        gl_Position = ubuf.mvp * Position;
+    void main() {
+       gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
     }
-)_";
+    )_";
 
 constexpr char FragmentShaderGlsl[] =
-        R"_(
-    #version 430
-    #extension GL_ARB_separate_shader_objects : enable
+        R"_(#version 450
 
-    layout (location = 0) in vec4 oColor;
+    layout (location = 0) out vec4 outColor;
 
-    layout (location = 0) out vec4 FragColor;
-
-    void main()
-    {
-        FragColor = oColor;
+    void main() {
+        outColor = vec4(1.0, 1.0, 1.0, 1.0);
     }
-)_";
+    )_";

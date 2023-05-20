@@ -179,7 +179,7 @@ namespace VulkanEngine {
 
                 swapchainImageContexts_[i].xrSwapchainImages.resize(imageCount);
                 std::vector<XrSwapchainImageBaseHeader *> swapchainImageBases(imageCount);
-                for (int j = 0; j < imageCount; i++) {
+                for (int j = 0; j < imageCount; j++) {
                     swapchainImageContexts_[i].xrSwapchainImages[j] = {XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR};
                     swapchainImageBases[j] = {reinterpret_cast<XrSwapchainImageBaseHeader *>(&swapchainImageContexts_[i].xrSwapchainImages[j])};
                 }

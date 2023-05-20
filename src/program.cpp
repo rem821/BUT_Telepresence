@@ -103,7 +103,7 @@ void OpenXrProgram::CreateInstanceInternal() {
     std::transform(platformExtensions.begin(), platformExtensions.end(),
                    std::back_inserter(extensions),
                    [](const std::string &ext) { return ext.c_str(); });
-    const std::vector<std::string> graphicsExtensions = platformPlugin_->GetInstanceExtensions();
+    const std::vector<std::string> graphicsExtensions = graphicsContext_->GetInstanceExtensions();
     std::transform(graphicsExtensions.begin(), graphicsExtensions.end(),
                    std::back_inserter(extensions),
                    [](const std::string &ext) { return ext.c_str(); });
@@ -231,7 +231,7 @@ void OpenXrProgram::InitializeSystem() {
 
     LOG_INFO("Using system %llu for form factor %s", (unsigned long long) m_systemId, to_string(options_->Parsed.FormFactor));
 
-    CHECK(m_instance != XR_NULL_HANDLE);
+    CHECK(m_instance != XR_NULL_HANDLE)
     CHECK(m_systemId != XR_NULL_SYSTEM_ID)
 }
 
@@ -484,9 +484,10 @@ void OpenXrProgram::InitializeSession() {
     {
         LOG_INFO("Creating session...");
         XrSessionCreateInfo createInfo{XR_TYPE_SESSION_CREATE_INFO};
-        createInfo.next = reinterpret_cast<const XrBaseInStructure *>(XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR);
+        createInfo.next = graphicsContext_->GetGraphicsBinding();
         createInfo.systemId = m_systemId;
-        CHECK_XRCMD(xrCreateSession(m_instance, &createInfo, &m_session))
+
+        CHECK_XRCMD( xrCreateSession(m_instance, &createInfo, &m_session))
     }
 
     LogReferenceSpaces();

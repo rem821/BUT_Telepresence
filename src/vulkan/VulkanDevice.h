@@ -146,8 +146,8 @@ namespace VulkanEngine {
             return objName;
         }
 
-        XrInstance xrInstance_;
-        XrSystemId xrSystemId_;
+        const XrInstance& xrInstance_;
+        const XrSystemId& xrSystemId_;
         bool enableValidationLayers_;
 
         const std::string appName_ = "BUT_Telepresence";

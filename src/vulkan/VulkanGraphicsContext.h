@@ -23,9 +23,13 @@ namespace VulkanEngine {
             return {XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME};
         };
 
-        void InitializeDevice(XrInstance instance, XrSystemId systemId);
+        const XrBaseInStructure* GetGraphicsBinding() const {
+            return reinterpret_cast<const XrBaseInStructure*>(&graphicsBinding_);
+        }
 
-        void InitializeRendering(XrInstance instance, XrSystemId systemId, XrSession session);
+        void InitializeDevice(const XrInstance &instance, const XrSystemId &systemId);
+
+        void InitializeRendering(const XrInstance &instance, const XrSystemId &systemId, const XrSession &session);
 
         void RenderView(const XrCompositionLayerProjectionView &layerView,
                         const XrSwapchainImageBaseHeader *swapchainImage,

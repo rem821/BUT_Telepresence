@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 add_definitions(-DXR_USE_PLATFORM_ANDROID)
 add_definitions(-DXR_USE_GRAPHICS_API_VULKAN)
 add_definitions(-Werror)
+add_definitions(-DNDEBUG)
 
 set(GSTREAMER_ROOT ${GSTREAMER_SDK_DIR}/${ANDROID_ABI})
 set(ENV{GST_PLUGIN_PATH} "${GSTREAMER_ROOT}/lib/gstreamer-1.0")
@@ -72,4 +73,5 @@ target_link_libraries(
         ${Vulkan_LIBRARY}
         ${GSTREAMER_ROOT}/lib/libgstreamer_android.so
         ${ANDROID_NDK}/sources/third_party/shaderc/libs/c++_shared/${ANDROID_ABI}/libshaderc.a
+        ${PROJECT_SOURCE_DIR}/src/vulkan/validationLayers/${ANDROID_ABI}/libVkLayer_khronos_validation.so
 )

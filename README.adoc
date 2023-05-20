@@ -13,3 +13,7 @@ gstreamer_sdk.dir=/home/user/gstreamer
 
 Also be sure to compile ´shaderc´ in your AndroidNDK directory with c++_shared STL
 https://developer.android.com/ndk/guides/graphics/shader-compilers
+
+Trouble with enabling vulkan validation layers on the target device?
+We bundle them directly in the app. See:
+https://developer.android.com/ndk/guides/graphics/validation-layer#apk-containing-layers

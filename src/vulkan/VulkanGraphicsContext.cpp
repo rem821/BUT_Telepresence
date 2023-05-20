@@ -8,7 +8,7 @@ namespace VulkanEngine {
         viewConfigurationType_ = options->Parsed.ViewConfigType;
     };
 
-    void VulkanGraphicsContext::InitializeDevice(XrInstance instance, XrSystemId systemId) {
+    void VulkanGraphicsContext::InitializeDevice(const XrInstance& instance, const XrSystemId& systemId) {
 #if defined(NDEBUG)
         vulkanDevice_ = std::make_unique<VulkanDevice>(instance, systemId, true);
 #else
@@ -21,8 +21,7 @@ namespace VulkanEngine {
         graphicsBinding_.queueIndex = 0;
     }
 
-    void VulkanGraphicsContext::InitializeRendering(XrInstance instance, XrSystemId systemId,
-                                                    XrSession session) {
+    void VulkanGraphicsContext::InitializeRendering(const XrInstance& instance, const XrSystemId& systemId, const XrSession& session) {
         // Read graphics properties for preferred swapchain length and logging
         XrSystemProperties systemProperties{XR_TYPE_SYSTEM_PROPERTIES};
         CHECK_XRCMD(xrGetSystemProperties(instance, systemId, &systemProperties))

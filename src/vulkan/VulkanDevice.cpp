@@ -5,7 +5,7 @@
 
 namespace VulkanEngine {
 
-    VulkanDevice::VulkanDevice(const XrInstance &xrInstance, const XrSystemId &systemId, bool enableValidationLayers)
+    VulkanDevice::VulkanDevice(const XrInstance& xrInstance, const XrSystemId &systemId, bool enableValidationLayers)
             : xrInstance_(xrInstance), xrSystemId_(systemId), enableValidationLayers_(enableValidationLayers) {
         CreateInstance();
         SetupDebugMessenger();
