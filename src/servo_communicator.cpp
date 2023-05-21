@@ -223,7 +223,7 @@ void ServoCommunicator::setPose(XrQuaternionf quatPose, BS::thread_pool &threadP
 
 bool ServoCommunicator::checkReadiness() const {
     if (!isInitialized()) {
-        LOG_ERROR("ServoCommunicator is not yet initialized!");
+        //LOG_ERROR("ServoCommunicator is not yet initialized!");
         return false;
     }
 
@@ -291,7 +291,7 @@ bool ServoCommunicator::waitForResponse(const std::vector<uint32_t> &statusBytes
 
     isReady_ = true;
     if (response.length() == 0) {
-        LOG_ERROR("No response received! Check if the servo is connected properly");
+        //LOG_ERROR("No response received! Check if the servo is connected properly");
     } else if (response.length() < RESPONSE_MIN_BYTES) {
         LOG_ERROR("Malformed packet received!");
     } else {

@@ -2,8 +2,7 @@
 
 namespace VulkanEngine {
 
-    VulkanGraphicsContext::VulkanGraphicsContext(const std::shared_ptr<Options> &options)
-            : clearColor_(options->GetBackgroundClearColor()) {
+    VulkanGraphicsContext::VulkanGraphicsContext(const std::shared_ptr<Options> &options) {
         graphicsBinding_.type = XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR;
         viewConfigurationType_ = options->Parsed.ViewConfigType;
     };
@@ -66,6 +65,24 @@ namespace VulkanEngine {
                                                                     VK_CULL_MODE_BACK_BIT
             );
         }
+
+        for (auto &uboBuffer: uboBuffers) {
+            uboBuffer = std::make_unique<VulkanBuffer>(
+                    *vulkanDevice_,
+                    sizeof(GlobalUbo),
+                    1,
+                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+            );
+            uboBuffer->Map();
+        }
+
+        for (unsigned long i = 0; i < globalDescriptorSets.size(); i++) {
+            auto bufferInfo = uboBuffers[i]->DescriptorInfo();
+            VulkanDescriptorWriter(*globalSetLayout_, *globalPool_)
+                    .WriteBuffer(0, &bufferInfo)
+                    .Build(globalDescriptorSets[i]);
+        }
     }
 
     void VulkanGraphicsContext::RenderView(XrCompositionLayerProjectionView &layerView, Geometry::DisplayType display, const void *image) {
@@ -78,8 +95,30 @@ namespace VulkanEngine {
         layerView.subImage.imageRect.offset = {0, 0};
         layerView.subImage.imageRect.extent = {viewSwapchain.width, viewSwapchain.height};
 
+        FrameInfo frameInfo{commandBuffer, globalDescriptorSets[display]};
+
+        // Compute the view-projection transform.
+        // Note all matrices (including OpenXR's) are column-major, right-handed.
+        const auto &pose = layerView.pose;
+        XrMatrix4x4f proj;
+        XrMatrix4x4f_CreateProjectionFov(&proj, GRAPHICS_VULKAN, layerView.fov, 0.05f, 100.0f);
+        XrMatrix4x4f toView;
+        XrVector3f scale{1.f, 1.f, 1.f};
+        XrMatrix4x4f_CreateTranslationRotationScale(&toView, &pose.position, &pose.orientation, &scale);
+        XrMatrix4x4f view;
+        XrMatrix4x4f_InvertRigidBody(&view, &toView);
+        XrMatrix4x4f vp;
+        XrMatrix4x4f_Multiply(&vp, &proj, &view);
+
+        GlobalUbo ubo{};
+        ubo.projection = proj;
+        ubo.view = view;
+        ubo.inverseView = toView;
+        uboBuffers[display]->WriteToBuffer(&ubo);
+        uboBuffers[display]->Flush();
+
         vulkanRenderer_->BeginSwapChainRenderPass(commandBuffer, display);
-        renderSystem_[display]->RenderGameObjects();
+        renderSystem_[display]->RenderGameObjects(frameInfo);
         vulkanRenderer_->EndSwapChainRenderPass(commandBuffer);
         vulkanRenderer_->EndFrame();
 

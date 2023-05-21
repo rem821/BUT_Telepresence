@@ -61,6 +61,7 @@ add_library(
         src/vulkan/VulkanRenderSystem.cpp
         src/vulkan/VulkanRenderer.cpp
         src/vulkan/VulkanSwapChain.cpp
+        src/vulkan/VulkanBuffer.cpp
 
         $<TARGET_OBJECTS:android_native_app_glue>
 )

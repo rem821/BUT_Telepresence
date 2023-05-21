@@ -6,8 +6,7 @@
 #include "../pch.h"
 #include "VulkanDevice.h"
 #include "VulkanPipeline.h"
-
-#include "../xr_linear.h"
+#include "VulkanFrameInfo.h"
 
 namespace VulkanEngine {
 
@@ -26,7 +25,7 @@ namespace VulkanEngine {
 
         VulkanRenderSystem &operator=(const VulkanRenderSystem &) = delete;
 
-        void RenderGameObjects();
+        void RenderGameObjects(const FrameInfo &frameInfo);
 
     private:
         void CreatePipelineLayout(VkDescriptorSetLayout globalSetLayout);

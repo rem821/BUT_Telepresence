@@ -77,7 +77,7 @@ unsigned long sendUDPPacket(int socket, const UserState &state) {
                         + ", elevation: " + std::to_string(elevation)
                         + ", heading: " + std::to_string(heading);
 
-        LOG_INFO("%s", reh.c_str());
+        //LOG_INFO("%s", reh.c_str());
     }
 
     {

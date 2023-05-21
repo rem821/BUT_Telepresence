@@ -61,13 +61,11 @@ namespace VulkanEngine {
         enginePipeline_ = std::make_unique<VulkanPipeline>(engineDevice_, pipelineConfig);
     }
 
-    void VulkanRenderSystem::RenderGameObjects() {
-        /*
+    void VulkanRenderSystem::RenderGameObjects(const FrameInfo &frameInfo) {
         enginePipeline_->Bind(frameInfo.commandBuffer);
 
-        vkCmdBindDescriptorSets(frameInfo.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 1, &frameInfo.globalDescriptorSet, 0,
-                                nullptr);
-
+        vkCmdBindDescriptorSets(frameInfo.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout_, 0, 1, &frameInfo.globalDescriptorSet, 0, nullptr);
+        /*
         for (auto &kv: frameInfo.gameObjects) {
             auto &obj = kv.second;
             if (obj.model == nullptr) continue;

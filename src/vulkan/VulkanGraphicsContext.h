@@ -10,8 +10,8 @@
 #include "VulkanRenderer.h"
 #include "VulkanDescriptors.h"
 #include "VulkanRenderSystem.h"
-
-#include "../xr_linear.h"
+#include "VulkanBuffer.h"
+#include "VulkanFrameInfo.h"
 
 namespace VulkanEngine {
 
@@ -42,8 +42,8 @@ namespace VulkanEngine {
         std::unique_ptr<VulkanDescriptorPool> globalPool_;
         std::unique_ptr<VulkanDescriptorSetLayout> globalSetLayout_;
         std::vector<std::unique_ptr<VulkanRenderSystem>> renderSystem_;
-        VkSemaphore m_vkDrawDone{VK_NULL_HANDLE};
 
-        std::array<float, 4> clearColor_;
+        std::vector<std::unique_ptr<VulkanBuffer>> uboBuffers{2};
+        std::vector<VkDescriptorSet> globalDescriptorSets{2};
     };
 }
