@@ -31,8 +31,6 @@ namespace VulkanEngine {
             }
             imageContext.colorImageViews.clear();
 
-            vkDestroySwapchainKHR(device_.GetDevice(), swapChain_, nullptr);
-
             for (auto depthImageView: imageContext.depthImageViews) {
                 vkDestroyImageView(device_.GetDevice(), depthImageView, nullptr);
 
@@ -47,55 +45,32 @@ namespace VulkanEngine {
             vkDestroyRenderPass(device_.GetDevice(), imageContext.renderPass, nullptr);
         }
 
-        vkDestroySemaphore(device_.GetDevice(), renderFinishedSemaphore_, nullptr);
-        vkDestroySemaphore(device_.GetDevice(), imageAvailableSemaphore_, nullptr);
-        vkDestroyFence(device_.GetDevice(), inFlightFence_, nullptr);
+        vkDestroyFence(device_.GetDevice(), execFence_, nullptr);
     }
 
-    VkResult VulkanSwapChain::AcquireNextImage(uint32_t *imageIndex) {
-        vkWaitForFences(
-                device_.GetDevice(),
-                1,
-                &inFlightFence_,
-                VK_TRUE,
-                std::numeric_limits<uint64_t>::max()
-        );
+    void VulkanSwapChain::AcquireNextImage(Geometry::DisplayType display) {
+        vkWaitForFences(device_.GetDevice(), 1, &execFence_, VK_TRUE, std::numeric_limits<uint64_t>::max());
 
-        VkResult result = vkAcquireNextImageKHR(
-                device_.GetDevice(),
-                swapChain_,
-                std::numeric_limits<uint64_t>::max(),
-                imageAvailableSemaphore_,
-                VK_NULL_HANDLE,
-                imageIndex
-        );
-        return result;
+        // Each view has a separate swapchain which is acquired, rendered to, and released.
+        currentSwapchain_ = swapchains_[display];
+        currentDisplay_ = display;
+        XrSwapchainImageAcquireInfo acquireInfo{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+
+        CHECK_XRCMD(xrAcquireSwapchainImage(currentSwapchain_.handle, &acquireInfo, &currentSwapchainImageIndex_))
+
+        XrSwapchainImageWaitInfo waitInfo{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+        waitInfo.timeout = XR_INFINITE_DURATION;
+        CHECK_XRCMD(xrWaitSwapchainImage(currentSwapchain_.handle, &waitInfo))
     }
 
-    VkResult VulkanSwapChain::SubmitCommandBuffers(const VkCommandBuffer *buffers, const uint32_t *imageIndex) {
-        if (imageInFlight_ != VK_NULL_HANDLE) {
-            vkWaitForFences(device_.GetDevice(), 1, &imageInFlight_, VK_TRUE, UINT64_MAX);
-        }
-        imageInFlight_ = inFlightFence_;
-
+    VkResult VulkanSwapChain::SubmitCommandBuffers(const VkCommandBuffer *buffers) {
         VkSubmitInfo submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-        VkSemaphore waitSemaphores[] = {imageAvailableSemaphore_};
-        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = waitSemaphores;
-        submitInfo.pWaitDstStageMask = waitStages;
-
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = buffers;
 
-        VkSemaphore signalSemaphores[] = {renderFinishedSemaphore_};
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = signalSemaphores;
-
-        vkResetFences(device_.GetDevice(), 1, &inFlightFence_);
-        CORE_ASSERT(vkQueueSubmit(device_.GraphicsQueue(), 1, &submitInfo, inFlightFence_) == VK_SUCCESS,
+        vkResetFences(device_.GetDevice(), 1, &execFence_);
+        CORE_ASSERT(vkQueueSubmit(device_.GraphicsQueue(), 1, &submitInfo, execFence_) == VK_SUCCESS,
                     "Failed to submit draw command buffer!")
 
         return VK_SUCCESS;
@@ -352,16 +327,11 @@ namespace VulkanEngine {
     }
 
     void VulkanSwapChain::CreateSyncObjects() {
-        VkSemaphoreCreateInfo semaphoreInfo = {};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
         VkFenceCreateInfo fenceInfo = {};
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        CORE_ASSERT(vkCreateSemaphore(device_.GetDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphore_) == VK_SUCCESS &&
-                    vkCreateSemaphore(device_.GetDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphore_) == VK_SUCCESS &&
-                    vkCreateFence(device_.GetDevice(), &fenceInfo, nullptr, &inFlightFence_) == VK_SUCCESS,
+        CORE_ASSERT(vkCreateFence(device_.GetDevice(), &fenceInfo, nullptr, &execFence_) == VK_SUCCESS,
                     "Failed to create synchronization objects for a frame!")
     }
 }

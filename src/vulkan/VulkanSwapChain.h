@@ -34,11 +34,15 @@ namespace VulkanEngine {
 
         VulkanSwapChain operator=(const VulkanSwapChain &) = delete;
 
-        VkFramebuffer GetFrameBuffer(Geometry::DisplayType display, uint32_t index) { return swapchainImageContexts_[display].frameBuffers[index]; };
+        VkFramebuffer GetCurrentFrameBuffer() { return swapchainImageContexts_[currentDisplay_].frameBuffers[currentSwapchainImageIndex_]; };
 
         VkRenderPass GetRenderPass(Geometry::DisplayType display) { return swapchainImageContexts_[display].renderPass; };
 
-        VkImageView GetImageView(Geometry::DisplayType display, int index) { return swapchainImageContexts_[display].colorImageViews[index]; };
+        VkRenderPass GetCurrentRenderPass() { return swapchainImageContexts_[currentDisplay_].renderPass; };
+
+        Swapchain GetCurrentSwapChain() { return currentSwapchain_; };
+
+        VkImageView GetCurrentImageView() { return swapchainImageContexts_[currentDisplay_].colorImageViews[currentSwapchainImageIndex_]; };
 
         VkFormat GetSwapChainImageFormat() { return swapchainImageFormat_; };
 
@@ -53,9 +57,9 @@ namespace VulkanEngine {
                    static_cast<float>(swapchainExtent_.height);
         };
 
-        VkResult AcquireNextImage(uint32_t *imageIndex);
+        void AcquireNextImage(Geometry::DisplayType display);
 
-        VkResult SubmitCommandBuffers(const VkCommandBuffer *buffers, const uint32_t *imageIndex);
+        VkResult SubmitCommandBuffers(const VkCommandBuffer *buffers);
 
     private:
         void Init();
@@ -73,6 +77,8 @@ namespace VulkanEngine {
         void CreateSyncObjects();
 
         const XrSession &xrSession_;
+        const VulkanDevice &device_;
+
         const XrViewConfigurationType& viewConfigurationType_;
         std::vector<XrViewConfigurationView> configViews_{};
         std::vector<Swapchain> swapchains_;
@@ -83,15 +89,10 @@ namespace VulkanEngine {
         VkFormat swapchainDepthFormat_{};
         VkExtent2D swapchainExtent_{};
 
+        VkFence execFence_{VK_NULL_HANDLE};
 
-        const VulkanDevice &device_;
-
-        VkSwapchainKHR swapChain_{};
-
-        VkSemaphore imageAvailableSemaphore_;
-        VkSemaphore renderFinishedSemaphore_;
-        VkFence inFlightFence_;
-        VkFence imageInFlight_;
-        size_t currentFrame_ = 0;
+        Swapchain currentSwapchain_;
+        Geometry::DisplayType currentDisplay_;
+        uint32_t currentSwapchainImageIndex_;
     };
 }

@@ -31,9 +31,7 @@ namespace VulkanEngine {
 
         void InitializeRendering(const XrInstance &instance, const XrSystemId &systemId, const XrSession &session);
 
-        void RenderView(const XrCompositionLayerProjectionView &layerView,
-                        const XrSwapchainImageBaseHeader *swapchainImage,
-                        int64_t swapchainFormat, const void *image);
+        void RenderView(XrCompositionLayerProjectionView &layerView, Geometry::DisplayType display, const void *image);
 
     private:
         XrGraphicsBindingVulkan2KHR graphicsBinding_{XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR};

@@ -487,7 +487,7 @@ void OpenXrProgram::InitializeSession() {
         createInfo.next = graphicsContext_->GetGraphicsBinding();
         createInfo.systemId = m_systemId;
 
-        CHECK_XRCMD( xrCreateSession(m_instance, &createInfo, &m_session))
+        CHECK_XRCMD(xrCreateSession(m_instance, &createInfo, &m_session))
     }
 
     LogReferenceSpaces();
@@ -822,6 +822,9 @@ void OpenXrProgram::PollPoses(XrTime predictedDisplayTime) {
 void OpenXrProgram::RenderFrame() {
     CHECK(m_session != XR_NULL_HANDLE)
 
+    // Create and cache view buffer for xrLocateViews later.
+    m_views.resize(2, {XR_TYPE_VIEW});
+
     XrFrameWaitInfo frameWaitInfo{XR_TYPE_FRAME_WAIT_INFO};
     XrFrameState frameState{XR_TYPE_FRAME_STATE};
     CHECK_XRCMD(xrWaitFrame(m_session, &frameWaitInfo, &frameState))
@@ -869,7 +872,6 @@ bool OpenXrProgram::RenderLayer(XrTime predictedDisplayTime, std::vector<XrCompo
     }
 
     CHECK(viewCountOutput == viewCapacityInput)
-    CHECK(viewCountOutput == m_configViews.size())
 
     projectionLayerViews.resize(viewCountOutput);
 
@@ -891,40 +893,18 @@ bool OpenXrProgram::RenderLayer(XrTime predictedDisplayTime, std::vector<XrCompo
         LOG_INFO("Unable to locate a visualized reference space in app space: %d", res);
     }
 
-    /*
     // Render view to the appropriate part of the swapchain image.
     for (uint32_t i = 0; i < viewCountOutput; i++) {
-        const Swapchain viewSwapchain = m_swapchains[i];
-
-        XrSwapchainImageAcquireInfo acquireInfo{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
-
-        uint32_t swapchainImageIndex;
-        CHECK_XRCMD(xrAcquireSwapchainImage(viewSwapchain.handle, &acquireInfo,
-                                            &swapchainImageIndex))
-
-        XrSwapchainImageWaitInfo waitInfo{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
-        waitInfo.timeout = XR_INFINITE_DURATION;
-        CHECK_XRCMD(xrWaitSwapchainImage(viewSwapchain.handle, &waitInfo))
 
         projectionLayerViews[i] = {XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW};
         projectionLayerViews[i].pose = m_views[i].pose;
         projectionLayerViews[i].fov = m_views[i].fov;
-        projectionLayerViews[i].subImage.swapchain = viewSwapchain.handle;
-        projectionLayerViews[i].subImage.imageRect.offset = {0, 0};
-        projectionLayerViews[i].subImage.imageRect.extent = {viewSwapchain.width,
-                                                             viewSwapchain.height};
 
-        const XrSwapchainImageBaseHeader *const swapchainImage = m_swapchainImages[viewSwapchain.handle][swapchainImageIndex];
-
-        graphicsContext_->RenderView(projectionLayerViews[i], swapchainImage,
-                                     m_colorSwapchainFormat,
+        graphicsContext_->RenderView(projectionLayerViews[i], (Geometry::DisplayType) i,
                                      i == 0 ? gstreamerPlayer.getFrameRight().dataHandle
                                             : gstreamerPlayer.getFrameLeft().dataHandle);
-
-        XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-        CHECK_XRCMD(xrReleaseSwapchainImage(viewSwapchain.handle, &releaseInfo))
     }
-    */
+
     layer.space = m_appSpace;
     layer.layerFlags =
             options_->Parsed.EnvironmentBlendMode == XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND

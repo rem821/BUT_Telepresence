@@ -85,7 +85,7 @@ namespace VulkanEngine {
     void VulkanPipeline::CreateShaderModule(const std::vector<uint32_t> &code, VkShaderModule *shaderModule) {
         VkShaderModuleCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = code.size();
+        createInfo.codeSize = code.size() * 4;
         createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
 
         CORE_ASSERT(vkCreateShaderModule(engineDevice_.GetDevice(), &createInfo, nullptr, shaderModule) == VK_SUCCESS,
@@ -188,7 +188,7 @@ namespace VulkanEngine {
         shaderc::Compiler compiler;
         shaderc::CompileOptions options;
 
-        options.SetOptimizationLevel(shaderc_optimization_level_size);
+        options.SetOptimizationLevel(shaderc_optimization_level_zero);
 
         shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(source, kind, name.c_str(), options);
 

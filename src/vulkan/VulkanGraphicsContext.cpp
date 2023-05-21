@@ -68,10 +68,25 @@ namespace VulkanEngine {
         }
     }
 
-    void VulkanGraphicsContext::RenderView(const XrCompositionLayerProjectionView &layerView, const XrSwapchainImageBaseHeader *swapchainImage,
-                                           int64_t swapchainFormat, const void *image) {
+    void VulkanGraphicsContext::RenderView(XrCompositionLayerProjectionView &layerView, Geometry::DisplayType display, const void *image) {
+        CHECK(layerView.subImage.imageArrayIndex == 0)  // Texture arrays not supported.
+
+        auto commandBuffer = vulkanRenderer_->BeginFrame(display);
+
+        auto viewSwapchain = vulkanRenderer_->GetCurrentSwapChain();
+        layerView.subImage.swapchain = viewSwapchain.handle;
+        layerView.subImage.imageRect.offset = {0, 0};
+        layerView.subImage.imageRect.extent = {viewSwapchain.width, viewSwapchain.height};
+
+        vulkanRenderer_->BeginSwapChainRenderPass(commandBuffer, display);
+        renderSystem_[display]->RenderGameObjects();
+        vulkanRenderer_->EndSwapChainRenderPass(commandBuffer);
+        vulkanRenderer_->EndFrame();
+
+        XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+        CHECK_XRCMD(xrReleaseSwapchainImage(viewSwapchain.handle, &releaseInfo))
         /*
-            CHECK(layerView.subImage.imageArrayIndex == 0)  // Texture arrays not supported.
+
 
             auto swapchainContext = m_swapchainImageContextMap[swapchainImage];
             uint32_t imageIndex = swapchainContext->ImageIndex(swapchainImage);

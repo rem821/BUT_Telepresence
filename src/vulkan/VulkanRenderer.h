@@ -22,6 +22,10 @@ namespace VulkanEngine {
 
         [[nodiscard]] VkRenderPass GetSwapChainRenderPass(Geometry::DisplayType display) const { return engineSwapChain_->GetRenderPass(display); }
 
+        [[nodiscard]] VkRenderPass GetCurrentSwapChainRenderPass() const { return engineSwapChain_->GetCurrentRenderPass(); }
+
+        [[nodiscard]] VulkanSwapChain::Swapchain GetCurrentSwapChain() const { return engineSwapChain_->GetCurrentSwapChain(); }
+
         [[nodiscard]] float GetAspectRatio() const { return engineSwapChain_->GetAspectRatio(); };
 
         [[nodiscard]] bool IsFrameInProgress() const { return isFrameStarted_; };
@@ -31,7 +35,7 @@ namespace VulkanEngine {
             return commandBuffer_;
         }
 
-        VkCommandBuffer BeginFrame();
+        VkCommandBuffer BeginFrame(Geometry::DisplayType display);
 
         void EndFrame();
 

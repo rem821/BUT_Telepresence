@@ -156,10 +156,8 @@ private:
 
     XrEnvironmentBlendMode m_preferredBlendMode{XR_ENVIRONMENT_BLEND_MODE_OPAQUE};
 
-    std::vector<XrViewConfigurationView> m_configViews;
     std::map<XrSwapchain, std::vector<XrSwapchainImageBaseHeader *>> m_swapchainImages;
     std::vector<XrView> m_views;
-    int64_t m_colorSwapchainFormat{-1};
 
     std::vector<XrSpace> m_visualizedSpaces;
     XrSpace controllerSpace[Side::COUNT];

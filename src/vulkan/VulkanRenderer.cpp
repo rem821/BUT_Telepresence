@@ -14,16 +14,10 @@ namespace VulkanEngine {
 
     VulkanRenderer::~VulkanRenderer() { FreeCommandBuffers(); }
 
-    VkCommandBuffer VulkanRenderer::BeginFrame() {
+    VkCommandBuffer VulkanRenderer::BeginFrame(Geometry::DisplayType display) {
         CORE_ASSERT(!isFrameStarted_, "Can't call beginFrame while already in progress!")
 
-        auto result = engineSwapChain_->AcquireNextImage(&currentImageIndex_);
-
-        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-            RecreateSwapChain();
-            return nullptr;
-        }
-        CORE_ASSERT(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "Failed to acquire swap chain image!")
+        engineSwapChain_->AcquireNextImage(display);
 
         isFrameStarted_ = true;
 
@@ -42,7 +36,7 @@ namespace VulkanEngine {
 
         CORE_ASSERT(vkEndCommandBuffer(commandBuffer) == VK_SUCCESS, "Failed to record command buffer!")
 
-        auto result = engineSwapChain_->SubmitCommandBuffers(&commandBuffer, &currentImageIndex_);
+        auto result = engineSwapChain_->SubmitCommandBuffers(&commandBuffer);
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
             RecreateSwapChain();
         }
@@ -57,13 +51,13 @@ namespace VulkanEngine {
         VkRenderPassBeginInfo renderPassInfo = {};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = engineSwapChain_->GetRenderPass(display);
-        renderPassInfo.framebuffer = engineSwapChain_->GetFrameBuffer(display, currentImageIndex_);
+        renderPassInfo.framebuffer = engineSwapChain_->GetCurrentFrameBuffer();
 
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = engineSwapChain_->GetSwapChainExtent();
 
         std::array<VkClearValue, 2> clearValues = {};
-        clearValues[0].color = {{0.01f, 0.01f, 0.01f, 1.0f}};
+        clearValues[0].color = {{0.1f, 0.1f, 0.1f, 1.0f}};
         clearValues[1].depthStencil = {1.0f, 0};
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
