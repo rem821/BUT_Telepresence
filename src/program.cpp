@@ -671,6 +671,10 @@ struct OpenXrProgram : IOpenXrProgram {
             servoComm.enableServos(true, threadPool);
         }
         if (servoComm.isReady()) {
+            if(userState.xPressed) { speed -= 10000; }
+            if(userState.yPressed) { speed += 10000; }
+
+            servoComm.setSpeed(speed, threadPool);
             servoComm.setPose(userState.hmdPose.orientation, threadPool);
         }
     }
@@ -1165,10 +1169,14 @@ struct OpenXrProgram : IOpenXrProgram {
 
             const XrSwapchainImageBaseHeader *const swapchainImage = m_swapchainImages[viewSwapchain.handle][swapchainImageIndex];
 
+            void * imageHandle = i == 0 ? gstreamerPlayer.getFrameRight().dataHandle : gstreamerPlayer.getFrameLeft().dataHandle;
+            if(userState.aPressed) mono = true;
+            if(userState.bPressed) mono = false;
+            if(mono) imageHandle = gstreamerPlayer.getFrameRight().dataHandle;
+
             m_graphicsPlugin->RenderView(projectionLayerViews[i], swapchainImage,
                                          m_colorSwapchainFormat, quad,
-                                         i == 0 ? gstreamerPlayer.getFrameRight().dataHandle
-                                                : gstreamerPlayer.getFrameLeft().dataHandle);
+                                         imageHandle);
 
             XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
             CHECK_XRCMD(xrReleaseSwapchainImage(viewSwapchain.handle, &releaseInfo))
@@ -1219,6 +1227,9 @@ private:
     const std::set<XrEnvironmentBlendMode> m_acceptableBlendModes;
 
     UserState userState{};
+
+    int32_t speed = 200000;
+    bool mono = false;
 
     int udpSocket;
     ServoCommunicator servoComm{threadPool};
