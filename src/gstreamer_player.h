@@ -20,12 +20,11 @@ public:
 
     void play();
 
-    GstreamerFrame getFrameLeft() const { return gstreamerFrameLeft_; }
-    GstreamerFrame getFrameRight() const { return gstreamerFrameRight_; }
-
+    GstreamerFrame getFrameLeft() const { return gstreamerFrames_.first; }
+    GstreamerFrame getFrameRight() const { return gstreamerFrames_.second; }
 private:
 
-    static GstFlowReturn newFrameCallback(GstElement *sink, GstreamerFrame *frame);
+    static GstFlowReturn newFrameCallback(GstElement *sink, std::pair<GstreamerFrame, GstreamerFrame> *frames);
 
     static void stateChangedCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
 
@@ -35,19 +34,9 @@ private:
 
     static void errorCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
 
-    void dumpGstreamerFeatures();
-
-    static gboolean printGstreamerFeature(const GstPluginFeature *feature, gpointer user_data);
-
-    static void *YUV420toRGB(void *image);
-
-    GstElement *pipelineLeft_{};
-    GstElement *pipelineRight_{};
+    GstElement *pipeline_;
     GMainContext *context_{};
     GMainLoop *mainLoop_{};
 
-    bool isInitialized_ = false;
-
-    GstreamerFrame gstreamerFrameLeft_{};
-    GstreamerFrame gstreamerFrameRight_{};
+    std::pair<GstreamerFrame, GstreamerFrame> gstreamerFrames_;
 };
