@@ -314,7 +314,7 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
         glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)), GL_UNSIGNED_SHORT, nullptr);
 
         glBindTexture(GL_TEXTURE_2D, m_texture2D);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, textureWidth, textureHeight, 0, GL_SRGB, GL_UNSIGNED_BYTE, image);
 
         glBindVertexArray(0);
         glUseProgram(0);
