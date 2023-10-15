@@ -21,6 +21,12 @@ find_path(OpenGLES_V32_INCLUDE_DIR NAMES GLES3/gl32.h)
 
 add_library(android_native_app_glue OBJECT "${ANDROID_NATIVE_APP_GLUE}/android_native_app_glue.c")
 
+include(FetchContent)
+FetchContent_declare(zenohc GIT_REPOSITORY "https://github.com/eclipse-zenoh/zenoh-c")
+FetchContent_MakeAvailable(zenohc)
+FetchContent_declare(zenohcpp GIT_REPOSITORY "https://github.com/eclipse-zenoh/zenoh-cpp" GIT_TAG main)
+FetchContent_MakeAvailable(zenohcpp)
+
 add_library(openxr_loader SHARED IMPORTED)
 set_property(
         TARGET
@@ -70,4 +76,6 @@ target_link_libraries(
         ${EGL_LIBRARY}
         ${OpenGLES_V3_LIBRARY}
         ${GSTREAMER_LIBRARIES}
+        zenohc::static
+        zenohcxx::zenohc::lib
 )

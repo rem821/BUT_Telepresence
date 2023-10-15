@@ -8,6 +8,9 @@
 #include <gst/gst.h>
 #include <gio/gio.h>
 
+#include "zenohc.hxx"
+using namespace zenohc;
+
 void android_main(struct android_app *app) {
     try {
         JNIEnv *Env;
