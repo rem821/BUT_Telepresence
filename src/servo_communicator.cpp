@@ -15,11 +15,11 @@ constexpr int RESPONSE_MIN_BYTES = 6;
 constexpr unsigned char IDENTIFIER_1 = 0x47;
 constexpr unsigned char IDENTIFIER_2 = 0x54;
 
-constexpr int32_t AZIMUTH_MAX_VALUE = INT32_MAX;
-constexpr int32_t AZIMUTH_MIN_VALUE = -1'073'741'824;
+constexpr int32_t AZIMUTH_MAX_VALUE = 1'200'000'000;
+constexpr int32_t AZIMUTH_MIN_VALUE = -800'000'000;
 
-constexpr int32_t ELEVATION_MAX_VALUE = 715'827'882;
-constexpr int32_t ELEVATION_MIN_VALUE = -715'827'882;
+constexpr int32_t ELEVATION_MAX_VALUE = 2'147'483'467;
+constexpr int32_t ELEVATION_MIN_VALUE = 800'000'000;
 
 ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool) : socket_(socket(AF_INET, SOCK_DGRAM, 0)) {
 
@@ -51,6 +51,31 @@ ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool) : socket_(sock
 
     setMode(threadPool);
 }
+
+void ServoCommunicator::resetErrors(BS::thread_pool &threadPool) {
+    if (!checkReadiness()) {
+        return;
+    }
+
+    threadPool.push_task([this]() {
+        std::vector<unsigned char> const buffer = {IDENTIFIER_1, IDENTIFIER_2,
+                                                         Operation::WRITE,
+                                                         MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
+                                                         0x08, 0x00, 0x00, 0x00,
+                                                         Operation::WRITE,
+                                                         MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
+                                                         0x08, 0x00, 0x00, 0x00};
+
+        while (true) {
+            sendMessage(buffer);
+
+            if (waitForResponse({5, 9})) {
+                break;
+            }
+        }
+    });
+}
+
 
 void ServoCommunicator::enableServos(bool enable, BS::thread_pool &threadPool) {
     if (!checkReadiness()) {
@@ -85,94 +110,12 @@ void ServoCommunicator::enableServos(bool enable, BS::thread_pool &threadPool) {
     });
 }
 
-void ServoCommunicator::setSpeed(int32_t speed, BS::thread_pool &threadPool) {
+void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, BS::thread_pool &threadPool) {
     if (!checkReadiness()) {
         return;
     }
 
-    threadPool.push_task([this, speed]() {
-        auto speedBytes = serializeLEInt(speed);
-
-        std::vector<unsigned char> const speedBuffer = {IDENTIFIER_1, IDENTIFIER_2,
-                                                        Operation::WRITE,
-                                                        MessageGroup::AZIMUTH, MessageElement::SPEED,
-                                                        speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
-                                                        Operation::WRITE,
-                                                        MessageGroup::ELEVATION, MessageElement::SPEED,
-                                                        speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3]
-        };
-
-        while (true) {
-            sendMessage(speedBuffer);
-
-            if (waitForResponse({5, 9})) {
-                break;
-            }
-        }
-
-    });
-}
-
-void ServoCommunicator::setAcceleration(int32_t acceleration, BS::thread_pool &threadPool) {
-    if (!checkReadiness()) {
-        return;
-    }
-
-    threadPool.push_task([this, acceleration]() {
-        auto accBytes = serializeLEInt(acceleration);
-
-        std::vector<unsigned char> const accBuffer = {IDENTIFIER_1, IDENTIFIER_2,
-                                                      Operation::WRITE,
-                                                      MessageGroup::AZIMUTH, MessageElement::ACCELERATION,
-                                                      accBytes[0], accBytes[1], accBytes[2], accBytes[3],
-                                                      Operation::WRITE,
-                                                      MessageGroup::ELEVATION, MessageElement::ACCELERATION,
-                                                      accBytes[0], accBytes[1], accBytes[2], accBytes[3],
-        };
-
-        while (true) {
-            sendMessage(accBuffer);
-
-            if (waitForResponse({5, 9})) {
-                break;
-            }
-        }
-    });
-}
-
-void ServoCommunicator::setDeceleration(int32_t deceleration, BS::thread_pool &threadPool) {
-    if (!checkReadiness()) {
-        return;
-    }
-
-    threadPool.push_task([this, deceleration]() {
-        auto decBytes = serializeLEInt(deceleration);
-
-        std::vector<unsigned char> const decBuffer = {IDENTIFIER_1, IDENTIFIER_2,
-                                                      Operation::WRITE,
-                                                      MessageGroup::AZIMUTH, MessageElement::ACCELERATION,
-                                                      decBytes[0], decBytes[1], decBytes[2], decBytes[3],
-                                                      Operation::WRITE,
-                                                      MessageGroup::ELEVATION, MessageElement::ACCELERATION,
-                                                      decBytes[0], decBytes[1], decBytes[2], decBytes[3],
-        };
-
-        while (true) {
-            sendMessage(decBuffer);
-
-            if (waitForResponse({5, 9})) {
-                break;
-            }
-        }
-    });
-}
-
-void ServoCommunicator::setPose(XrQuaternionf quatPose, BS::thread_pool &threadPool) {
-    if (!checkReadiness()) {
-        return;
-    }
-
-    threadPool.push_task([this, quatPose]() {
+    threadPool.push_task([this, quatPose, speed]() {
         auto azimuthElevation = quaternionToAzimuthElevation(quatPose);
 
         auto azimuth_max_side = int32_t((int64_t(AZIMUTH_MAX_VALUE) - AZIMUTH_MIN_VALUE) / 2);
@@ -182,23 +125,38 @@ void ServoCommunicator::setPose(XrQuaternionf quatPose, BS::thread_pool &threadP
         auto elevation_center = ELEVATION_MAX_VALUE - elevation_max_side;
 
         auto azimuth = int32_t(((azimuthElevation.azimuth * 2.0F) / M_PI) * azimuth_max_side + azimuth_center);
-        auto elevation = -int32_t(((azimuthElevation.elevation * 2.0F) / M_PI) * elevation_max_side + elevation_center);
+        auto elevation = int32_t(((-azimuthElevation.elevation * 2.0F) / M_PI) * elevation_max_side + elevation_center);
 
-        if (azimuth < AZIMUTH_MIN_VALUE) azimuth = AZIMUTH_MIN_VALUE;
-        if (azimuth > AZIMUTH_MAX_VALUE) azimuth = AZIMUTH_MAX_VALUE;
-        if (elevation < ELEVATION_MIN_VALUE) elevation = ELEVATION_MIN_VALUE;
-        if (elevation > ELEVATION_MAX_VALUE) elevation = ELEVATION_MAX_VALUE;
+        if (azimuth < AZIMUTH_MIN_VALUE) {
+            azimuth = AZIMUTH_MIN_VALUE;
+        }
+        if (azimuth > AZIMUTH_MAX_VALUE) {
+            azimuth = AZIMUTH_MAX_VALUE;
+        }
+        if (elevation < ELEVATION_MIN_VALUE) {
+            elevation = ELEVATION_MIN_VALUE;
+        }
+        if (elevation > ELEVATION_MAX_VALUE) {
+            elevation = ELEVATION_MAX_VALUE;
+        }
 
-        int32_t azRevol = 0, elRevol = 0;
-        if (azimuth < 0) azRevol = -1;
-        if (elevation < 0) elRevol = -1;
+        int32_t azRevol = 0;
+        int32_t elRevol = 0;
+        if (azimuth < 0) {
+            azRevol = -1;
+        }
+        if (elevation < 0) {
+            elRevol = -1;
+        }
 
         auto azAngleBytes = serializeLEInt(azimuth);
         auto azRevolBytes = serializeLEInt(azRevol);
         auto elAngleBytes = serializeLEInt(elevation);
         auto elRevolBytes = serializeLEInt(elRevol);
 
-        std::vector<unsigned char> const angleBuffer = {IDENTIFIER_1, IDENTIFIER_2,
+        auto speedBytes = serializeLEInt(speed);
+
+        std::vector<unsigned char> const buffer = {IDENTIFIER_1, IDENTIFIER_2,
                                                         Operation::WRITE_CONTINUOS,
                                                         MessageGroup::AZIMUTH, MessageElement::ANGLE,
                                                         0x02,
@@ -209,10 +167,22 @@ void ServoCommunicator::setPose(XrQuaternionf quatPose, BS::thread_pool &threadP
                                                         0x02,
                                                         elAngleBytes[0], elAngleBytes[1], elAngleBytes[2], elAngleBytes[3],
                                                         elRevolBytes[0], elRevolBytes[1], elRevolBytes[2], elRevolBytes[3],
+                                                        Operation::WRITE,
+                                                        MessageGroup::AZIMUTH, MessageElement::SPEED,
+                                                        speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
+                                                        Operation::WRITE,
+                                                        MessageGroup::ELEVATION, MessageElement::SPEED,
+                                                        speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
+                                                        Operation::WRITE,
+                                                        MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
+                                                        0x01, 0x00, 0x00, 0x00,
+                                                        Operation::WRITE,
+                                                        MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
+                                                        0x01, 0x00, 0x00, 0x00
         };
 
         while (true) {
-            sendMessage(angleBuffer);
+            sendMessage(buffer);
 
             if (waitForResponse({5, 10})) {
                 break;
@@ -328,7 +298,7 @@ ServoCommunicator::AzimuthElevation ServoCommunicator::quaternionToAzimuthElevat
     double sqy = q.y * q.y;
     double sqz = q.z * q.z;
     azimuth = atan2(2 * q.y * q.w - 2 * q.x * q.z, 1 - 2 * sqy - 2 * sqz);
-    elevation = atan2(2*q.x*q.w-2*q.y*q.z , 1 - 2*sqx - 2*sqz);
+    elevation = atan2(2 * q.x * q.w - 2 * q.y * q.z, 1 - 2 * sqx - 2 * sqz);
 
 //    if (elevation < -M_PI / 2) {
 //        elevation = -M_PI / 2;

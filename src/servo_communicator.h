@@ -50,15 +50,11 @@ public:
 
     [[nodiscard]] bool servosEnabled() const { return servosEnabled_; }
 
+    void resetErrors(BS::thread_pool &threadPool);
+
     void enableServos(bool enable, BS::thread_pool &threadPool);
 
-    void setSpeed(int32_t speed, BS::thread_pool &threadPool);
-
-    void setAcceleration(int32_t acceleration, BS::thread_pool &threadPool);
-
-    void setDeceleration(int32_t deceleration, BS::thread_pool &threadPool);
-
-    void setPose(XrQuaternionf quatPose, BS::thread_pool &threadPool);
+    void setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, BS::thread_pool &threadPool);
 
 private:
 
@@ -68,7 +64,7 @@ private:
 
     void sendMessage(const std::vector<unsigned char> &message);
 
-    bool waitForResponse(const std::vector<uint32_t>& statusBytes);
+    bool waitForResponse(const std::vector<uint32_t> &statusBytes);
 
     template<typename IntType>
     [[nodiscard]] inline static std::vector<uint8_t> serializeLEInt(const IntType &value) {
