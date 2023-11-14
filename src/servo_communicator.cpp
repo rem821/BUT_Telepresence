@@ -18,8 +18,8 @@ constexpr unsigned char IDENTIFIER_2 = 0x54;
 constexpr int32_t AZIMUTH_MAX_VALUE = 1'200'000'000;
 constexpr int32_t AZIMUTH_MIN_VALUE = -800'000'000;
 
-constexpr int32_t ELEVATION_MAX_VALUE = 2'147'483'467;
-constexpr int32_t ELEVATION_MIN_VALUE = 800'000'000;
+constexpr int32_t ELEVATION_MAX_VALUE = 715'827'882;
+constexpr int32_t ELEVATION_MIN_VALUE = -715'827'882;
 
 ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool) : socket_(socket(AF_INET, SOCK_DGRAM, 0)) {
 
@@ -61,10 +61,10 @@ void ServoCommunicator::resetErrors(BS::thread_pool &threadPool) {
         std::vector<unsigned char> const buffer = {IDENTIFIER_1, IDENTIFIER_2,
                                                          Operation::WRITE,
                                                          MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
-                                                         0x08, 0x00, 0x00, 0x08,
+                                                         0x08, 0x00, 0x00, 0x00,
                                                          Operation::WRITE,
                                                          MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
-                                                         0x08, 0x00, 0x00, 0x08};
+                                                         0x08, 0x00, 0x00, 0x00};
 
         while (true) {
             sendMessage(buffer);
@@ -157,28 +157,28 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
         auto speedBytes = serializeLEInt(speed);
 
         std::vector<unsigned char> const buffer = {IDENTIFIER_1, IDENTIFIER_2,
-                                                   Operation::WRITE_CONTINUOS,
-                                                   MessageGroup::AZIMUTH, MessageElement::ANGLE,
-                                                   0x02,
-                                                   azAngleBytes[0], azAngleBytes[1], azAngleBytes[2], azAngleBytes[3],
-                                                   azRevolBytes[0], azRevolBytes[1], azRevolBytes[2], azRevolBytes[3],
-                                                   Operation::WRITE_CONTINUOS,
-                                                   MessageGroup::ELEVATION, MessageElement::ANGLE,
-                                                   0x02,
-                                                   elAngleBytes[0], elAngleBytes[1], elAngleBytes[2], elAngleBytes[3],
-                                                   elRevolBytes[0], elRevolBytes[1], elRevolBytes[2], elRevolBytes[3],
-                                                   Operation::WRITE,
-                                                   MessageGroup::AZIMUTH, MessageElement::SPEED,
-                                                   speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
-                                                   Operation::WRITE,
-                                                   MessageGroup::ELEVATION, MessageElement::SPEED,
-                                                   speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
-                                                   Operation::WRITE,
-                                                   MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
-                                                   0x01, 0x00, 0x00, 0x00,
-                                                   Operation::WRITE,
-                                                   MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
-                                                   0x01, 0x00, 0x00, 0x00
+                                                        Operation::WRITE_CONTINUOS,
+                                                        MessageGroup::AZIMUTH, MessageElement::ANGLE,
+                                                        0x02,
+                                                        azAngleBytes[0], azAngleBytes[1], azAngleBytes[2], azAngleBytes[3],
+                                                        azRevolBytes[0], azRevolBytes[1], azRevolBytes[2], azRevolBytes[3],
+                                                        Operation::WRITE_CONTINUOS,
+                                                        MessageGroup::ELEVATION, MessageElement::ANGLE,
+                                                        0x02,
+                                                        elAngleBytes[0], elAngleBytes[1], elAngleBytes[2], elAngleBytes[3],
+                                                        elRevolBytes[0], elRevolBytes[1], elRevolBytes[2], elRevolBytes[3],
+                                                        Operation::WRITE,
+                                                        MessageGroup::AZIMUTH, MessageElement::SPEED,
+                                                        speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
+                                                        Operation::WRITE,
+                                                        MessageGroup::ELEVATION, MessageElement::SPEED,
+                                                        speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
+                                                        Operation::WRITE,
+                                                        MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
+                                                        0x01, 0x00, 0x00, 0x00,
+                                                        Operation::WRITE,
+                                                        MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
+                                                        0x01, 0x00, 0x00, 0x00
         };
 
         while (true) {

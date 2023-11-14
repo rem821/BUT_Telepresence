@@ -676,7 +676,6 @@ struct OpenXrProgram : IOpenXrProgram {
             if(userState.xPressed && userState.yPressed) { servoComm.resetErrors(threadPool); }
 
             servoComm.setPoseAndSpeed(userState.hmdPose.orientation, speed, threadPool);
-            servoComm.setPoseAndSpeed(userState.hmdPose.orientation, speed, threadPool);
         }
     }
 
