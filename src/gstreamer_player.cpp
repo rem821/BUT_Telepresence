@@ -1,4 +1,5 @@
 #include "gstreamer_player.h"
+#include <ctime>
 
 
 GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
@@ -8,15 +9,15 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         //dumpGstreamerFeatures();
 
         //Init the GstreamerFrame data structure
-        gstreamerFrames_.first.memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
-        auto *emptyFrameLeft = new unsigned char[gstreamerFrames_.first.memorySize];
+        std::get<0>(gstreamerFrames_).memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
+        auto *emptyFrameLeft = new unsigned char[std::get<0>(gstreamerFrames_).memorySize];
         memset(emptyFrameLeft, 0, sizeof(emptyFrameLeft));
-        gstreamerFrames_.first.dataHandle = (void *) emptyFrameLeft;
+        std::get<0>(gstreamerFrames_).dataHandle = (void *) emptyFrameLeft;
 
-        gstreamerFrames_.second.memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
-        auto *emptyFrameRight = new unsigned char[gstreamerFrames_.second.memorySize];
+        std::get<1>(gstreamerFrames_).memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
+        auto *emptyFrameRight = new unsigned char[std::get<1>(gstreamerFrames_).memorySize];
         memset(emptyFrameRight, 0, sizeof(emptyFrameRight));
-        gstreamerFrames_.second.dataHandle = (void *) emptyFrameRight;
+        std::get<1>(gstreamerFrames_).dataHandle = (void *) emptyFrameRight;
 
         GstBus *bus;
         GSource *bus_source;
@@ -27,7 +28,7 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
 
         /* Build pipeline */
         pipeline_ = gst_parse_launch(
-                "udpsrc port=8554 ! application/x-rtp,encoding-name=JPEG,payload=26,x-dimensions=\"1920,2160\",framerate=30/1 ! rtpjpegdepay ! jpegdec ! video/x-raw,format=RGB ! videoflip method=vertical-flip ! queue ! appsink emit-signals=true name=appsink",
+                "udpsrc port=8554 ! application/x-rtp,encoding-name=JPEG,payload=26,x-dimensions=\"1920,2160\",framerate=30/1 ! rtpjpegdepay ! jpegdec ! video/x-raw,format=RGB ! queue ! appsink emit-signals=true name=appsink",
                 &error);
 
         if (error) {
@@ -68,12 +69,16 @@ void GstreamerPlayer::play() {
     gst_element_set_state(pipeline_, GST_STATE_PLAYING);
 }
 
-GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, std::pair<GstreamerFrame, GstreamerFrame> *frames) {
+GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, std::tuple<GstreamerFrame, GstreamerFrame,  std::pair<double, double>> *frames) {
     GstSample *sample;
     /* Retrieve the buffer */
     g_signal_emit_by_name(sink, "pull-sample", &sample);
     if (sample) {
         //LOG_INFO("GStreamer new frame arrived!");
+        struct timespec res{};
+        clock_gettime(CLOCK_MONOTONIC, &res);
+        std::get<2>(*frames).first = std::get<2>(*frames).second;
+        std::get<2>(*frames).second = 1000.0 * res.tv_sec + (double) res.tv_nsec / 1e6;
 
         GstBuffer *buffer;
         GstMapInfo mapInfo{};
@@ -81,8 +86,8 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, std::pair<Gstr
         buffer = gst_sample_get_buffer(sample);
         gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
 
-        memcpy(frames->second.dataHandle, mapInfo.data, frames->second.memorySize);
-        memcpy(frames->first.dataHandle, mapInfo.data + frames->first.memorySize, frames->first.memorySize);
+        memcpy(std::get<1>(*frames).dataHandle, mapInfo.data, std::get<1>(*frames).memorySize);
+        memcpy(std::get<0>(*frames).dataHandle, mapInfo.data + std::get<0>(*frames).memorySize, std::get<0>(*frames).memorySize);
 
         gst_sample_unref(sample);
         gst_buffer_unmap(buffer, &mapInfo);
