@@ -8,15 +8,15 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         //dumpGstreamerFeatures();
 
         //Init the GstreamerFrame data structure
-        gstreamerFrameLeft_.memorySize = 1920 * 1080 * 1.5; // Size of single Full HD YUV 4:2:0 frame
-        auto *emptyFrameLeft = new unsigned char[gstreamerFrameLeft_.memorySize];
+        std::get<0>(gstreamerFrameLeft_).memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB 4:2:0 frame
+        auto *emptyFrameLeft = new unsigned char[std::get<0>(gstreamerFrameLeft_).memorySize];
         memset(emptyFrameLeft, 0, sizeof(emptyFrameLeft));
-        gstreamerFrameLeft_.dataHandle = (void *) emptyFrameLeft;
+        std::get<0>(gstreamerFrameLeft_).dataHandle = (void *) emptyFrameLeft;
 
-        gstreamerFrameRight_.memorySize = 1920 * 1080 * 1.5; // Size of single Full HD YUV 4:2:0 frame
-        auto *emptyFrameRight = new unsigned char[gstreamerFrameLeft_.memorySize];
+        std::get<0>(gstreamerFrameRight_).memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB 4:2:0 frame
+        auto *emptyFrameRight = new unsigned char[std::get<0>(gstreamerFrameRight_).memorySize];
         memset(emptyFrameRight, 0, sizeof(emptyFrameRight));
-        gstreamerFrameRight_.dataHandle = (void *) emptyFrameRight;
+        std::get<0>(gstreamerFrameRight_).dataHandle = (void *) emptyFrameRight;
 
         GstBus *bus;
         GSource *bus_source;
@@ -88,20 +88,24 @@ void GstreamerPlayer::play() {
     gst_element_set_state(pipelineRight_, GST_STATE_PLAYING);
 }
 
-GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GstreamerFrame *frame) {
+GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, std::tuple<GstreamerFrame, std::pair<double, double>> *frame) {
     GstSample *sample;
     /* Retrieve the buffer */
     g_signal_emit_by_name(sink, "pull-sample", &sample);
     if (sample) {
         //LOG_INFO("GStreamer new frame arrived!");
+        struct timespec res{};
+        clock_gettime(CLOCK_MONOTONIC, &res);
+        std::get<1>(*frame).first = std::get<1>(*frame).second;
+        std::get<1>(*frame).second = 1000.0 * res.tv_sec + (double) res.tv_nsec / 1e6;
 
         GstBuffer *buffer;
         GstMapInfo mapInfo{};
 
         buffer = gst_sample_get_buffer(sample);
         gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
-        frame->dataHandle = mapInfo.data; //convertImage(mapInfo.data);
-        frame->memorySize = mapInfo.size * 2;
+
+        memcpy(std::get<0>(*frame).dataHandle, mapInfo.data, std::get<0>(*frame).memorySize);
 
         gst_sample_unref(sample);
         gst_buffer_unmap(buffer, &mapInfo);
@@ -153,105 +157,4 @@ void GstreamerPlayer::errorCallback(GstBus *bus, GstMessage *msg, GstElement *pi
               err->message);
 
     gst_element_set_state(pipeline, GST_STATE_NULL);
-}
-
-void GstreamerPlayer::dumpGstreamerFeatures() {
-    GstRegistry *registry = gst_registry_get();
-
-    if (!registry) {
-        LOG_ERROR("Failed to get gstreamer registry!");
-        throw std::runtime_error("Failed to get gstreamer registry!");
-    }
-
-    gchar *str = g_strdup("");
-    GList *features = gst_registry_feature_filter(registry, nullptr, FALSE, nullptr);
-    for (GList *iterator = features; iterator != nullptr; iterator = iterator->next) {
-        printGstreamerFeature((GstPluginFeature *) iterator->data, &str);
-    }
-
-    g_list_free(features);
-
-    gst_object_unref(registry);
-}
-
-gboolean
-GstreamerPlayer::printGstreamerFeature(const GstPluginFeature *feature, gpointer user_data) {
-    auto **str = (gchar **) user_data;
-    gchar *name = gst_plugin_feature_get_name(feature);
-    gchar *temp;
-
-    /* Get the plugin name if this is a plugin feature */
-    gchar *plugin_name = nullptr;
-    if (GST_IS_PLUGIN_FEATURE(feature)) {
-        GstPlugin *plugin = gst_plugin_feature_get_plugin((GstPluginFeature *) feature);
-        if (plugin != nullptr) {
-            plugin_name = g_strdup(gst_plugin_get_name(plugin));
-            gst_object_unref(plugin);
-        }
-    }
-
-    /* Append the feature name and plugin name (if any) to the string */
-    if (plugin_name != nullptr) {
-        LOG_INFO("GStreamer found feature from plugin: %s (%s)\n", name, plugin_name);
-        temp = g_strdup_printf("%s (%s)\n", name, plugin_name);
-    } else {
-        LOG_INFO("GStreamer found feature: %s \n", name);
-        temp = g_strdup_printf("%s\n", name);
-    }
-    *str = g_strdup_printf("%s%s", *str, temp);
-    g_free(temp);
-
-    /* Free resources */
-    g_free(name);
-    g_free(plugin_name);
-
-    return TRUE;
-}
-
-void *GstreamerPlayer::YUV420toRGB(void *image) {
-    int width = 1920;
-    int height = 1080;
-    auto *rgb_image = new unsigned char[width * height *
-                                        3]; //width and height of the image to be converted
-    const unsigned char *yuv_image = (unsigned char *) image;
-    const unsigned char *y_plane = yuv_image;
-    const unsigned char *u_plane = yuv_image + width * height;
-    const unsigned char *v_plane = yuv_image + width * height * 5 / 4;
-
-    int uv_stride = width / 2;
-
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x += 2) {
-            int y0 = y_plane[y * width + x];
-            int y1 = y_plane[y * width + x + 1];
-            int u = u_plane[(y / 2) * uv_stride + (x / 2)];
-            int v = v_plane[(y / 2) * uv_stride + (x / 2)];
-
-            int r0 = y0 + 1.370705f * (v - 128);
-            int g0 = y0 - 0.698001f * (v - 128) - 0.337633f * (u - 128);
-            int b0 = y0 + 1.732446f * (u - 128);
-
-            int r1 = y1 + 1.370705f * (v - 128);
-            int g1 = y1 - 0.698001f * (v - 128) - 0.337633f * (u - 128);
-            int b1 = y1 + 1.732446f * (u - 128);
-
-            r0 = std::min(255, std::max(0, r0));
-            g0 = std::min(255, std::max(0, g0));
-            b0 = std::min(255, std::max(0, b0));
-
-            r1 = std::min(255, std::max(0, r1));
-            g1 = std::min(255, std::max(0, g1));
-            b1 = std::min(255, std::max(0, b1));
-
-            rgb_image[(y * width + x) * 3] = r0;
-            rgb_image[(y * width + x) * 3 + 1] = g0;
-            rgb_image[(y * width + x) * 3 + 2] = b0;
-
-            rgb_image[(y * width + x + 1) * 3] = r1;
-            rgb_image[(y * width + x + 1) * 3 + 1] = g1;
-            rgb_image[(y * width + x + 1) * 3 + 2] = b1;
-        }
-    }
-
-    return (void *) rgb_image;
 }

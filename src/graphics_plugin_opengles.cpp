@@ -21,30 +21,19 @@ static const char *VertexShaderGlsl = R"_(#version 320 es
 
     void main() {
        gl_Position = u_ModelViewProjection * vec4(position, 1.0);
-       v_TexCoord = vec2(texCoord.s, texCoord.t);
+       v_TexCoord = texCoord;
     }
     )_";
 
 static const char *FragmentShaderGlsl = R"_(#version 320 es
-    precision highp float;
-
     in lowp vec2 v_TexCoord;
 
     out lowp vec4 color;
 
-    uniform sampler2D u_Texture_Y;
-    uniform sampler2D u_Texture_U;
-    uniform sampler2D u_Texture_V;
+    uniform sampler2D u_Texture;
 
     void main() {
-        float y = texture(u_Texture_Y, v_TexCoord).r;
-        float u = texture(u_Texture_U, v_TexCoord).r - 0.5;
-        float v = texture(u_Texture_V, v_TexCoord).r - 0.5;
-
-        float r = y + 1.402 * v;
-        float g = y - 0.344 * u - 0.714 * v;
-        float b = y + 1.772 * u;
-        color = vec4(r, g, b, 1.0);
+        color = texture(u_Texture, v_TexCoord);
     }
     )_";
 
@@ -126,10 +115,7 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
         glDeleteShader(fragmentShader);
 
         m_modelViewProjectionUniformLocation = glGetUniformLocation(m_program,"u_ModelViewProjection");
-        //m_texture2DUniformLocation = glGetUniformLocation(m_program,"u_Texture");
-        m_textureYUVUniformLocations.at(0) = glGetUniformLocation(m_program, "u_Texture_Y");
-        m_textureYUVUniformLocations.at(1) = glGetUniformLocation(m_program, "u_Texture_U");
-        m_textureYUVUniformLocations.at(2) = glGetUniformLocation(m_program, "u_Texture_V");
+        m_texture2DUniformLocation = glGetUniformLocation(m_program,"u_Texture");
 
         m_vertexAttribCoords = glGetAttribLocation(m_program, "position");
         m_vertexAttribTexCoord = glGetAttribLocation(m_program, "texCoord");
@@ -151,30 +137,15 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
         glVertexAttribPointer(m_vertexAttribCoords, 3, GL_FLOAT, GL_FALSE, sizeof(Geometry::Vertex), nullptr);
         glVertexAttribPointer(m_vertexAttribTexCoord, 2, GL_FLOAT, GL_FALSE, sizeof(Geometry::Vertex), reinterpret_cast<const void *>(sizeof(XrVector3f)));
 
-        /*
-        // For RGB image
         glGenTextures(1, &m_texture2D);
         glBindTexture(GL_TEXTURE_2D, m_texture2D);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1920, 1080, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glBindTexture(GL_TEXTURE_2D, 0);
-        */
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-        glGenTextures(3, m_textures);
-        for (int i = 0; i < 3; i++) {
-            glBindTexture(GL_TEXTURE_2D, m_textures[i]);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, widths[i], heights[i], 0, GL_LUMINANCE,
-                         GL_UNSIGNED_BYTE, nullptr);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-            glBindTexture(GL_TEXTURE_2D, 0);
-        }
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+        glBindTexture(GL_TEXTURE_2D, 0);
     }
 
 
@@ -256,29 +227,6 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
                 break;
             default:
                 Throw("Unexpected Blend Mode", nullptr, FILE_AND_LINE);
-        }
-    }
-
-    void separateYUVPlanes(const unsigned char *image) {
-        const int width = textureWidth;
-        const int height = textureHeight;
-        const int uvWidth = width / 2;
-        const int uvHeight = height / 2;
-
-        for (int y = 0; y < height; y++) {
-            const int yIdx = y * width;
-            unsigned char *yPtr = yPlane + yIdx;
-            memcpy(yPtr, image + yIdx, width);
-        }
-
-        if (width % 2 == 0 && height % 2 == 0) {
-            for (int y = 0; y < uvHeight; y++) {
-                const int uvIdx = y * uvWidth;
-                unsigned char *uPtr = uPlane + uvIdx;
-                unsigned char *vPtr = vPlane + uvIdx;
-                memcpy(uPtr, image + width * height + uvIdx, uvWidth);
-                memcpy(vPtr, image + width * height * 5 / 4 + uvIdx, uvWidth);
-            }
         }
     }
 
@@ -364,22 +312,8 @@ struct OpenGLESGraphicsPlugin : public IGraphicsPlugin {
         glUniformMatrix4fv(static_cast<GLint>(m_modelViewProjectionUniformLocation), 1, GL_FALSE, reinterpret_cast<const GLfloat *>(&mvp));
         glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)), GL_UNSIGNED_SHORT, nullptr);
 
-        /*
-        // For RGB image
         glBindTexture(GL_TEXTURE_2D, m_texture2D);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1920, 1080, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
-        glBindTexture(GL_TEXTURE_2D, 0);
-        */
-
-        separateYUVPlanes((unsigned char *) image);
-
-        for (int i = 0; i < 3; ++i) {
-            glActiveTexture(GL_TEXTURE0 + i);
-            glBindTexture(GL_TEXTURE_2D, m_textures[i]);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, widths[i], heights[i], 0, GL_LUMINANCE,
-                         GL_UNSIGNED_BYTE, i == 0 ? yPlane : i == 1 ? uPlane : vPlane);
-            glUniform1i(m_textureYUVUniformLocations.at(i), i);
-        }
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, textureWidth, textureHeight, 0, GL_SRGB, GL_UNSIGNED_BYTE, image);
 
         glBindVertexArray(0);
         glUseProgram(0);
@@ -397,22 +331,15 @@ private:
     GLuint m_program{0};
     GLint m_modelViewProjectionUniformLocation{0};
     GLint m_texture2DUniformLocation{0};
-    std::vector<GLint> m_textureYUVUniformLocations{0, 0, 0};
     GLuint m_vertexAttribCoords{0};
     GLuint m_vertexAttribTexCoord{0};
 
-    // Texture for stream already in RGB format
     GLuint m_texture2D{0};
 
-    // Y, U, V planes of the stream texture
-    GLuint m_textures[3];
     int textureWidth = 1920;
     int textureHeight = 1080;
     std::vector<int> widths{textureWidth, textureWidth / 2, textureWidth / 2};
     std::vector<int> heights{textureHeight, textureHeight / 2, textureHeight / 2};
-    unsigned char *yPlane = new unsigned char[textureWidth * textureHeight];
-    unsigned char *uPlane = new unsigned char[textureWidth * textureHeight / 4];
-    unsigned char *vPlane = new unsigned char[textureWidth * textureHeight / 4];
 
     GLuint m_vao{0};
     GLuint m_cubeVertexBuffer{0};

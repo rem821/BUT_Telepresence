@@ -20,12 +20,21 @@ public:
 
     void play();
 
-    GstreamerFrame getFrameLeft() const { return gstreamerFrameLeft_; }
-    GstreamerFrame getFrameRight() const { return gstreamerFrameRight_; }
+    GstreamerFrame getFrameLeft() const {
+        double diff = std::get<1>(gstreamerFrameLeft_).second - std::get<1>(gstreamerFrameLeft_).first;
+        LOG_INFO("%f FPS", 1000.0f / diff);
+        return std::get<0>(gstreamerFrameLeft_);
+    }
+
+    GstreamerFrame getFrameRight() const {
+        double diff = std::get<1>(gstreamerFrameRight_).second - std::get<1>(gstreamerFrameRight_).first;
+        LOG_INFO("%f FPS", 1000.0f / diff);
+        return std::get<0>(gstreamerFrameRight_);
+    }
 
 private:
 
-    static GstFlowReturn newFrameCallback(GstElement *sink, GstreamerFrame *frame);
+    static GstFlowReturn newFrameCallback(GstElement *sink, std::tuple<GstreamerFrame, std::pair<double, double>> *frame);
 
     static void stateChangedCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
 
@@ -35,19 +44,11 @@ private:
 
     static void errorCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
 
-    void dumpGstreamerFeatures();
-
-    static gboolean printGstreamerFeature(const GstPluginFeature *feature, gpointer user_data);
-
-    static void *YUV420toRGB(void *image);
-
     GstElement *pipelineLeft_{};
     GstElement *pipelineRight_{};
     GMainContext *context_{};
     GMainLoop *mainLoop_{};
 
-    bool isInitialized_ = false;
-
-    GstreamerFrame gstreamerFrameLeft_{};
-    GstreamerFrame gstreamerFrameRight_{};
+    std::tuple<GstreamerFrame, std::pair<double, double>> gstreamerFrameLeft_;
+    std::tuple<GstreamerFrame, std::pair<double, double>> gstreamerFrameRight_;
 };

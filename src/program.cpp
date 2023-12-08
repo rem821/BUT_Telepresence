@@ -673,9 +673,10 @@ struct OpenXrProgram : IOpenXrProgram {
         if (servoComm.isReady()) {
             if(userState.xPressed) { speed -= 10000; }
             if(userState.yPressed) { speed += 10000; }
+            if(userState.xPressed && userState.yPressed) { servoComm.resetErrors(threadPool); }
 
-            servoComm.setSpeed(speed, threadPool);
-            servoComm.setPose(userState.hmdPose.orientation, threadPool);
+            servoComm.setPoseAndSpeed(userState.hmdPose.orientation, speed, threadPool);
+            servoComm.setPoseAndSpeed(userState.hmdPose.orientation, speed, threadPool);
         }
     }
 
@@ -1138,7 +1139,7 @@ struct OpenXrProgram : IOpenXrProgram {
         if (XR_UNQUALIFIED_SUCCESS(res)) {
             if ((spaceLocation.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
                 (spaceLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
-                quad = Quad{spaceLocation.pose, {4.45f, 2.5f, 0.0f}};
+                quad = Quad{spaceLocation.pose, {5.3f, 3.0f, 0.0f}};
                 userState.hmdPose = spaceLocation.pose;
             }
         } else {
