@@ -30,7 +30,8 @@ public:
 
 private:
 
-    static GstFlowReturn newFrameCallback(GstElement *sink, std::tuple<GstreamerFrame, GstreamerFrame, std::pair<double, double>> *frames);
+    static GstFlowReturn newFrameCallbackLeft(GstElement *sink, std::tuple<GstreamerFrame, GstreamerFrame, std::pair<double, double>> *frames);
+    static GstFlowReturn newFrameCallbackRight(GstElement *sink, std::tuple<GstreamerFrame, GstreamerFrame, std::pair<double, double>> *frames);
 
     static void stateChangedCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
 
@@ -40,7 +41,7 @@ private:
 
     static void errorCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
 
-    GstElement *pipeline_;
+    GstElement *pipelineLeft_, *pipelineRight_;
     GMainContext *context_{};
     GMainLoop *mainLoop_{};
 
