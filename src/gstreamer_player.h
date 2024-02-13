@@ -21,20 +21,17 @@ public:
     void play();
 
     GstreamerFrame getFrameLeft() const {
-        double diff = std::get<1>(gstreamerFrameLeft_).second - std::get<1>(gstreamerFrameLeft_).first;
+        double diff = std::get<2>(gstreamerFrames_).second - std::get<2>(gstreamerFrames_).first;
         LOG_INFO("%f FPS", 1000.0f / diff);
-        return std::get<0>(gstreamerFrameLeft_);
+        return std::get<0>(gstreamerFrames_);
     }
 
-    GstreamerFrame getFrameRight() const {
-        double diff = std::get<1>(gstreamerFrameRight_).second - std::get<1>(gstreamerFrameRight_).first;
-        LOG_INFO("%f FPS", 1000.0f / diff);
-        return std::get<0>(gstreamerFrameRight_);
-    }
+    GstreamerFrame getFrameRight() const { return std::get<1>(gstreamerFrames_); }
 
 private:
 
-    static GstFlowReturn newFrameCallback(GstElement *sink, std::tuple<GstreamerFrame, std::pair<double, double>> *frame);
+    static GstFlowReturn newFrameCallbackLeft(GstElement *sink, std::tuple<GstreamerFrame, GstreamerFrame, std::pair<double, double>> *frames);
+    static GstFlowReturn newFrameCallbackRight(GstElement *sink, std::tuple<GstreamerFrame, GstreamerFrame, std::pair<double, double>> *frames);
 
     static void stateChangedCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
 
@@ -44,11 +41,9 @@ private:
 
     static void errorCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
 
-    GstElement *pipelineLeft_{};
-    GstElement *pipelineRight_{};
+    GstElement *pipelineLeft_, *pipelineRight_;
     GMainContext *context_{};
     GMainLoop *mainLoop_{};
 
-    std::tuple<GstreamerFrame, std::pair<double, double>> gstreamerFrameLeft_;
-    std::tuple<GstreamerFrame, std::pair<double, double>> gstreamerFrameRight_;
+    std::tuple<GstreamerFrame, GstreamerFrame, std::pair<double, double>> gstreamerFrames_;
 };

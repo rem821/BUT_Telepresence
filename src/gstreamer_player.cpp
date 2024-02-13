@@ -1,4 +1,5 @@
 #include "gstreamer_player.h"
+#include <ctime>
 
 
 GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
@@ -8,15 +9,15 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         //dumpGstreamerFeatures();
 
         //Init the GstreamerFrame data structure
-        std::get<0>(gstreamerFrameLeft_).memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB 4:2:0 frame
-        auto *emptyFrameLeft = new unsigned char[std::get<0>(gstreamerFrameLeft_).memorySize];
+        std::get<0>(gstreamerFrames_).memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
+        auto *emptyFrameLeft = new unsigned char[std::get<0>(gstreamerFrames_).memorySize];
         memset(emptyFrameLeft, 0, sizeof(emptyFrameLeft));
-        std::get<0>(gstreamerFrameLeft_).dataHandle = (void *) emptyFrameLeft;
+        std::get<0>(gstreamerFrames_).dataHandle = (void *) emptyFrameLeft;
 
-        std::get<0>(gstreamerFrameRight_).memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB 4:2:0 frame
-        auto *emptyFrameRight = new unsigned char[std::get<0>(gstreamerFrameRight_).memorySize];
+        std::get<1>(gstreamerFrames_).memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
+        auto *emptyFrameRight = new unsigned char[std::get<1>(gstreamerFrames_).memorySize];
         memset(emptyFrameRight, 0, sizeof(emptyFrameRight));
-        std::get<0>(gstreamerFrameRight_).dataHandle = (void *) emptyFrameRight;
+        std::get<1>(gstreamerFrames_).dataHandle = (void *) emptyFrameRight;
 
         GstBus *bus;
         GSource *bus_source;
@@ -27,10 +28,10 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
 
         /* Build pipeline */
         pipelineLeft_ = gst_parse_launch(
-                "udpsrc port=8554 ! application/x-rtp,encoding-name=JPEG,payload=26 ! rtpjpegdepay ! jpegdec ! queue ! appsink emit-signals=true name=leftsink",
+                "udpsrc port=8554 ! application/x-rtp,encoding-name=JPEG,payload=26 ! rtpjpegdepay ! jpegdec ! video/x-raw,format=RGB ! queue ! appsink emit-signals=true name=leftsink",
                 &error);
         pipelineRight_ = gst_parse_launch(
-                "udpsrc port=8556 ! application/x-rtp,encoding-name=JPEG,payload=26 ! rtpjpegdepay ! jpegdec ! queue ! appsink emit-signals=true name=rightsink",
+                "udpsrc port=8556 ! application/x-rtp,encoding-name=JPEG,payload=26 ! rtpjpegdepay ! jpegdec ! video/x-raw,format=RGB ! queue ! appsink emit-signals=true name=rightsink",
                 &error);
 
         if (error) {
@@ -51,7 +52,7 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineLeft_);
         g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineLeft_);
         g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineLeft_);
-        g_signal_connect(G_OBJECT(leftappsink), "new-sample", (GCallback) newFrameCallback, &gstreamerFrameLeft_);
+        g_signal_connect(G_OBJECT(leftappsink), "new-sample", (GCallback) newFrameCallbackLeft, &gstreamerFrames_);
         gst_object_unref(bus);
 
         GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rightsink");
@@ -67,7 +68,7 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineRight_);
         g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineRight_);
         g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineRight_);
-        g_signal_connect(G_OBJECT(rightappsink), "new-sample", (GCallback) newFrameCallback, &gstreamerFrameRight_);
+        g_signal_connect(G_OBJECT(rightappsink), "new-sample", (GCallback) newFrameCallbackRight, &gstreamerFrames_);
         gst_object_unref(bus);
 
         /* Create a GLib Main Loop and set it to run */
@@ -88,16 +89,15 @@ void GstreamerPlayer::play() {
     gst_element_set_state(pipelineRight_, GST_STATE_PLAYING);
 }
 
-GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, std::tuple<GstreamerFrame, std::pair<double, double>> *frame) {
+GstFlowReturn GstreamerPlayer::newFrameCallbackLeft(GstElement *sink, std::tuple<GstreamerFrame, GstreamerFrame,  std::pair<double, double>> *frames) {
     GstSample *sample;
     /* Retrieve the buffer */
     g_signal_emit_by_name(sink, "pull-sample", &sample);
     if (sample) {
-        //LOG_INFO("GStreamer new frame arrived!");
         struct timespec res{};
         clock_gettime(CLOCK_MONOTONIC, &res);
-        std::get<1>(*frame).first = std::get<1>(*frame).second;
-        std::get<1>(*frame).second = 1000.0 * res.tv_sec + (double) res.tv_nsec / 1e6;
+        std::get<2>(*frames).first = std::get<2>(*frames).second;
+        std::get<2>(*frames).second = 1000.0 * res.tv_sec + (double) res.tv_nsec / 1e6;
 
         GstBuffer *buffer;
         GstMapInfo mapInfo{};
@@ -105,7 +105,28 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, std::tuple<Gst
         buffer = gst_sample_get_buffer(sample);
         gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
 
-        memcpy(std::get<0>(*frame).dataHandle, mapInfo.data, std::get<0>(*frame).memorySize);
+        memcpy(std::get<0>(*frames).dataHandle, mapInfo.data, std::get<0>(*frames).memorySize);
+
+        gst_sample_unref(sample);
+        gst_buffer_unmap(buffer, &mapInfo);
+        return GST_FLOW_OK;
+    }
+
+    return GST_FLOW_ERROR;
+}
+
+GstFlowReturn GstreamerPlayer::newFrameCallbackRight(GstElement *sink, std::tuple<GstreamerFrame, GstreamerFrame,  std::pair<double, double>> *frames) {
+    GstSample *sample;
+    /* Retrieve the buffer */
+    g_signal_emit_by_name(sink, "pull-sample", &sample);
+    if (sample) {
+        GstBuffer *buffer;
+        GstMapInfo mapInfo{};
+
+        buffer = gst_sample_get_buffer(sample);
+        gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
+
+        memcpy(std::get<1>(*frames).dataHandle, mapInfo.data, std::get<1>(*frames).memorySize);
 
         gst_sample_unref(sample);
         gst_buffer_unmap(buffer, &mapInfo);
