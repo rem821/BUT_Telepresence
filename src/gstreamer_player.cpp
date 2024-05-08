@@ -10,13 +10,17 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         //dumpGstreamerFeatures();
 
         //Init the CameraFrame data structure
-        auto *emptyFrameLeft = new unsigned char[camPair_.first.memorySize];
-        memset(emptyFrameLeft, 0, sizeof(emptyFrameLeft));
-        camPair_.first.dataHandle = (void *) emptyFrameLeft;
+        camPair_ = new CamPair();
+        camPair_->first.stats = new CameraStats();
+        camPair_->second.stats = new CameraStats();
 
-        auto *emptyFrameRight = new unsigned char[camPair_.second.memorySize];
+        auto *emptyFrameLeft = new unsigned char[camPair_->first.memorySize];
+        memset(emptyFrameLeft, 0, sizeof(emptyFrameLeft));
+        camPair_->first.dataHandle = (void *) emptyFrameLeft;
+
+        auto *emptyFrameRight = new unsigned char[camPair_->second.memorySize];
         memset(emptyFrameRight, 0, sizeof(emptyFrameRight));
-        camPair_.second.dataHandle = (void *) emptyFrameRight;
+        camPair_->second.dataHandle = (void *) emptyFrameRight;
 
         GstBus *bus;
         GSource *bus_source;
@@ -27,10 +31,20 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
 
         /* Build pipeline */
         pipelineLeft_ = gst_parse_launch(
-                "udpsrc port=8554 ! application/x-rtp,encoding-name=JPEG,payload=26 ! identity name=udpsrc_identity_left ! rtpjpegdepay ! jpegdec ! video/x-raw,format=RGB ! queue ! appsink emit-signals=true name=leftsink",
+                "udpsrc port=8554 ! application/x-rtp,encoding-name=JPEG,payload=26"
+                " ! identity name=udpsrc_identity"
+                " ! rtpjpegdepay ! identity name=rtpjpegdepay_identity"
+                " ! jpegdec ! video/x-raw,format=RGB ! identity name=jpegdec_identity"
+                " ! queue ! identity name=queue_identity"
+                " ! appsink emit-signals=true name=appsink sync=false",
                 &error);
         pipelineRight_ = gst_parse_launch(
-                "udpsrc port=8556 ! application/x-rtp,encoding-name=JPEG,payload=26 ! identity name=udpsrc_identity_right ! rtpjpegdepay ! jpegdec ! video/x-raw,format=RGB ! queue ! appsink emit-signals=true name=rightsink",
+                "udpsrc port=8556 ! application/x-rtp,encoding-name=JPEG,payload=26"
+                " ! identity name=udpsrc_identity"
+                " ! rtpjpegdepay ! identity name=rtpjpegdepay_identity"
+                " ! jpegdec ! video/x-raw,format=RGB ! identity name=jpegdec_identity"
+                " ! queue ! identity name=queue_identity"
+                " ! appsink emit-signals=true name=appsink sync=false",
                 &error);
 
         if (error) {
@@ -38,8 +52,12 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
             throw std::runtime_error("Unable to build pipeline!");
         }
 
-        GstElement *leftudpsrc_identity = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc_identity_left");
-        GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "leftsink");
+        GstElement *leftudpsrc_identity = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc_identity");
+        GstElement *leftrtpjpegdepay_identity = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "rtpjpegdepay_identity");
+        GstElement *leftjpegdec_identity = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "jpegdec_identity");
+        GstElement *leftqueue_identity = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "queue_identity");
+        GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "appsink");
+        gst_element_set_name(pipelineLeft_, "pipeline_left");
         gst_element_set_state(pipelineLeft_, GST_STATE_READY);
 
         bus = gst_element_get_bus(pipelineLeft_);
@@ -52,13 +70,25 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineLeft_);
         g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineLeft_);
         g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineLeft_);
-        g_signal_connect(G_OBJECT(leftappsink), "new-sample", (GCallback) newFrameCallbackLeft, &camPair_);
-        g_signal_connect(G_OBJECT(leftudpsrc_identity), "handoff", (GCallback) onRtpHeaderMetadata, &camPair_);
+        g_signal_connect(G_OBJECT(leftappsink), "new-sample", (GCallback) newFrameCallback, camPair_);
+        g_signal_connect(G_OBJECT(leftudpsrc_identity), "handoff", (GCallback) onRtpHeaderMetadata, camPair_);
+        g_signal_connect(G_OBJECT(leftrtpjpegdepay_identity), "handoff", (GCallback) onIdentityHandoff, camPair_);
+        g_signal_connect(G_OBJECT(leftjpegdec_identity), "handoff", (GCallback) onIdentityHandoff, camPair_);
+        g_signal_connect(G_OBJECT(leftqueue_identity), "handoff", (GCallback) onIdentityHandoff, camPair_);
+        gst_object_unref(leftudpsrc_identity);
+        gst_object_unref(leftrtpjpegdepay_identity);
+        gst_object_unref(leftjpegdec_identity);
+        gst_object_unref(leftqueue_identity);
+        gst_object_unref(leftappsink);
         gst_object_unref(bus);
 
-        GstElement *rightudpsrc_identity = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc_identity_right");
-        GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rightsink");
-        gst_element_set_state(pipelineLeft_, GST_STATE_READY);
+        GstElement *rightudpsrc_identity = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc_identity");
+        GstElement *rightrtpjpegdepay_identity = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtpjpegdepay_identity");
+        GstElement *rightjpegdec_identity = gst_bin_get_by_name(GST_BIN(pipelineRight_), "jpegdec_identity");
+        GstElement *rightqueue_identity = gst_bin_get_by_name(GST_BIN(pipelineRight_), "queue_identity");
+        GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "appsink");
+        gst_element_set_name(pipelineRight_, "pipeline_right");
+        gst_element_set_state(pipelineRight_, GST_STATE_READY);
 
         bus = gst_element_get_bus(pipelineRight_);
         bus_source = gst_bus_create_watch(bus);
@@ -70,8 +100,16 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineRight_);
         g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineRight_);
         g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineRight_);
-        g_signal_connect(G_OBJECT(rightappsink), "new-sample", (GCallback) newFrameCallbackRight, &camPair_);
-        g_signal_connect(G_OBJECT(rightudpsrc_identity), "handoff", (GCallback) onRtpHeaderMetadata, &camPair_);
+        g_signal_connect(G_OBJECT(rightappsink), "new-sample", (GCallback) newFrameCallback, camPair_);
+        g_signal_connect(G_OBJECT(rightudpsrc_identity), "handoff", (GCallback) onRtpHeaderMetadata, camPair_);
+        g_signal_connect(G_OBJECT(rightrtpjpegdepay_identity), "handoff", (GCallback) onIdentityHandoff, camPair_);
+        g_signal_connect(G_OBJECT(rightjpegdec_identity), "handoff", (GCallback) onIdentityHandoff, camPair_);
+        g_signal_connect(G_OBJECT(rightqueue_identity), "handoff", (GCallback) onIdentityHandoff, camPair_);
+        gst_object_unref(rightudpsrc_identity);
+        gst_object_unref(rightrtpjpegdepay_identity);
+        gst_object_unref(rightjpegdec_identity);
+        gst_object_unref(rightqueue_identity);
+        gst_object_unref(rightappsink);
         gst_object_unref(bus);
 
         /* Create a GLib Main Loop and set it to run */
@@ -93,15 +131,18 @@ void GstreamerPlayer::play() {
 }
 
 GstFlowReturn
-GstreamerPlayer::newFrameCallbackLeft(GstElement *sink, CamPair *pair) {
+GstreamerPlayer::newFrameCallback(GstElement *sink, CamPair *pair) {
     GstSample *sample;
     /* Retrieve the buffer */
     g_signal_emit_by_name(sink, "pull-sample", &sample);
     if (sample) {
-        struct timespec res{};
-        clock_gettime(CLOCK_MONOTONIC, &res);
-        pair->first.stats.prevTimestamp = pair->first.stats.currTimestamp;
-        pair->first.stats.currTimestamp = 1000.0 * res.tv_sec + (double) res.tv_nsec / 1e6;
+        bool isLeftCamera = std::string(sink->object.parent->name) == "pipeline_left";
+        auto frame = isLeftCamera ? pair->first : pair->second;
+
+        frame.stats->prevTimestamp = frame.stats->currTimestamp;
+        frame.stats->currTimestamp = getCurrentUs();
+        double diff = frame.stats->currTimestamp - frame.stats->prevTimestamp;
+        frame.stats->fps = 1e6f / diff;
 
         GstBuffer *buffer;
         GstMapInfo mapInfo{};
@@ -109,34 +150,7 @@ GstreamerPlayer::newFrameCallbackLeft(GstElement *sink, CamPair *pair) {
         buffer = gst_sample_get_buffer(sample);
         gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
 
-        memcpy(pair->first.dataHandle, mapInfo.data, pair->first.memorySize);
-
-        gst_sample_unref(sample);
-        gst_buffer_unmap(buffer, &mapInfo);
-        return GST_FLOW_OK;
-    }
-
-    return GST_FLOW_ERROR;
-}
-
-GstFlowReturn
-GstreamerPlayer::newFrameCallbackRight(GstElement *sink, CamPair *pair) {
-    GstSample *sample;
-    /* Retrieve the buffer */
-    g_signal_emit_by_name(sink, "pull-sample", &sample);
-    if (sample) {
-        struct timespec res{};
-        clock_gettime(CLOCK_MONOTONIC, &res);
-        pair->second.stats.prevTimestamp = pair->second.stats.currTimestamp;
-        pair->second.stats.currTimestamp = 1000.0 * res.tv_sec + (double) res.tv_nsec / 1e6;
-
-        GstBuffer *buffer;
-        GstMapInfo mapInfo{};
-
-        buffer = gst_sample_get_buffer(sample);
-        gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
-
-        memcpy(pair->second.dataHandle, mapInfo.data, pair->second.memorySize);
+        memcpy(frame.dataHandle, mapInfo.data, frame.memorySize);
 
         gst_sample_unref(sample);
         gst_buffer_unmap(buffer, &mapInfo);
@@ -147,10 +161,10 @@ GstreamerPlayer::newFrameCallbackRight(GstElement *sink, CamPair *pair) {
 }
 
 void GstreamerPlayer::onRtpHeaderMetadata(GstElement *identity, GstBuffer *buffer, gpointer data) {
-    auto* pair = reinterpret_cast<CamPair*>(data);
-    bool isLeftCamera = std::string(identity->object.name) == "rtpjpegdepay_identity_left";
-    auto frame = isLeftCamera ? pair->first : pair->second;
-    frame.stats.totalLatency = 0;
+    auto *pair = reinterpret_cast<CamPair *>(data);
+    bool isLeftCamera = std::string(identity->object.parent->name) == "pipeline_left";
+    auto stats = isLeftCamera ? pair->first.stats : pair->second.stats;
+    stats->totalLatency = 0;
 
     GstRTPBuffer rtp_buf = GST_RTP_BUFFER_INIT;
     gst_rtp_buffer_map(buffer, GST_MAP_READ, &rtp_buf);
@@ -158,25 +172,51 @@ void GstreamerPlayer::onRtpHeaderMetadata(GstElement *identity, GstBuffer *buffe
     guint size_64 = 8;
     guint8 appbits = 1;
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 0, &myInfoBuf, &size_64) != 0) {
-        if (isLeftCamera) {
-            LOG_INFO("left frame id: %lu", *(static_cast<uint64_t *>(myInfoBuf)));
-        } else {
-            LOG_INFO("right frame id: %lu", *(static_cast<uint64_t *>(myInfoBuf)));
-        }
+        stats->frameId = *(static_cast<uint64_t *>(myInfoBuf));
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 1, &myInfoBuf, &size_64) != 0) {
-       frame.stats.nvvidconv = *(static_cast<uint64_t *>(myInfoBuf));
+        stats->nvvidconv = *(static_cast<uint64_t *>(myInfoBuf));
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 2, &myInfoBuf, &size_64) != 0) {
-        frame.stats.jpegenc = *(static_cast<uint64_t *>(myInfoBuf));
+        stats->jpegenc = *(static_cast<uint64_t *>(myInfoBuf));
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 3, &myInfoBuf, &size_64) != 0) {
-        frame.stats.rtpjpegpay = *(static_cast<uint64_t *>(myInfoBuf));
+        stats->rtpjpegpay = *(static_cast<uint64_t *>(myInfoBuf));
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 4, &myInfoBuf, &size_64) != 0) {
-        frame.stats.rtpjpegpayTimestamp = *(static_cast<uint64_t *>(myInfoBuf));
+        stats->rtpjpegpayTimestamp = *(static_cast<uint64_t *>(myInfoBuf));
     }
     gst_rtp_buffer_unmap(&rtp_buf);
+
+    // This is so the last packet of rtp gets saved
+    stats->udpsrcTimestamp = getCurrentUs();
+    stats->udpstream = stats->udpsrcTimestamp - stats->rtpjpegpayTimestamp;
+}
+
+void GstreamerPlayer::onIdentityHandoff(GstElement *identity, GstBuffer *buffer, gpointer data) {
+    auto *pair = reinterpret_cast<CamPair *>(data);
+    bool isLeftCamera = std::string(identity->object.parent->name) == "pipeline_left";
+    auto *stats = isLeftCamera ? pair->first.stats : pair->second.stats;
+
+    if (std::string(identity->object.name) == "rtpjpegdepay_identity") {
+        stats->rtpjpegdepayTimestamp = getCurrentUs();
+        stats->rtpjpegdepay = stats->rtpjpegdepayTimestamp - stats->udpsrcTimestamp;
+
+    } else if (std::string(identity->object.name) == "jpegdec_identity") {
+        stats->jpegdecTimestamp = getCurrentUs();
+        stats->jpegdec = stats->jpegdecTimestamp - stats->rtpjpegdepayTimestamp;
+
+    } else if (std::string(identity->object.name) == "queue_identity") {
+        stats->queueTimestamp = getCurrentUs();
+        stats->queue = stats->queueTimestamp - stats->jpegdecTimestamp;
+        stats->totalLatency = stats->nvvidconv + stats->jpegenc + stats->rtpjpegpay +
+                              stats->udpstream + stats->rtpjpegdepay +
+                              stats->jpegdec + stats->queue;
+        LOG_INFO(
+                "Pipeline latencies: nvvidconv: %lu, jpegenc: %lu, rtpjpegpay: %lu, udpstream: %lu, rtpjpegdepay: %lu, jpegdec: %lu, queue: %lu, total: %lu",
+                stats->nvvidconv, stats->jpegenc, stats->rtpjpegpay, stats->udpstream, stats->rtpjpegdepay, stats->jpegdec, stats->queue,
+                stats->totalLatency);
+    }
 }
 
 void GstreamerPlayer::stateChangedCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline) {
@@ -221,4 +261,11 @@ void GstreamerPlayer::errorCallback(GstBus *bus, GstMessage *msg, GstElement *pi
               err->message);
 
     gst_element_set_state(pipeline, GST_STATE_NULL);
+}
+
+uint64_t GstreamerPlayer::getCurrentUs() {
+    struct timespec res{};
+    clock_gettime(CLOCK_REALTIME, &res);
+    int64_t us = 1e6 * res.tv_sec + (int64_t) res.tv_nsec / 1e3;
+    return us;
 }

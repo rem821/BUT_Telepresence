@@ -14,13 +14,13 @@ public:
         double prevTimestamp, currTimestamp;
         double fps;
         uint64_t nvvidconv, jpegenc, rtpjpegpay, udpstream, rtpjpegdepay, jpegdec, queue;
-        uint64_t rtpjpegpayTimestamp;
+        uint64_t rtpjpegpayTimestamp, udpsrcTimestamp, rtpjpegdepayTimestamp, jpegdecTimestamp, queueTimestamp;
         uint64_t totalLatency;
         uint64_t frameId;
     };
 
     struct CameraFrame {
-        CameraStats stats;
+        CameraStats* stats;
         unsigned long memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
         void *dataHandle;
     };
@@ -34,23 +34,24 @@ public:
     void play();
 
     CameraFrame getFrameLeft() const {
-        double diff = camPair_.first.stats.currTimestamp - camPair_.first.stats.prevTimestamp;
-        LOG_INFO("FPS LEFT: %f, latency: %f", 1000.0f / diff, camPair_.first.stats.totalLatency);
-        return camPair_.first;
+        LOG_INFO("FPS LEFT: %f, latency: %lu", camPair_->first.stats->fps,
+                 camPair_->first.stats->totalLatency);
+        return camPair_->first;
     }
 
     CameraFrame getFrameRight() const {
-        double diff = camPair_.second.stats.currTimestamp - camPair_.second.stats.prevTimestamp;
-        LOG_INFO("FPS RIGHT: %f, latency: %f", 1000.0f / diff, camPair_.second.stats.totalLatency);
-        return camPair_.second;
+        LOG_INFO("FPS RIGHT: %f, latency: %lu", camPair_->second.stats->fps,
+                 camPair_->second.stats->totalLatency);
+        return camPair_->second;
     }
 
 private:
 
-    static GstFlowReturn newFrameCallbackLeft(GstElement *sink, CamPair *pair);
-    static GstFlowReturn newFrameCallbackRight(GstElement *sink, CamPair *pair);
+    static GstFlowReturn newFrameCallback(GstElement *sink, CamPair *pair);
 
     static void onRtpHeaderMetadata(GstElement *identity, GstBuffer *buffer, gpointer data);
+
+    static void onIdentityHandoff(GstElement *identity, GstBuffer *buffer, gpointer data);
 
     static void stateChangedCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
 
@@ -60,9 +61,11 @@ private:
 
     static void errorCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline);
 
+    static uint64_t getCurrentUs();
+
     GstElement *pipelineLeft_, *pipelineRight_;
     GMainContext *context_{};
     GMainLoop *mainLoop_{};
 
-    CamPair camPair_;
+    CamPair* camPair_;
 };

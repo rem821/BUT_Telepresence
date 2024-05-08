@@ -1112,7 +1112,7 @@ struct OpenXrProgram : IOpenXrProgram {
 
         XrViewLocateInfo viewLocateInfo{XR_TYPE_VIEW_LOCATE_INFO};
         viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
-        viewLocateInfo.displayTime = predictedDisplayTime;
+        viewLocateInfo.displayTime = predictedDisplayTime + 20e6; // Latency compensation in ns
         viewLocateInfo.space = m_appSpace;
 
         res = xrLocateViews(m_session, &viewLocateInfo, &viewState, viewCapacityInput, &viewCountOutput, m_views.data());
@@ -1138,7 +1138,7 @@ struct OpenXrProgram : IOpenXrProgram {
         if (XR_UNQUALIFIED_SUCCESS(res)) {
             if ((spaceLocation.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
                 (spaceLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
-                quad = Quad{spaceLocation.pose, {5.3f, 3.0f, 0.0f}};
+                quad = Quad{spaceLocation.pose, {4.6f, 2.6f, 0.0f}};
                 userState.hmdPose = spaceLocation.pose;
             }
         } else {

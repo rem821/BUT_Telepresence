@@ -16,7 +16,7 @@ constexpr unsigned char IDENTIFIER_1 = 0x47;
 constexpr unsigned char IDENTIFIER_2 = 0x54;
 
 constexpr int32_t AZIMUTH_MAX_VALUE = 1'200'000'000;
-constexpr int32_t AZIMUTH_MIN_VALUE = -800'000'000;
+constexpr int32_t AZIMUTH_MIN_VALUE = 0'000'000;
 
 constexpr int32_t ELEVATION_MAX_VALUE = 2'147'483'467;
 constexpr int32_t ELEVATION_MIN_VALUE = 800'000'000;
