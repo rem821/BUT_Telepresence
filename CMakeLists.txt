@@ -39,6 +39,10 @@ include_directories(
         ${GSTREAMER_ROOT}/include/glib-2.0
         ${GSTREAMER_ROOT}/lib/glib-2.0/include
         ${OVR_OPENXR_MOBILE_SDK_DIR}/SampleCommon/Src
+        external
+        external/imgui
+        external/imgui/backends
+        include
 )
 
 link_directories(
@@ -56,11 +60,22 @@ add_library(
         src/gstreamer_player.cpp
         src/udp_socket.cpp
         src/servo_communicator.cpp
+        external/imgui/imgui.cpp
+        external/imgui/imgui_demo.cpp
+        external/imgui/imgui_draw.cpp
+        external/imgui/imgui_tables.cpp
+        external/imgui/imgui_widgets.cpp
+        external/imgui/backends/imgui_impl_android.cpp
+        external/imgui/backends/imgui_impl_opengl3.cpp
 
         $<TARGET_OBJECTS:android_native_app_glue>
 )
 
 set(GSTREAMER_LIBRARIES "${GSTREAMER_ROOT}/lib/libgstreamer_android.so")
+
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
+        IMGUI_IMPL_OPENGL_ES3
+)
 
 target_link_libraries(
         ${PROJECT_NAME}

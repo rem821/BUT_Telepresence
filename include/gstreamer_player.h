@@ -20,28 +20,28 @@ public:
     };
 
     struct CameraFrame {
-        CameraStats* stats;
+        CameraStats *stats;
         unsigned long memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
         void *dataHandle;
     };
 
     using CamPair = std::pair<CameraFrame, CameraFrame>;
 
-    GstreamerPlayer(BS::thread_pool &threadPool);
+    explicit GstreamerPlayer(BS::thread_pool &threadPool);
 
     ~GstreamerPlayer() = default;
 
     void play();
 
-    CameraFrame getFrameLeft() const {
+    [[nodiscard]] CameraFrame getFrameLeft() const {
         LOG_INFO("FPS LEFT: %f, latency: %lu", camPair_->first.stats->fps,
-                 camPair_->first.stats->totalLatency);
+                 (unsigned long) camPair_->first.stats->totalLatency);
         return camPair_->first;
     }
 
-    CameraFrame getFrameRight() const {
+    [[nodiscard]] CameraFrame getFrameRight() const {
         LOG_INFO("FPS RIGHT: %f, latency: %lu", camPair_->second.stats->fps,
-                 camPair_->second.stats->totalLatency);
+                 (unsigned long) camPair_->second.stats->totalLatency);
         return camPair_->second;
     }
 
@@ -67,5 +67,5 @@ private:
     GMainContext *context_{};
     GMainLoop *mainLoop_{};
 
-    CamPair* camPair_;
+    CamPair *camPair_;
 };
