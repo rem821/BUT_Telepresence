@@ -34,7 +34,7 @@ include_directories(
         ${ANDROID_NATIVE_APP_GLUE}
         ${OpenGLES_V3_INCLUDE_DIR}
         ${OpenGLES_V32_INCLUDE_DIR}
-        ${PROJECT_SOURCE_DIR}/3rdParty/OpenXR-SDK/include
+        ${PROJECT_SOURCE_DIR}/external/OpenXR-SDK/include
         ${GSTREAMER_ROOT}/include/gstreamer-1.0
         ${GSTREAMER_ROOT}/include/glib-2.0
         ${GSTREAMER_ROOT}/lib/glib-2.0/include
