@@ -52,14 +52,16 @@ link_directories(
 add_library(
         ${PROJECT_NAME} SHARED
 
-        src/gpu_window.cpp
-        src/graphics_plugin_opengles.cpp
         src/main.cpp
-        src/platform_plugin_android.cpp
         src/program.cpp
+        src/render_scene.cpp
         src/gstreamer_player.cpp
         src/udp_socket.cpp
         src/servo_communicator.cpp
+        src/render_imgui.cpp
+        src/util_openxr.cpp
+        src/util_egl.cpp
+        src/util_shader.cpp
         external/imgui/imgui.cpp
         external/imgui/imgui_demo.cpp
         external/imgui/imgui_draw.cpp

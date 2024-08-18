@@ -1,53 +1,73 @@
 #include "pch.h"
 
 #include "log.h"
-#include "platform_data.h"
-#include "platform_plugin.h"
-#include "graphics_plugin.h"
-#include "program.h"
 #include <gst/gst.h>
 #include <gio/gio.h>
+#include <chrono>
+
+#include "program.h"
+
+struct AndroidAppState {
+    ANativeWindow *NativeWindow = nullptr;
+    bool Resumed = false;
+};
+
+static void
+ProcessAndroidCmd(struct android_app *app, int32_t cmd) {
+    AndroidAppState *appState = (AndroidAppState *) app->userData;
+
+    switch (cmd) {
+        case APP_CMD_START:
+            //LOGI ("APP_CMD_START");
+            break;
+
+        case APP_CMD_RESUME:
+            //LOGI ("APP_CMD_RESUME");
+            appState->Resumed = true;
+            break;
+
+        case APP_CMD_PAUSE:
+            //LOGI ("APP_CMD_PAUSE");
+            appState->Resumed = false;
+            break;
+
+        case APP_CMD_STOP:
+            //LOGI ("APP_CMD_STOP");
+            break;
+
+        case APP_CMD_DESTROY:
+            //LOGI ("APP_CMD_DESTROY");
+            appState->NativeWindow = nullptr;
+            break;
+
+            // The window is being shown, get it ready.
+        case APP_CMD_INIT_WINDOW:
+            //LOGI ("APP_CMD_INIT_WINDOW");
+            appState->NativeWindow = app->window;
+            break;
+
+            // The window is being hidden or closed, clean it up.
+        case APP_CMD_TERM_WINDOW:
+            //LOGI ("APP_CMD_TERM_WINDOW");
+            appState->NativeWindow = nullptr;
+            break;
+    }
+}
 
 void android_main(struct android_app *app) {
     try {
         JNIEnv *Env;
         app->activity->vm->AttachCurrentThread(&Env, nullptr);
 
-        std::shared_ptr <PlatformData> data = std::make_shared<PlatformData>();
-        data->applicationVM = app->activity->vm;
-        data->applicationActivity = app->activity->clazz;
+        AndroidAppState appState = {};
+        app->userData = &appState;
+        app->onAppCmd = ProcessAndroidCmd;
+
+        std::unique_ptr<TelepresenceProgram> telepresenceProgram = std::make_unique<TelepresenceProgram>(
+                app);
 
         bool requestRestart = false;
         bool exitRenderLoop = false;
-
-        std::shared_ptr <IPlatformPlugin> platformPlugin = CreatePlatformPlugin(data);
-        std::shared_ptr <IGraphicsPlugin> graphicsPlugin = CreateGraphicsPlugin();
-
-        std::shared_ptr <IOpenXrProgram> program = CreateOpenXrProgram(platformPlugin,
-                                                                       graphicsPlugin);
-
-        PFN_xrInitializeLoaderKHR initializeLoader = nullptr;
-        if (XR_SUCCEEDED(xrGetInstanceProcAddr(XR_NULL_HANDLE,
-                                               "xrInitializeLoaderKHR",
-                                               (PFN_xrVoidFunction * )(&initializeLoader)))) {
-            XrLoaderInitInfoAndroidKHR loaderInitInfoAndroid;
-            memset(&loaderInitInfoAndroid, 0, sizeof(loaderInitInfoAndroid));
-            loaderInitInfoAndroid.type = XR_TYPE_LOADER_INIT_INFO_ANDROID_KHR;
-            loaderInitInfoAndroid.next = nullptr;
-            loaderInitInfoAndroid.applicationVM = app->activity->vm;
-            loaderInitInfoAndroid.applicationContext = app->activity->clazz;
-            initializeLoader((const XrLoaderInitInfoBaseHeaderKHR *) &loaderInitInfoAndroid);
-        }
-
-        program->CreateInstance();
-        program->InitializeSystem();
-
-        XrEnvironmentBlendMode blendMode = program->GetPreferredBlendMode();
-        graphicsPlugin->SetBlendMode(blendMode);
-
-        program->InitializeDevice();
-        program->InitializeSession();
-        program->CreateSwapchains();
 
         while (!app->destroyRequested) {
             for (;;) {
@@ -63,19 +83,7 @@ void android_main(struct android_app *app) {
                 }
             }
 
-            program->PollEvents(&exitRenderLoop, &requestRestart);
-            if (exitRenderLoop) {
-                break;
-            }
-
-            if (!program->IsSessionRunning()) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(250));
-                continue;
-            }
-
-            program->PollActions();
-            program->SendControllerDatagram();
-            program->RenderFrame();
+            telepresenceProgram->UpdateFrame();
         }
 
         app->activity->vm->DetachCurrentThread();

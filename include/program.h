@@ -1,58 +1,58 @@
 #pragma once
 
-struct IOpenXrProgram {
-    virtual ~IOpenXrProgram() = default;
+#include "util_openxr.h"
+#include "util_egl.h"
+#include "BS_thread_pool.hpp"
+#include "servo_communicator.h"
+#include "gstreamer_player.h"
 
-    // Create an Instance and other basic instance-level initialization.
-    virtual void CreateInstance() = 0;
+#define HANDL_IN    "/user/hand/left/input"
+#define HANDR_IN    "/user/hand/right/input"
 
-    // Select a System for the view configuration specified in the Options
-    virtual void InitializeSystem() = 0;
+class TelepresenceProgram {
 
-    // Initialize the graphics device for the selected system.
-    virtual void InitializeDevice() = 0;
+public:
+    TelepresenceProgram(struct android_app *app);
 
-    // Create a Session and other basic session-level initialization.
-    virtual void InitializeSession() = 0;
+    void UpdateFrame();
 
-    // Create Gstreamer instance and start receiving video
-    virtual void InitializeStreaming() = 0;
+private:
+    void InitializeActions();
 
-    // Create UDP socket
-    virtual void InitializeControllerStream() = 0;
+    void PollActions();
 
-    // Send UDP packet
-    virtual void SendControllerDatagram() = 0;
+    void PollPoses(XrTime predictedDisplayTime);
 
-    // Create a Swapchain which requires coordinating with the graphics plugin to select the format, getting the system graphics
-    // properties, getting the view configuration and grabbing the resulting swapchain images.
-    virtual void CreateSwapchains() = 0;
+    void RenderFrame();
 
-    // Process any events in the event queue.
-    virtual void PollEvents(bool *exitRenderLoop, bool *requestRestart) = 0;
+    bool RenderLayer(XrTime displayTime, std::vector<XrCompositionLayerProjectionView> &layerViews,
+                     XrCompositionLayerProjection &layer);
 
-    // Manage session lifecycle to track if RenderFrame should be called.
-    virtual bool IsSessionRunning() const = 0;
+    void SendControllerDatagram();
 
-    // Manage session state to track if input should be processed.
-    virtual bool IsSessionFocused() const = 0;
+    void InitializeStreaming();
 
-    // Sample input actions and generate haptic feedback.
-    virtual void PollActions() = 0;
+    XrInstance openxr_instance_ = XR_NULL_HANDLE;
+    XrSystemId openxr_system_id_ = XR_NULL_SYSTEM_ID;
+    XrSession openxr_session_ = XR_NULL_HANDLE;
 
-    // Create and submit a frame.
-    virtual void RenderFrame() = 0;
+    std::vector<viewsurface_t> viewsurfaces_;
 
-    // Get preferred blend mode based on the view configuration specified in the Options
-    virtual XrEnvironmentBlendMode GetPreferredBlendMode() const = 0;
+    std::vector<XrSpace> reference_spaces_;
+    XrSpace app_reference_space_;
+
+    InputState input_;
+    UserState userState_;
+
+    bool mono_;
+    int32_t speed_ = 200000;
+
+    BS::thread_pool threadPool_;
+
+    int udpSocket_{-1};
+    //ServoCommunicator servoComm{threadPool_};
+
+    GstreamerPlayer gstreamerPlayer_{threadPool_};
+
+    void* testFrame_;
 };
-
-struct Swapchain {
-    XrSwapchain handle;
-    int32_t width;
-    int32_t height;
-};
-
-std::shared_ptr<IOpenXrProgram>
-CreateOpenXrProgram(const std::shared_ptr<IPlatformPlugin> &platformPlugin,
-                    const std::shared_ptr<IGraphicsPlugin> &graphicsPlugin);

@@ -15,11 +15,11 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         camPair_->second.stats = new CameraStats();
 
         auto *emptyFrameLeft = new unsigned char[camPair_->first.memorySize];
-        memset(emptyFrameLeft, 0, sizeof(emptyFrameLeft));
+        memset(emptyFrameLeft, 0, camPair_->first.memorySize);
         camPair_->first.dataHandle = (void *) emptyFrameLeft;
 
         auto *emptyFrameRight = new unsigned char[camPair_->second.memorySize];
-        memset(emptyFrameRight, 0, sizeof(emptyFrameRight));
+        memset(emptyFrameRight, 0, camPair_->second.memorySize);
         camPair_->second.dataHandle = (void *) emptyFrameRight;
 
         GstBus *bus;

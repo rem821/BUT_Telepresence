@@ -38,7 +38,7 @@ android {
         externalNativeBuild {
             ndk {
                 //noinspection ChromeOsAbiSupport
-                abiFilters 'arm64-v8a', 'armeabi-v7a'
+                abiFilters 'arm64-v8a'
             }
             cmake {
                 arguments "-DOVR_OPENXR_MOBILE_SDK_DIR:STRING=${ovr_openxr_mobile_sdk_dir}"

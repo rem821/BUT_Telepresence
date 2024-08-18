@@ -1,5 +1,6 @@
 #pragma once
 
+#include <openxr/openxr.h>
 #include <GLES3/gl3.h>
 
 namespace Geometry {
