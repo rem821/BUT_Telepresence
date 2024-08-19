@@ -432,12 +432,13 @@ void openxr_allocate_swapchain_rendertargets(viewsurface_t &viewsurface) {
     CHECK_XRCMD(xrEnumerateSwapchainImages(viewsurface.swapchain, imageCount, &imageCount,
                                            (XrSwapchainImageBaseHeader *) swapchain_images))
 
-    GLuint fbo = 0;
-    glGenFramebuffers(1, &fbo);
+
 
     for (uint32_t i = 0; i < imageCount; i++) {
         GLuint tex_c = swapchain_images[i].image;
         GLuint tex_z = 0;
+        GLuint fbo = 0;
+        glGenFramebuffers(1, &fbo);
 
         GLint width;
         GLint height;

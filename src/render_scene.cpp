@@ -82,7 +82,7 @@ void init_image_plane() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_RGB,
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_SRGB,
                  GL_UNSIGNED_BYTE, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
@@ -126,7 +126,7 @@ void render_scene(const XrCompositionLayerProjectionView &layerView,
 
     glBindVertexArray(vertexArrayObject);
 
-    auto pos = XrVector3f{quad.Pose.position.x, quad.Pose.position.y - 0.3f, quad.Pose.position.z};
+    auto pos = XrVector3f{quad.Pose.position.x, quad.Pose.position.y, quad.Pose.position.z};
     XrMatrix4x4f model;
     XrMatrix4x4f_CreateTranslationRotationScale(&model, &pos, &quad.Pose.orientation, &quad.Scale);
     XrMatrix4x4f mvp;

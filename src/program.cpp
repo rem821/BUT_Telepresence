@@ -28,7 +28,7 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
     openxr_create_session(&openxr_instance_, &openxr_system_id_, &openxr_session_);
     openxr_log_reference_spaces(&openxr_session_);
     openxr_create_reference_spaces(&openxr_session_, reference_spaces_);
-    app_reference_space_ = reference_spaces_[1]; // "Local"
+    app_reference_space_ = reference_spaces_[0]; // "ViewFront"
 
     viewsurfaces_ = openxr_create_swapchains(&openxr_instance_, &openxr_system_id_,
                                              &openxr_session_);
@@ -82,23 +82,28 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
 
     layerViews.resize(viewCount);
 
-    Quad quad{};
-
     XrSpaceLocation spaceLocation{XR_TYPE_SPACE_LOCATION};
 
-    // Locate "ViewFront" space
-    auto res = xrLocateSpace(reference_spaces_[0], app_reference_space_, displayTime,
+    // Locate "Local" space relative to "ViewFront"
+    auto res = xrLocateSpace(reference_spaces_[1], app_reference_space_, displayTime,
                              &spaceLocation);
     CHECK_XRRESULT(res, "xrLocateSpace")
     if (XR_UNQUALIFIED_SUCCESS(res)) {
         if ((spaceLocation.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
             (spaceLocation.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
-            quad = Quad{spaceLocation.pose, {4.6f, 2.6f, 0.0f}};
+
             userState_.hmdPose = spaceLocation.pose;
         }
     } else {
         LOG_INFO("Unable to locate a visualized reference space in app space: %d", res);
     }
+
+    Quad quad{};
+    quad.Pose.position = {0.0f, 0.0f, 0.0f};
+    quad.Pose.orientation = {0.0f, 0.0f, 0.0f, 1.0f};
+    quad.Pose.position.x -= 2.3f;
+    quad.Pose.position.y -= 1.3f;
+    quad.Scale = {4.6f, 2.6f, 0.0f};
 
     for (uint32_t i = 0; i < viewCount; i++) {
         XrSwapchainSubImage subImg;
