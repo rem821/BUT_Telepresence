@@ -63,6 +63,9 @@ void init_image_plane() {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Geometry::c_quadIndices), Geometry::c_quadIndices,
                  GL_STATIC_DRAW);
 
+    vertexAttribCoords = shader_object.loc_position;
+    vertexAttribTexCoords = shader_object.loc_tex_coord;
+
     glGenVertexArrays(1, &vertexArrayObject);
     glBindVertexArray(vertexArrayObject);
     glEnableVertexAttribArray(vertexAttribCoords);

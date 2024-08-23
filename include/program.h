@@ -54,5 +54,5 @@ private:
 
     GstreamerPlayer gstreamerPlayer_{threadPool_};
 
-    void* testFrame_;
+    unsigned char* testFrame_;
 };

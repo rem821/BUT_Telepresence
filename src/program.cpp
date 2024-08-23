@@ -34,11 +34,11 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
                                              &openxr_session_);
 
     testFrame_ = new unsigned char[1920*1080*3];
-    memset(testFrame_, 254, 1920*1080*3);
-
+    for (int i = 0; i < 1920 * 1080 * 3; ++i) {
+        testFrame_[i] = rand() % 255;  // Generate a random number between 0 and 254
+    }
     InitializeActions();
-    //InitializeStreaming();
-    LOG_INFO("Hello");
+    InitializeStreaming();
 }
 
 void TelepresenceProgram::UpdateFrame() {
@@ -101,8 +101,6 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
     Quad quad{};
     quad.Pose.position = {0.0f, 0.0f, 0.0f};
     quad.Pose.orientation = {0.0f, 0.0f, 0.0f, 1.0f};
-    quad.Pose.position.x -= 2.3f;
-    quad.Pose.position.y -= 1.3f;
     quad.Scale = {4.6f, 2.6f, 0.0f};
 
     for (uint32_t i = 0; i < viewCount; i++) {
@@ -116,15 +114,15 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
         layerViews[i].fov = views[i].fov;
         layerViews[i].subImage = subImg;
 
-//        void *imageHandle = i == 0 ? gstreamerPlayer_.getFrameRight().dataHandle
-//                                   : gstreamerPlayer_.getFrameLeft().dataHandle;
-//        if (userState_.aPressed) mono_ = true;
-//        if (userState_.bPressed) mono_ = false;
-//        if (mono_) imageHandle = gstreamerPlayer_.getFrameRight().dataHandle;
+        void *imageHandle = i == 0 ? gstreamerPlayer_.getFrameRight().dataHandle
+                                   : gstreamerPlayer_.getFrameLeft().dataHandle;
+        if (userState_.aPressed) mono_ = true;
+        if (userState_.bPressed) mono_ = false;
+        if (mono_) imageHandle = gstreamerPlayer_.getFrameRight().dataHandle;
 
         auto start = std::chrono::high_resolution_clock::now();
 
-        render_scene(layerViews[i], rtarget, quad, testFrame_);
+        render_scene(layerViews[i], rtarget, quad, imageHandle);
 
         openxr_release_viewsurface(viewsurfaces_[i]);
         auto end = std::chrono::high_resolution_clock::now();

@@ -70,7 +70,7 @@ void openxr_create_instance(android_app *app, XrInstance *instance) {
     createInfo.enabledExtensionNames = extensions.data();
 
     strcpy(createInfo.applicationInfo.applicationName, "BUT_Telepresence");
-    createInfo.applicationInfo.apiVersion = XR_API_VERSION_1_0;
+    createInfo.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
 
     CHECK_XRCMD(xrCreateInstance(&createInfo, instance))
 
