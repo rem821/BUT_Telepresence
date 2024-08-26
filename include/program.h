@@ -50,7 +50,7 @@ private:
     BS::thread_pool threadPool_;
 
     int udpSocket_{-1};
-    //ServoCommunicator servoComm{threadPool_};
+    ServoCommunicator servoComm{threadPool_};
 
     GstreamerPlayer gstreamerPlayer_{threadPool_};
 

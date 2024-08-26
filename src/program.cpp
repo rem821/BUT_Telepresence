@@ -50,7 +50,7 @@ void TelepresenceProgram::UpdateFrame() {
     }
 
     PollActions();
-    //TODO: SendControllerDatagram();
+    SendControllerDatagram();
 
     RenderFrame();
 }
@@ -101,7 +101,7 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
     Quad quad{};
     quad.Pose.position = {0.0f, 0.0f, 0.0f};
     quad.Pose.orientation = {0.0f, 0.0f, 0.0f, 1.0f};
-    quad.Scale = {4.6f, 2.6f, 0.0f};
+    quad.Scale = {3.5f, 1.97f, 0.0f};
 
     for (uint32_t i = 0; i < viewCount; i++) {
         XrSwapchainSubImage subImg;
@@ -515,21 +515,21 @@ void TelepresenceProgram::PollActions() {
     userState_.triggerTouched[Side::LEFT] = triggerTouched.currentState;
 }
 
-//void TelepresenceProgram::SendControllerDatagram() {
-//    if(udpSocket_ == -1) udpSocket_ = createSocket();
-//
-//    //sendUDPPacket(udpSocket_, userState_);
-//    if (!servoComm.servosEnabled()) {
-//        servoComm.enableServos(true, threadPool_);
-//    }
-//    if (servoComm.isReady()) {
-//        if (userState_.xPressed) { speed_ -= 10000; }
-//        if (userState_.yPressed) { speed_ += 10000; }
-//        if (userState_.xPressed && userState_.yPressed) { servoComm.resetErrors(threadPool_); }
-//
-//        servoComm.setPoseAndSpeed(userState_.hmdPose.orientation, speed_, threadPool_);
-//    }
-//}
+void TelepresenceProgram::SendControllerDatagram() {
+    if(udpSocket_ == -1) udpSocket_ = createSocket();
+
+    //sendUDPPacket(udpSocket_, userState_);
+    if (!servoComm.servosEnabled()) {
+        servoComm.enableServos(true, threadPool_);
+    }
+    if (servoComm.isReady()) {
+        if (userState_.xPressed) { speed_ -= 10000; }
+        if (userState_.yPressed) { speed_ += 10000; }
+        if (userState_.xPressed && userState_.yPressed) { servoComm.resetErrors(threadPool_); }
+
+        servoComm.setPoseAndSpeed(userState_.hmdPose.orientation, speed_, threadPool_);
+    }
+}
 
 void TelepresenceProgram::InitializeStreaming() {
     gstreamerPlayer_.play();

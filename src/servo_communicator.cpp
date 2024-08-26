@@ -16,10 +16,10 @@ constexpr unsigned char IDENTIFIER_1 = 0x47;
 constexpr unsigned char IDENTIFIER_2 = 0x54;
 
 constexpr int32_t AZIMUTH_MAX_VALUE = 1'200'000'000;
-constexpr int32_t AZIMUTH_MIN_VALUE = 0'000'000;
+constexpr int32_t AZIMUTH_MIN_VALUE = -500'000'000;
 
-constexpr int32_t ELEVATION_MAX_VALUE = 2'147'483'467;
-constexpr int32_t ELEVATION_MIN_VALUE = 800'000'000;
+constexpr int32_t ELEVATION_MAX_VALUE = 1'000'000'000;
+constexpr int32_t ELEVATION_MIN_VALUE = 100'000;
 
 ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool) : socket_(socket(AF_INET, SOCK_DGRAM, 0)) {
 
@@ -126,6 +126,9 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
 
         auto azimuth = int32_t(((azimuthElevation.azimuth * 2.0F) / M_PI) * azimuth_max_side + azimuth_center);
         auto elevation = int32_t(((-azimuthElevation.elevation * 2.0F) / M_PI) * elevation_max_side + elevation_center);
+
+        azimuth *= 1.2f;
+        elevation *= 1.2f;
 
         if (azimuth < AZIMUTH_MIN_VALUE) {
             azimuth = AZIMUTH_MIN_VALUE;
@@ -313,5 +316,5 @@ ServoCommunicator::AzimuthElevation ServoCommunicator::quaternionToAzimuthElevat
 
 
     LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
-    return AzimuthElevation{-azimuth, -elevation};
+    return AzimuthElevation{azimuth, elevation};
 }
