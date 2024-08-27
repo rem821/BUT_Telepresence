@@ -5,6 +5,7 @@
 
 #include "pch.h"
 #include "log.h"
+#include <chrono>
 
 #include "BS_thread_pool.hpp"
 #include <sys/socket.h>
@@ -84,4 +85,6 @@ private:
 
     int socket_ = -1;
     sockaddr_in myAddr_{}, destAddr_{};
+
+    std::chrono::time_point<std::chrono::high_resolution_clock> timestamp_;
 };

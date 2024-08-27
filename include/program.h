@@ -5,6 +5,7 @@
 #include "BS_thread_pool.hpp"
 #include "servo_communicator.h"
 #include "gstreamer_player.h"
+#include "rest_client.h"
 
 #define HANDL_IN    "/user/hand/left/input"
 #define HANDR_IN    "/user/hand/right/input"
@@ -13,6 +14,8 @@ class TelepresenceProgram {
 
 public:
     TelepresenceProgram(struct android_app *app);
+
+    ~TelepresenceProgram();
 
     void UpdateFrame();
 
@@ -44,7 +47,7 @@ private:
     InputState input_;
     UserState userState_;
 
-    bool mono_;
+    bool mono_ = false;
     int32_t speed_ = 200000;
 
     BS::thread_pool threadPool_;
@@ -53,6 +56,8 @@ private:
     ServoCommunicator servoComm{threadPool_};
 
     GstreamerPlayer gstreamerPlayer_{threadPool_};
+
+    RestClient restClient_;
 
     unsigned char* testFrame_;
 };

@@ -33,12 +33,16 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
     viewsurfaces_ = openxr_create_swapchains(&openxr_instance_, &openxr_system_id_,
                                              &openxr_session_);
 
-    testFrame_ = new unsigned char[1920*1080*3];
+    testFrame_ = new unsigned char[1920 * 1080 * 3];
     for (int i = 0; i < 1920 * 1080 * 3; ++i) {
         testFrame_[i] = rand() % 255;  // Generate a random number between 0 and 254
     }
     InitializeActions();
     InitializeStreaming();
+}
+
+TelepresenceProgram::~TelepresenceProgram() {
+    restClient_.StopStream();
 }
 
 void TelepresenceProgram::UpdateFrame() {
@@ -61,9 +65,9 @@ void TelepresenceProgram::RenderFrame() {
 
     PollPoses(display_time);
 
-    std::vector<XrCompositionLayerBaseHeader *> layers;
+    std::vector < XrCompositionLayerBaseHeader * > layers;
     XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
-    std::vector<XrCompositionLayerProjectionView> projectionLayerViews;
+    std::vector <XrCompositionLayerProjectionView> projectionLayerViews;
     if (RenderLayer(display_time, projectionLayerViews, layer)) {
         layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader *>(&layer));
     }
@@ -72,11 +76,11 @@ void TelepresenceProgram::RenderFrame() {
 }
 
 bool TelepresenceProgram::RenderLayer(XrTime displayTime,
-                                      std::vector<XrCompositionLayerProjectionView> &layerViews,
+                                      std::vector <XrCompositionLayerProjectionView> &layerViews,
                                       XrCompositionLayerProjection &layer) {
     //TODO: displayTime += 50e6; //Predict 50 ms into the future
     auto viewCount = viewsurfaces_.size();
-    std::vector<XrView> views(viewCount, {XR_TYPE_VIEW});
+    std::vector <XrView> views(viewCount, {XR_TYPE_VIEW});
     openxr_locate_views(&openxr_session_, &displayTime, app_reference_space_, viewCount,
                         views.data());
 
@@ -260,7 +264,7 @@ void TelepresenceProgram::InitializeActions() {
                                                        Side::COUNT,
                                                        input_.handSubactionPath.data());
 
-    std::vector<XrActionSuggestedBinding> bindings;
+    std::vector <XrActionSuggestedBinding> bindings;
     bindings.push_back(
             {input_.quitAction, openxr_string2path(&openxr_instance_, HANDL_IN"/menu/click")});
     bindings.push_back(
@@ -268,7 +272,7 @@ void TelepresenceProgram::InitializeActions() {
     openxr_bind_interaction(&openxr_instance_, "/interaction_profiles/khr/simple_controller",
                             bindings);
 
-    std::vector<XrActionSuggestedBinding> touch_bindings;
+    std::vector <XrActionSuggestedBinding> touch_bindings;
     touch_bindings.push_back(
             {input_.quitAction, openxr_string2path(&openxr_instance_, HANDL_IN"/menu/click")});
     touch_bindings.push_back({input_.controllerPoseAction,
@@ -342,7 +346,9 @@ void TelepresenceProgram::PollPoses(XrTime predictedDisplayTime) {
         XrSpaceLocation loc = {XR_TYPE_SPACE_LOCATION};
         loc.next = &vel;
 
-        CHECK_XRCMD(xrLocateSpace(input_.controllerSpace[i], app_reference_space_, predictedDisplayTime, &loc))
+        CHECK_XRCMD(
+                xrLocateSpace(input_.controllerSpace[i], app_reference_space_, predictedDisplayTime,
+                              &loc))
         if ((loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
             userState_.controllerPose[i] = loc.pose;
         }
@@ -511,12 +517,13 @@ void TelepresenceProgram::PollActions() {
             xrGetActionStateBoolean(openxr_session_, &getTriggerTouchedRightInfo, &triggerTouched))
     userState_.triggerTouched[Side::RIGHT] = triggerTouched.currentState;
 
-    CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getTriggerTouchedLeftInfo, &triggerTouched))
+    CHECK_XRCMD(
+            xrGetActionStateBoolean(openxr_session_, &getTriggerTouchedLeftInfo, &triggerTouched))
     userState_.triggerTouched[Side::LEFT] = triggerTouched.currentState;
 }
 
 void TelepresenceProgram::SendControllerDatagram() {
-    if(udpSocket_ == -1) udpSocket_ = createSocket();
+    if (udpSocket_ == -1) udpSocket_ = createSocket();
 
     //sendUDPPacket(udpSocket_, userState_);
     if (!servoComm.servosEnabled()) {
@@ -532,5 +539,12 @@ void TelepresenceProgram::SendControllerDatagram() {
 }
 
 void TelepresenceProgram::InitializeStreaming() {
+    restClient_.StartStream(
+            StreamingConfig{
+                    "192.168.1.110", 8554, 8556, Codec::JPEG, 85, 4000, 1920, 1080,
+                    VideoMode::STEREO, 60
+            }
+    );
+
     gstreamerPlayer_.play();
 }

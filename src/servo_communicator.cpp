@@ -127,8 +127,8 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
         auto azimuth = int32_t(((azimuthElevation.azimuth * 2.0F) / M_PI) * azimuth_max_side + azimuth_center);
         auto elevation = int32_t(((-azimuthElevation.elevation * 2.0F) / M_PI) * elevation_max_side + elevation_center);
 
-        azimuth *= 1.2f;
-        elevation *= 1.2f;
+        azimuth *= 1.5f;
+        elevation *= 1.5f;
 
         if (azimuth < AZIMUTH_MIN_VALUE) {
             azimuth = AZIMUTH_MIN_VALUE;
@@ -188,6 +188,11 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
             sendMessage(buffer);
 
             if (waitForResponse({5, 10})) {
+                auto newStamp = std::chrono::high_resolution_clock::now();
+                LOG_ERROR("ServoCommunication FPS: %f ",
+                          1e6f/std::chrono::duration_cast<std::chrono::microseconds>(newStamp - timestamp_).count());
+                timestamp_ = newStamp;
+
                 break;
             }
         }
@@ -316,5 +321,5 @@ ServoCommunicator::AzimuthElevation ServoCommunicator::quaternionToAzimuthElevat
 
 
     LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
-    return AzimuthElevation{azimuth, elevation};
+    return AzimuthElevation{azimuth, elevation + 0.5f};
 }

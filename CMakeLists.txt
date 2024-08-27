@@ -42,6 +42,8 @@ include_directories(
         external
         external/imgui
         external/imgui/backends
+        external/cpp-httplib
+        external/json/include
         include
 )
 
@@ -58,6 +60,7 @@ add_library(
         src/gstreamer_player.cpp
         src/udp_socket.cpp
         src/servo_communicator.cpp
+        src/rest_client.cpp
         src/render_imgui.cpp
         src/util_openxr.cpp
         src/util_egl.cpp
