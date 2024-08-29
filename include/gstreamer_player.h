@@ -63,6 +63,10 @@ private:
 
     static uint64_t getCurrentUs();
 
+    void dumpGstreamerFeatures();
+
+    gboolean printGstreamerFeature(const GstPluginFeature *feature, gpointer user_data);
+
     GstElement *pipelineLeft_, *pipelineRight_;
     GMainContext *context_{};
     GMainLoop *mainLoop_{};

@@ -4,7 +4,6 @@
 
 
 GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
-    //dumpGstreamerFeatures();
 
     //Init the CameraFrame data structure
     camPair_ = new CamPair();
@@ -21,6 +20,7 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
 
     gst_init(nullptr, nullptr);
     gst_debug_set_threshold_for_name("BUT_Telepresence", GST_LEVEL_TRACE);
+    //dumpGstreamerFeatures();
 
     GstBus *bus;
     GSource *bus_source;
@@ -302,4 +302,57 @@ uint64_t GstreamerPlayer::getCurrentUs() {
     clock_gettime(CLOCK_REALTIME, &res);
     int64_t us = 1e6 * res.tv_sec + (int64_t) res.tv_nsec / 1e3;
     return us;
+}
+
+void GstreamerPlayer::dumpGstreamerFeatures() {
+    GstRegistry *registry = gst_registry_get();
+
+    if (!registry) {
+        LOG_ERROR("Failed to get gstreamer registry!");
+        throw std::runtime_error("Failed to get gstreamer registry!");
+    }
+
+    gchar *str = g_strdup("");
+    GList *features = gst_registry_feature_filter(registry, nullptr, FALSE, nullptr);
+    for (GList *iterator = features; iterator != nullptr; iterator = iterator->next) {
+        printGstreamerFeature((GstPluginFeature *) iterator->data, &str);
+    }
+
+    g_list_free(features);
+
+    gst_object_unref(registry);
+}
+
+gboolean
+GstreamerPlayer::printGstreamerFeature(const GstPluginFeature *feature, gpointer user_data) {
+    auto **str = (gchar **) user_data;
+    gchar *name = gst_plugin_feature_get_name(feature);
+    gchar *temp;
+
+    /* Get the plugin name if this is a plugin feature */
+    gchar *plugin_name = nullptr;
+    if (GST_IS_PLUGIN_FEATURE(feature)) {
+        GstPlugin *plugin = gst_plugin_feature_get_plugin((GstPluginFeature *) feature);
+        if (plugin != nullptr) {
+            plugin_name = g_strdup(gst_plugin_get_name(plugin));
+            gst_object_unref(plugin);
+        }
+    }
+
+    /* Append the feature name and plugin name (if any) to the string */
+    if (plugin_name != nullptr) {
+        LOG_INFO("GStreamer found feature from plugin: %s (%s)\n", name, plugin_name);
+        temp = g_strdup_printf("%s (%s)\n", name, plugin_name);
+    } else {
+        LOG_INFO("GStreamer found feature: %s \n", name);
+        temp = g_strdup_printf("%s\n", name);
+    }
+    *str = g_strdup_printf("%s%s", *str, temp);
+    g_free(temp);
+
+    /* Free resources */
+    g_free(name);
+    g_free(plugin_name);
+
+    return TRUE;
 }
