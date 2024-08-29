@@ -64,3 +64,23 @@ struct UserState {
     bool yPressed;
     bool yTouched;
 };
+
+enum Codec {
+    JPEG, VP8, VP9, H264, H265
+};
+
+enum VideoMode {
+    STEREO, MONO
+};
+
+struct StreamingConfig {
+    std::string ip{};
+    int portLeft{};
+    int portRight{};
+    Codec codec{}; //TODO: Implement different codecs
+    int encodingQuality{};
+    int bitrate{}; //TODO: Implement rate control
+    int horizontalResolution{}, verticalResolution{}; //TODO: Restrict to specific supported resolutions
+    VideoMode videoMode{};
+    int fps{};
+};

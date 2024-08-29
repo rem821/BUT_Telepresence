@@ -65,9 +65,9 @@ void TelepresenceProgram::RenderFrame() {
 
     PollPoses(display_time);
 
-    std::vector < XrCompositionLayerBaseHeader * > layers;
+    std::vector<XrCompositionLayerBaseHeader *> layers;
     XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
-    std::vector <XrCompositionLayerProjectionView> projectionLayerViews;
+    std::vector<XrCompositionLayerProjectionView> projectionLayerViews;
     if (RenderLayer(display_time, projectionLayerViews, layer)) {
         layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader *>(&layer));
     }
@@ -76,11 +76,11 @@ void TelepresenceProgram::RenderFrame() {
 }
 
 bool TelepresenceProgram::RenderLayer(XrTime displayTime,
-                                      std::vector <XrCompositionLayerProjectionView> &layerViews,
+                                      std::vector<XrCompositionLayerProjectionView> &layerViews,
                                       XrCompositionLayerProjection &layer) {
     //TODO: displayTime += 50e6; //Predict 50 ms into the future
     auto viewCount = viewsurfaces_.size();
-    std::vector <XrView> views(viewCount, {XR_TYPE_VIEW});
+    std::vector<XrView> views(viewCount, {XR_TYPE_VIEW});
     openxr_locate_views(&openxr_session_, &displayTime, app_reference_space_, viewCount,
                         views.data());
 
@@ -264,7 +264,7 @@ void TelepresenceProgram::InitializeActions() {
                                                        Side::COUNT,
                                                        input_.handSubactionPath.data());
 
-    std::vector <XrActionSuggestedBinding> bindings;
+    std::vector<XrActionSuggestedBinding> bindings;
     bindings.push_back(
             {input_.quitAction, openxr_string2path(&openxr_instance_, HANDL_IN"/menu/click")});
     bindings.push_back(
@@ -272,7 +272,7 @@ void TelepresenceProgram::InitializeActions() {
     openxr_bind_interaction(&openxr_instance_, "/interaction_profiles/khr/simple_controller",
                             bindings);
 
-    std::vector <XrActionSuggestedBinding> touch_bindings;
+    std::vector<XrActionSuggestedBinding> touch_bindings;
     touch_bindings.push_back(
             {input_.quitAction, openxr_string2path(&openxr_instance_, HANDL_IN"/menu/click")});
     touch_bindings.push_back({input_.controllerPoseAction,
@@ -539,12 +539,14 @@ void TelepresenceProgram::SendControllerDatagram() {
 }
 
 void TelepresenceProgram::InitializeStreaming() {
-    restClient_.StartStream(
-            StreamingConfig{
-                    "192.168.1.110", 8554, 8556, Codec::JPEG, 85, 4000, 1920, 1080,
-                    VideoMode::STEREO, 60
-            }
-    );
+    StreamingConfig config = StreamingConfig{
+            "192.168.1.110", 8554, 8556, Codec::JPEG, 85, 4000, 1920, 1080,
+            VideoMode::STEREO, 60
+    };
 
-    gstreamerPlayer_.play();
+    restClient_.StopStream();
+    restClient_.StartStream(config);
+
+    gstreamerPlayer_.configurePipeline(threadPool_, config);
+    gstreamerPlayer_.playPipelines();
 }

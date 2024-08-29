@@ -7,8 +7,26 @@
 using json = nlohmann::json;
 
 int RestClient::StartStream(const StreamingConfig &config) {
+    std::string codec = "JPEG";
+    switch (config.codec) {
+        case Codec::JPEG:
+            codec = "JPEG";
+            break;
+        case Codec::VP8:
+            codec = "VP8";
+            break;
+        case Codec::VP9:
+            codec = "VP9";
+            break;
+        case Codec::H264:
+            codec = "H264";
+            break;
+        case Codec::H265:
+            codec = "H265";
+            break;
+    }
     std::string req = json{{"bitrate",          "400k"},
-                           {"codec",            "JPEG"},
+                           {"codec",            codec},
                            {"encoding_quality", config.encodingQuality},
                            {"fps",              config.fps},
                            {"ip_address",       config.ip},

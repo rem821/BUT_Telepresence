@@ -3,7 +3,7 @@
 #include <gst/rtp/rtp.h>
 
 
-GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
+GstreamerPlayer::GstreamerPlayer() {
 
     //Init the CameraFrame data structure
     camPair_ = new CamPair();
@@ -19,38 +19,45 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
     camPair_->second.dataHandle = (void *) emptyFrameRight;
 
     gst_init(nullptr, nullptr);
-    gst_debug_set_threshold_for_name("BUT_Telepresence", GST_LEVEL_TRACE);
     //dumpGstreamerFeatures();
 
-    GstBus *bus;
-    GSource *bus_source;
-    GError *error = nullptr;
     /* Create our own GLib Main Context and make it the default one */
     context_ = g_main_context_new();
     g_main_context_push_thread_default(context_);
+}
+
+void
+GstreamerPlayer::configurePipeline(BS::thread_pool &threadPool, const StreamingConfig &config) {
+    GstBus *bus;
+    GSource *bus_source;
+    GError *error = nullptr;
 
     /* Build pipeline */
-    pipelineLeft_ = gst_parse_launch(
-            "udpsrc port=8554 ! application/x-rtp,encoding-name=JPEG,payload=26"
-            " ! identity name=udpsrc_identity"
-            " ! rtpjpegdepay ! identity name=rtpjpegdepay_identity"
-            " ! jpegdec ! video/x-raw,format=RGB ! identity name=jpegdec_identity"
-            " ! queue ! identity name=queue_identity"
-            " ! appsink emit-signals=true name=appsink sync=false",
-            &error);
-    pipelineRight_ = gst_parse_launch(
-            "udpsrc port=8556 ! application/x-rtp,encoding-name=JPEG,payload=26"
-            " ! identity name=udpsrc_identity"
-            " ! rtpjpegdepay ! identity name=rtpjpegdepay_identity"
-            " ! jpegdec ! video/x-raw,format=RGB ! identity name=jpegdec_identity"
-            " ! queue ! identity name=queue_identity"
-            " ! appsink emit-signals=true name=appsink sync=false",
-            &error);
+    switch (config.codec) {
+        case Codec::JPEG:
+            pipelineLeft_ = gst_parse_launch(jpegPipeline_.c_str(), &error);
+            pipelineRight_ = gst_parse_launch(jpegPipeline_.c_str(), &error);
+            break;
+        case Codec::VP8:
+            //TODO:
+            break;
+        case Codec::VP9:
+            //TODO:
+            break;
+        case Codec::H264:
+            pipelineLeft_ = gst_parse_launch(h264Pipeline_.c_str(), &error);
+            pipelineRight_ = gst_parse_launch(h264Pipeline_.c_str(), &error);
+            break;
+        case Codec::H265:
+            //TODO:
+            break;
+    }
 
     if (error) {
         LOG_ERROR("Unable to build pipeline");
         throw std::runtime_error("Unable to build pipeline!");
     }
+
 
     GstElement *leftudpsrc_identity = gst_bin_get_by_name(GST_BIN(pipelineLeft_),
                                                           "udpsrc_identity");
@@ -60,6 +67,9 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
                                                            "jpegdec_identity");
     GstElement *leftqueue_identity = gst_bin_get_by_name(GST_BIN(pipelineLeft_),
                                                          "queue_identity");
+
+    GstElement *leftudpsrc = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc");
+    g_object_set(leftudpsrc, "port", 8554, NULL);
     GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "appsink");
     gst_element_set_name(pipelineLeft_, "pipeline_left");
     gst_element_set_state(pipelineLeft_, GST_STATE_READY);
@@ -102,6 +112,9 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
                                                             "jpegdec_identity");
     GstElement *rightqueue_identity = gst_bin_get_by_name(GST_BIN(pipelineRight_),
                                                           "queue_identity");
+
+    GstElement *rightudpsrc = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc");
+    g_object_set(rightudpsrc, "port", 8556, NULL);
     GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "appsink");
     gst_element_set_name(pipelineRight_, "pipeline_right");
     gst_element_set_state(pipelineRight_, GST_STATE_READY);
@@ -141,7 +154,6 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
         /* Create a GLib Main Loop and set it to run */
         LOG_INFO("GStreamer entering the main loop");
         mainLoop_ = g_main_loop_new(context_, FALSE);
-        play();
 
         g_main_loop_run(mainLoop_);
         LOG_INFO("GStreamer exited the main loop");
@@ -150,10 +162,16 @@ GstreamerPlayer::GstreamerPlayer(BS::thread_pool &threadPool) {
     });
 }
 
-void GstreamerPlayer::play() {
+void GstreamerPlayer::playPipelines() {
     LOG_INFO("GStreamer setting state to PLAYING");
     gst_element_set_state(pipelineLeft_, GST_STATE_PLAYING);
     gst_element_set_state(pipelineRight_, GST_STATE_PLAYING);
+}
+
+void GstreamerPlayer::stopPipelines() {
+    LOG_INFO("GStreamer setting state to NULL");
+    gst_element_set_state(pipelineLeft_, GST_STATE_NULL);
+    gst_element_set_state(pipelineRight_, GST_STATE_NULL);
 }
 
 GstFlowReturn
