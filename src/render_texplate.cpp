@@ -24,7 +24,7 @@ static const char *TexplateVertexShaderGlsl = R"_(#version 320 es
     uniform mat4 u_ModelViewProjection;
 
     void main() {
-       gl_Position = u_ModelViewProjection * vec4(position, 0.0);
+       gl_Position = u_ModelViewProjection * vec4(position, 1.0);
        v_TexCoord = texCoord;
     }
     )_";
@@ -37,8 +37,7 @@ static const char *TexplateFragmentShaderGlsl = R"_(#version 320 es
     uniform sampler2D u_Texture;
 
     void main() {
-        lowp vec4 texColor = texture(u_Texture, v_TexCoord);
-        color = texColor;
+        color = texture(u_Texture, v_TexCoord);
     }
     )_";
 
@@ -57,7 +56,6 @@ typedef struct _texparam {
 
 
 static void flip_texcoord(float *uv) {
-
     uv[1] = 1.0f - uv[1];
     uv[3] = 1.0f - uv[3];
     uv[5] = 1.0f - uv[5];
@@ -89,6 +87,8 @@ static int draw_texture_in(texparam_t *tparam) {
         glVertexAttribPointer(s_obj.loc_tex_coord, 2, GL_FLOAT, GL_FALSE, 0, uv);
     }
 
+    glFrontFace(GL_CCW);
+    glCullFace(GL_BACK);
     glEnable(GL_BLEND);
 
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,

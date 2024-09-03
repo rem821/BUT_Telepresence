@@ -17,8 +17,8 @@ static int TEXTURE_WIDTH = 1920;
 static int TEXTURE_HEIGHT = 1080;
 static const std::array<float, 4> CLEAR_COLOR{0.05f, 0.05f, 0.05f, 1.0f};
 
-static int GUI_WIDTH = 480;
-static int GUI_HEIGHT = 270;
+static int GUI_WIDTH = 300;
+static int GUI_HEIGHT = 740;
 
 static GLuint cubeVertexBuffer{0}, cubeIndexBuffer{0}, vertexArrayObject{0},
         vertexAttribCoords{0}, vertexAttribTexCoords{0}, texture2D{0};
@@ -181,13 +181,15 @@ int draw_image_plane(const XrMatrix4x4f& vp, const Quad &quad, const void *image
     XrMatrix4x4f_Multiply(&mvp, &vp, &model);
     glUniformMatrix4fv(static_cast<GLint>(image_shader_object.loc_mvp), 1, GL_FALSE,
                        reinterpret_cast<const GLfloat *>(&mvp));
-    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)),
-                   GL_UNSIGNED_SHORT, nullptr);
+
 
     glBindTexture(GL_TEXTURE_2D, texture2D);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_SRGB,
                  GL_UNSIGNED_BYTE, image);
 
+
+    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)),
+                   GL_UNSIGNED_SHORT, nullptr);
     glBindVertexArray(0);
 
     return 0;
@@ -201,7 +203,7 @@ int draw_imgui(const XrMatrix4x4f& vp) {
 
     /* render to UIPlane-FBO */
     set_render_target(&gui_render_target);
-    glClearColor(1.0f, 0.0f, 1.0f, 0.0f);
+    glClearColor(1.0f, 0.0f, 1.0f, 0.1f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     {
@@ -211,16 +213,15 @@ int draw_imgui(const XrMatrix4x4f& vp) {
     /* restore FBO */
     set_render_target (&rtarget0);
 
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
 
     {
         XrMatrix4x4f matT;
         float win_w = 1.0f;
         float win_h = win_w * ((float)GUI_WIDTH / (float)GUI_HEIGHT);
-        XrVector3f translation{0.0f, 0.0f, 0.0f};
+        XrVector3f translation{0.0f, 0.0f, 0.2f};
         XrQuaternionf rotation{0.0f, 0.0f, 0.0f, 1.0f};
-        XrVector3f scale{win_w, win_h, 0.0f};
+        XrVector3f scale{win_w, win_h, 1.0f};
         XrMatrix4x4f_CreateTranslationRotationScale(&matT, &translation, &rotation, &scale);
 
         XrMatrix4x4f matPVM;
