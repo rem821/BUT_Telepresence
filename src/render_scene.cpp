@@ -7,19 +7,28 @@
 #include "geometry.h"
 #include "linear.h"
 #include <random>
+#include "render_imgui.h"
+#include "util_render_target.h"
+#include "render_texplate.h"
 
 #include "render_scene.h"
 
 static int TEXTURE_WIDTH = 1920;
 static int TEXTURE_HEIGHT = 1080;
-static const std::array<float, 4> CLEAR_COLOR{0.01f, 0.01f, 0.01f, 1.0f};
+static const std::array<float, 4> CLEAR_COLOR{0.05f, 0.05f, 0.05f, 1.0f};
+
+static int GUI_WIDTH = 480;
+static int GUI_HEIGHT = 270;
 
 static GLuint cubeVertexBuffer{0}, cubeIndexBuffer{0}, vertexArrayObject{0},
         vertexAttribCoords{0}, vertexAttribTexCoords{0}, texture2D{0};
 
-static shader_obj_t shader_object;
+static shader_obj_t image_shader_object;
+static shader_obj_t gui_shader_object;
 
-static const char *VertexShaderGlsl = R"_(#version 320 es
+static render_target_t gui_render_target;
+
+static const char *ImageVertexShaderGlsl = R"_(#version 320 es
 
     in vec3 position;
     in lowp vec2 texCoord;
@@ -34,7 +43,7 @@ static const char *VertexShaderGlsl = R"_(#version 320 es
     }
     )_";
 
-static const char *FragmentShaderGlsl = R"_(#version 320 es
+static const char *ImageFragmentShaderGlsl = R"_(#version 320 es
     in lowp vec2 v_TexCoord;
 
     out lowp vec4 color;
@@ -46,9 +55,36 @@ static const char *FragmentShaderGlsl = R"_(#version 320 es
     }
     )_";
 
+static const char *GuiVertexShaderGlsl = R"_(#version 320 es
+    in vec3 position;
+    in lowp vec4 color;
+    out lowp vec4 v_color;
+
+    uniform mat4 u_ModelViewProjection;
+
+    void main(void) {
+        gl_Position = u_ModelViewProjection * vec4(position, 1.0);
+        v_color = color;
+    }
+    )_";
+
+static const char *GuiFragmentShaderGlsl = R"_(#version 320 es
+    in lowp vec4 v_color;
+    out lowp vec4 color;
+
+    void main(void) {
+        color = v_color;
+    }
+)_";
+
 void init_scene() {
-    generate_shader(&shader_object, VertexShaderGlsl, FragmentShaderGlsl);
+    generate_shader(&image_shader_object, ImageVertexShaderGlsl, ImageFragmentShaderGlsl);
+    generate_shader(&gui_shader_object, GuiVertexShaderGlsl, GuiFragmentShaderGlsl);
     init_image_plane();
+    init_imgui(GUI_WIDTH, GUI_HEIGHT);
+    init_texplate();
+
+    create_render_target(&gui_render_target, GUI_WIDTH, GUI_HEIGHT);
 }
 
 void init_image_plane() {
@@ -63,8 +99,8 @@ void init_image_plane() {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Geometry::c_quadIndices), Geometry::c_quadIndices,
                  GL_STATIC_DRAW);
 
-    vertexAttribCoords = shader_object.loc_position;
-    vertexAttribTexCoords = shader_object.loc_tex_coord;
+    vertexAttribCoords = image_shader_object.loc_position;
+    vertexAttribTexCoords = image_shader_object.loc_tex_coord;
 
     glGenVertexArrays(1, &vertexArrayObject);
     glBindVertexArray(vertexArrayObject);
@@ -114,8 +150,6 @@ void render_scene(const XrCompositionLayerProjectionView &layerView,
     glClearDepthf(1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    glUseProgram(shader_object.program);
-
     const auto &pose = layerView.pose;
     XrMatrix4x4f proj;
     XrMatrix4x4f_CreateProjectionFov(&proj, layerView.fov, 0.05f, 100.0f);
@@ -127,6 +161,17 @@ void render_scene(const XrCompositionLayerProjectionView &layerView,
     XrMatrix4x4f vp;
     XrMatrix4x4f_Multiply(&vp, &proj, &view);
 
+    draw_image_plane(vp, quad, image);
+    draw_imgui(vp);
+
+    glUseProgram(0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+int draw_image_plane(const XrMatrix4x4f& vp, const Quad &quad, const void *image) {
+
+    glUseProgram(image_shader_object.program);
+
     glBindVertexArray(vertexArrayObject);
 
     auto pos = XrVector3f{quad.Pose.position.x, quad.Pose.position.y, quad.Pose.position.z};
@@ -134,18 +179,54 @@ void render_scene(const XrCompositionLayerProjectionView &layerView,
     XrMatrix4x4f_CreateTranslationRotationScale(&model, &pos, &quad.Pose.orientation, &quad.Scale);
     XrMatrix4x4f mvp;
     XrMatrix4x4f_Multiply(&mvp, &vp, &model);
-    glUniformMatrix4fv(static_cast<GLint>(shader_object.loc_mvp), 1, GL_FALSE, reinterpret_cast<const GLfloat *>(&mvp));
-    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)), GL_UNSIGNED_SHORT, nullptr);
+    glUniformMatrix4fv(static_cast<GLint>(image_shader_object.loc_mvp), 1, GL_FALSE,
+                       reinterpret_cast<const GLfloat *>(&mvp));
+    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)),
+                   GL_UNSIGNED_SHORT, nullptr);
 
     glBindTexture(GL_TEXTURE_2D, texture2D);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_SRGB, GL_UNSIGNED_BYTE, image);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_SRGB,
+                 GL_UNSIGNED_BYTE, image);
 
     glBindVertexArray(0);
-    glUseProgram(0);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    return 0;
 }
 
-int draw_image_plane() {
+int draw_imgui(const XrMatrix4x4f& vp) {
+
+    /* save current FBO */
+    render_target_t rtarget0{};
+    get_render_target (&rtarget0);
+
+    /* render to UIPlane-FBO */
+    set_render_target(&gui_render_target);
+    glClearColor(1.0f, 0.0f, 1.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    {
+        invoke_imgui();
+    }
+
+    /* restore FBO */
+    set_render_target (&rtarget0);
+
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+
+    {
+        XrMatrix4x4f matT;
+        float win_w = 1.0f;
+        float win_h = win_w * ((float)GUI_WIDTH / (float)GUI_HEIGHT);
+        XrVector3f translation{0.0f, 0.0f, 0.0f};
+        XrQuaternionf rotation{0.0f, 0.0f, 0.0f, 1.0f};
+        XrVector3f scale{win_w, win_h, 0.0f};
+        XrMatrix4x4f_CreateTranslationRotationScale(&matT, &translation, &rotation, &scale);
+
+        XrMatrix4x4f matPVM;
+        XrMatrix4x4f_Multiply(&matPVM, &vp, &matT);
+        draw_tex_plate(gui_render_target.texc_id, matPVM);
+    }
 
     return 0;
 }

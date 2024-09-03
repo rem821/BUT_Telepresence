@@ -261,13 +261,13 @@ void GstreamerPlayer::onIdentityHandoff(GstElement *identity, GstBuffer *buffer,
         stats->totalLatency = stats->nvvidconv + stats->jpegenc + stats->rtpjpegpay +
                               stats->udpstream + stats->rtpjpegdepay +
                               stats->jpegdec + stats->queue;
-        LOG_INFO(
-                "Pipeline latencies: nvvidconv: %lu, jpegenc: %lu, rtpjpegpay: %lu, udpstream: %lu, rtpjpegdepay: %lu, jpegdec: %lu, queue: %lu, total: %lu",
-                (unsigned long) stats->nvvidconv, (unsigned long) stats->jpegenc,
-                (unsigned long) stats->rtpjpegpay, (unsigned long) stats->udpstream,
-                (unsigned long) stats->rtpjpegdepay, (unsigned long) stats->jpegdec,
-                (unsigned long) stats->queue,
-                (unsigned long) stats->totalLatency);
+//        LOG_INFO(
+//                "Pipeline latencies: nvvidconv: %lu, jpegenc: %lu, rtpjpegpay: %lu, udpstream: %lu, rtpjpegdepay: %lu, jpegdec: %lu, queue: %lu, total: %lu",
+//                (unsigned long) stats->nvvidconv, (unsigned long) stats->jpegenc,
+//                (unsigned long) stats->rtpjpegpay, (unsigned long) stats->udpstream,
+//                (unsigned long) stats->rtpjpegdepay, (unsigned long) stats->jpegdec,
+//                (unsigned long) stats->queue,
+//                (unsigned long) stats->totalLatency);
     }
 }
 

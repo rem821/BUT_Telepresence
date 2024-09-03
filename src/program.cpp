@@ -54,7 +54,7 @@ void TelepresenceProgram::UpdateFrame() {
     }
 
     PollActions();
-    SendControllerDatagram();
+    //TODO: SendControllerDatagram();
 
     RenderFrame();
 }

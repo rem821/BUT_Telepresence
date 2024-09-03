@@ -39,14 +39,14 @@ public:
     void stopPipelines();
 
     [[nodiscard]] CameraFrame& getFrameLeft() const {
-        LOG_INFO("FPS LEFT: %f, latency: %lu", camPair_->first.stats->fps,
-                 (unsigned long) camPair_->first.stats->totalLatency);
+//        LOG_INFO("FPS LEFT: %f, latency: %lu", camPair_->first.stats->fps,
+//                 (unsigned long) camPair_->first.stats->totalLatency);
         return camPair_->first;
     }
 
     [[nodiscard]] CameraFrame& getFrameRight() const {
-        LOG_INFO("FPS RIGHT: %f, latency: %lu", camPair_->second.stats->fps,
-                 (unsigned long) camPair_->second.stats->totalLatency);
+//        LOG_INFO("FPS RIGHT: %f, latency: %lu", camPair_->second.stats->fps,
+//                 (unsigned long) camPair_->second.stats->totalLatency);
         return camPair_->second;
     }
 

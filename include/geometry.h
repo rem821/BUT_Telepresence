@@ -37,7 +37,7 @@ namespace Geometry {
     };
 
     constexpr unsigned short c_quadIndices[] = {
-        0,  1,  2,  0,  2,  3
+            0, 1, 2, 0, 2, 3
     };
 
 }  // namespace Geometry
