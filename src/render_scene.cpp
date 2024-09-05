@@ -18,7 +18,7 @@ static int TEXTURE_HEIGHT = 1080;
 static const std::array<float, 4> CLEAR_COLOR{0.05f, 0.05f, 0.05f, 1.0f};
 
 static int GUI_WIDTH = 300;
-static int GUI_HEIGHT = 740;
+static int GUI_HEIGHT = 340;
 
 static GLuint cubeVertexBuffer{0}, cubeIndexBuffer{0}, vertexArrayObject{0},
         vertexAttribCoords{0}, vertexAttribTexCoords{0}, texture2D{0};
@@ -127,7 +127,8 @@ void init_image_plane() {
 }
 
 void render_scene(const XrCompositionLayerProjectionView &layerView,
-                  render_target_t &rtarget, const Quad &quad, const void *image) {
+                  render_target_t &rtarget, const Quad &quad, const std::shared_ptr<AppState>& appState,
+                  const void *image) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, rtarget.fbo_id);
     glViewport(
@@ -162,13 +163,13 @@ void render_scene(const XrCompositionLayerProjectionView &layerView,
     XrMatrix4x4f_Multiply(&vp, &proj, &view);
 
     draw_image_plane(vp, quad, image);
-    draw_imgui(vp);
+    draw_imgui(vp, appState);
 
     glUseProgram(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-int draw_image_plane(const XrMatrix4x4f& vp, const Quad &quad, const void *image) {
+int draw_image_plane(const XrMatrix4x4f &vp, const Quad &quad, const void *image) {
 
     glUseProgram(image_shader_object.program);
 
@@ -182,44 +183,43 @@ int draw_image_plane(const XrMatrix4x4f& vp, const Quad &quad, const void *image
     glUniformMatrix4fv(static_cast<GLint>(image_shader_object.loc_mvp), 1, GL_FALSE,
                        reinterpret_cast<const GLfloat *>(&mvp));
 
-
     glBindTexture(GL_TEXTURE_2D, texture2D);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_SRGB,
                  GL_UNSIGNED_BYTE, image);
 
-
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)),
                    GL_UNSIGNED_SHORT, nullptr);
+
     glBindVertexArray(0);
 
     return 0;
 }
 
-int draw_imgui(const XrMatrix4x4f& vp) {
+int draw_imgui(const XrMatrix4x4f &vp, const std::shared_ptr<AppState>& appState) {
 
     /* save current FBO */
     render_target_t rtarget0{};
-    get_render_target (&rtarget0);
+    get_render_target(&rtarget0);
 
     /* render to UIPlane-FBO */
     set_render_target(&gui_render_target);
-    glClearColor(1.0f, 0.0f, 1.0f, 0.1f);
+    glClearColor(1.0f, 0.0f, 1.0f, 0.8f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     {
-        invoke_imgui();
+        invoke_imgui(appState);
     }
 
     /* restore FBO */
-    set_render_target (&rtarget0);
+    set_render_target(&rtarget0);
 
     glEnable(GL_DEPTH_TEST);
 
     {
         XrMatrix4x4f matT;
-        float win_w = 1.0f;
-        float win_h = win_w * ((float)GUI_WIDTH / (float)GUI_HEIGHT);
-        XrVector3f translation{0.0f, 0.0f, 0.2f};
+        float win_h = 1.0f;
+        float win_w = win_h * ((float) GUI_WIDTH / (float) GUI_HEIGHT);
+        XrVector3f translation{1.0f, -0.5f, 0.2f};
         XrQuaternionf rotation{0.0f, 0.0f, 0.0f, 1.0f};
         XrVector3f scale{win_w, win_h, 1.0f};
         XrMatrix4x4f_CreateTranslationRotationScale(&matT, &translation, &rotation, &scale);

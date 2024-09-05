@@ -50,14 +50,17 @@ private:
     bool mono_ = false;
     int32_t speed_ = 200000;
 
+
+    //int udpSocket_{-1};
+
     BS::thread_pool threadPool_;
 
-    int udpSocket_{-1};
-    ServoCommunicator servoComm{threadPool_};
-
-    GstreamerPlayer gstreamerPlayer_;
-
-    RestClient restClient_;
+    std::unique_ptr<GstreamerPlayer> gstreamerPlayer_;
+    std::unique_ptr<RestClient> restClient_;
+    std::unique_ptr<ServoCommunicator> servoCommunicator_;
 
     unsigned char* testFrame_;
+    std::chrono::time_point<std::chrono::high_resolution_clock> prevFrameStart_, frameStart_;
+
+    std::shared_ptr<AppState> appState_{};
 };

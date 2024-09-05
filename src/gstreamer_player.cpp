@@ -3,10 +3,10 @@
 #include <gst/rtp/rtp.h>
 
 
-GstreamerPlayer::GstreamerPlayer() {
+GstreamerPlayer::GstreamerPlayer(CamPair* camPair) {
 
     //Init the CameraFrame data structure
-    camPair_ = new CamPair();
+    camPair_ = camPair;
     camPair_->first.stats = new CameraStats();
     camPair_->second.stats = new CameraStats();
 

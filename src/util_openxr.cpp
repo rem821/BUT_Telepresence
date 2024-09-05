@@ -769,3 +769,24 @@ int openxr_locate_views(XrSession *session, XrTime *displayTime, XrSpace space, 
 
     return 0;
 }
+
+std::string openxr_get_runtime_name(XrInstance *instance) {
+    XrInstanceProperties prop = {XR_TYPE_INSTANCE_PROPERTIES};
+    xrGetInstanceProperties (*instance, &prop);
+
+    char strbuf[128];
+    snprintf (strbuf, 127, "%s (%u.%u.%u)", prop.runtimeName,
+              XR_VERSION_MAJOR (prop.runtimeVersion),
+              XR_VERSION_MINOR (prop.runtimeVersion),
+              XR_VERSION_PATCH (prop.runtimeVersion));
+    std::string runtime_name = strbuf;
+    return runtime_name;
+}
+
+std::string openxr_get_system_name(XrInstance *instance, XrSystemId* system_id) {
+    XrSystemProperties prop = {XR_TYPE_SYSTEM_PROPERTIES};
+    xrGetSystemProperties (*instance, *system_id, &prop);
+
+    std::string sys_name = prop.systemName;
+    return sys_name;
+}
