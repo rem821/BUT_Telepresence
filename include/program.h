@@ -6,6 +6,7 @@
 #include "servo_communicator.h"
 #include "gstreamer_player.h"
 #include "rest_client.h"
+#include "ntp_timer.h"
 
 #define HANDL_IN    "/user/hand/left/input"
 #define HANDR_IN    "/user/hand/right/input"
@@ -58,6 +59,8 @@ private:
     std::unique_ptr<GstreamerPlayer> gstreamerPlayer_;
     std::unique_ptr<RestClient> restClient_;
     std::unique_ptr<ServoCommunicator> servoCommunicator_;
+    std::unique_ptr<NtpTimer> ntpTimer_;
+    std::string ntpServerAddress_ = "192.168.1.100";
 
     unsigned char* testFrame_;
     std::chrono::time_point<std::chrono::high_resolution_clock> prevFrameStart_, frameStart_;

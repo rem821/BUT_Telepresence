@@ -67,6 +67,7 @@ add_library(
         src/util_shader.cpp
         src/util_render_target.cpp
         src/render_texplate.cpp
+        src/ntp_timer.cpp
         external/imgui/imgui.cpp
         external/imgui/imgui_demo.cpp
         external/imgui/imgui_draw.cpp

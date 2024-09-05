@@ -40,6 +40,7 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
 
     appState_ = std::make_shared<AppState>();
     gstreamerPlayer_ = std::make_unique<GstreamerPlayer>(&appState_->cameraStreamingStates);
+    ntpTimer_ = std::make_unique<NtpTimer>(ntpServerAddress_);
 
     appState_->systemInfo.openXrRuntime = openxr_get_runtime_name(&openxr_instance_);
     appState_->systemInfo.openXrSystem = openxr_get_system_name(&openxr_instance_,
