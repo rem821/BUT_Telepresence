@@ -84,7 +84,7 @@ imgui_is_anywindow_hovered() {
 #endif
 }
 
-static void render_gui() {
+static void render_gui(const std::shared_ptr<AppState> &appState) {
     int win_w = 300;
     int win_h = 0;
     int win_x = 0;
@@ -94,17 +94,17 @@ static void render_gui() {
 
     /* Show main window */
     win_y += win_h;
-    win_h = 120;
+    win_h = 140;
     ImGui::SetNextWindowPos(ImVec2(_X(win_x), _Y(win_y)), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(_X(win_w), _Y(win_h)), ImGuiCond_FirstUseEver);
     ImGui::Begin("Runtime");
     {
-        ImGui::Text("OXR_RUNTIME:");
-        ImGui::Text("OXR_SYSTEM :");
-        ImGui::Text("GL_VERSION :");
-        ImGui::Text("GL_VENDOR  :");
-        ImGui::Text("GL_RENDERER:");
-
+        ImGui::Text("OXR_RUNTIME: %s", appState->systemInfo.openXrRuntime.c_str());
+        ImGui::Text("OXR_SYSTEM : %s", appState->systemInfo.openXrSystem.c_str());
+        ImGui::Text("GL_VERSION : %s", appState->systemInfo.openGlVersion);
+        ImGui::Text("GL_VENDOR  : %s", appState->systemInfo.openGlVendor);
+        ImGui::Text("GL_RENDERER: %s", appState->systemInfo.openGlRenderer);
+        ImGui::Text("Framerate: %f, Frametime: %f", appState->appFrameRate, appState->appFrameTime / 1000.0f);
         s_win_pos[s_win_num] = ImGui::GetWindowPos();
         s_win_size[s_win_num] = ImGui::GetWindowSize();
         s_win_num++;
@@ -115,26 +115,26 @@ static void render_gui() {
     win_h = 220;
     ImGui::SetNextWindowPos(ImVec2(_X(win_x), _Y(win_y)), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(_X(win_w), _Y(win_h)), ImGuiCond_FirstUseEver);
-    ImGui::Begin("View Info");
+    ImGui::Begin("Streaming info");
     {
-        ImGui::Text("Elapsed  : %d [ms]", 1000);
-        ImGui::Text("Interval : %6.3f [ms]", 1000.0);
-        ImGui::Text("Viewport : ");
-
-        for (uint32_t i = 0; i < 2; i++) {
-            ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-            if (ImGui::TreeNode("View")) {
-                const XrVector3f &pos = {};
-                const XrQuaternionf &rot = {};
-                const XrFovf &fov = {};
-                ImGui::Text("pos (%6.3f,%6.3f,%6.3f)", pos.x, pos.y, pos.z);
-                ImGui::Text("rot (%6.3f,%6.3f,%6.3f,%6.3f)", rot.x, rot.y, rot.z, rot.w);
-                ImGui::Text("fov (%6.3f,%6.3f,%6.3f,%6.3f)", fov.angleLeft, fov.angleRight,
-                            fov.angleUp, fov.angleDown);
-
-                ImGui::TreePop();
-            }
+        ImGui::Text("Destination IP: %s [%d:%d]", appState->streamingConfig.ip.c_str(),
+                    appState->streamingConfig.portLeft, appState->streamingConfig.portRight);
+        ImGui::Text("Codec: %d @ Encoding quality: %d", appState->streamingConfig.codec,
+                    appState->streamingConfig.encodingQuality);
+        ImGui::Text("Resolution: %dx%d @ %d FPS", appState->streamingConfig.horizontalResolution,
+                    appState->streamingConfig.verticalResolution, appState->streamingConfig.fps);
+        if (appState->streamingConfig.videoMode == VideoMode::STEREO) {
+            ImGui::Text("Stereo");
+        } else {
+            ImGui::Text("Mono");
         }
+        ImGui::Text("");
+        ImGui::Text("Latencies:");
+        auto s = appState->cameraStreamingStates.first.stats;
+        ImGui::Text(
+                "NvvidConv: %lu, JpegEnc: %lu, RtpJpegPay: %lu\nUdpStream: %lu\nRtpJpegDepay: %lu, JpegDec: %lu, Queue: %lu",
+                s->nvvidconv / 1000, s->jpegenc / 1000, s->rtpjpegpay / 1000, s->udpstream / 1000,
+                s->rtpjpegdepay / 1000, s->jpegdec / 1000, s->queue / 1000);
 
         s_win_pos[s_win_num] = ImGui::GetWindowPos();
         s_win_size[s_win_num] = ImGui::GetWindowSize();
@@ -144,11 +144,11 @@ static void render_gui() {
 }
 
 int
-invoke_imgui() {
+invoke_imgui(const std::shared_ptr<AppState> &appState) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui::NewFrame();
 
-    render_gui();
+    render_gui(appState);
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

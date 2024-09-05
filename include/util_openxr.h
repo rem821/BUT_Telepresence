@@ -115,3 +115,7 @@ int openxr_end_frame(XrSession *session, XrTime *displayTime,
                      std::vector<XrCompositionLayerBaseHeader *> &layers);
 
 int openxr_locate_views(XrSession *session, XrTime *displayTime, XrSpace space, uint32_t viewCount, XrView *view_array);
+
+std::string openxr_get_runtime_name(XrInstance *instance);
+
+std::string openxr_get_system_name(XrInstance *instance, XrSystemId* system_id);

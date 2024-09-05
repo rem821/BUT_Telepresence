@@ -73,6 +73,23 @@ enum VideoMode {
     STEREO, MONO
 };
 
+struct CameraStats {
+    double prevTimestamp, currTimestamp;
+    double fps;
+    uint64_t nvvidconv, jpegenc, rtpjpegpay, udpstream, rtpjpegdepay, jpegdec, queue;
+    uint64_t rtpjpegpayTimestamp, udpsrcTimestamp, rtpjpegdepayTimestamp, jpegdecTimestamp, queueTimestamp;
+    uint64_t totalLatency;
+    uint64_t frameId;
+};
+
+struct CameraFrame {
+    CameraStats* stats;
+    unsigned long memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
+    void *dataHandle;
+};
+
+using CamPair = std::pair<CameraFrame, CameraFrame>;
+
 struct StreamingConfig {
     std::string ip{};
     int portLeft{};
@@ -83,4 +100,20 @@ struct StreamingConfig {
     int horizontalResolution{}, verticalResolution{}; //TODO: Restrict to specific supported resolutions
     VideoMode videoMode{};
     int fps{};
+};
+
+struct SystemInfo {
+    std::string openXrRuntime;
+    std::string openXrSystem;
+    const unsigned char* openGlVersion;
+    const unsigned char* openGlVendor;
+    const unsigned char* openGlRenderer;
+};
+
+struct AppState {
+    CamPair cameraStreamingStates{};
+    StreamingConfig streamingConfig{};
+    float appFrameRate{0.0f};
+    long long appFrameTime{0};
+    SystemInfo systemInfo;
 };
