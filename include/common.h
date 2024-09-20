@@ -2,6 +2,16 @@
 
 #include <openxr/openxr_reflection.h>
 
+// <!-- IP CONFIGURATION SECTION --!>
+constexpr std::string_view IP_CONFIG_JETSON_IP = "89.24.6.27";
+constexpr int IP_CONFIG_REST_API_PORT = 32281;
+constexpr int IP_CONFIG_SERVO_PORT = 32115;
+constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
+constexpr int IP_CONFIG_RIGHT_CAMERA_PORT = 8556;
+
+constexpr std::string_view IP_CONFIG_HEADSET_IP = "147.229.75.216"; // Only servers as a backup, the actual public IP is queried at the start of the application
+// <!-- IP CONFIGURATION SECTION --!>
+
 inline std::string Fmt(const char *fmt, ...) {
     va_list vl;
     va_start(vl, fmt);
@@ -83,7 +93,7 @@ struct CameraStats {
 };
 
 struct CameraFrame {
-    CameraStats* stats;
+    CameraStats *stats;
     unsigned long memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
     void *dataHandle;
 };
@@ -91,23 +101,24 @@ struct CameraFrame {
 using CamPair = std::pair<CameraFrame, CameraFrame>;
 
 struct StreamingConfig {
-    std::string ip{};
-    int portLeft{};
-    int portRight{};
-    Codec codec{}; //TODO: Implement different codecs
-    int encodingQuality{};
-    int bitrate{}; //TODO: Implement rate control
-    int horizontalResolution{}, verticalResolution{}; //TODO: Restrict to specific supported resolutions
-    VideoMode videoMode{};
-    int fps{};
+    std::string ip{IP_CONFIG_HEADSET_IP};
+    int portLeft{IP_CONFIG_LEFT_CAMERA_PORT};
+    int portRight{IP_CONFIG_RIGHT_CAMERA_PORT};
+    Codec codec{JPEG}; //TODO: Implement different codecs
+    int encodingQuality{25};
+    int bitrate{4000}; //TODO: Implement rate control
+    int horizontalResolution{1920}, verticalResolution{
+            1080}; //TODO: Restrict to specific supported resolutions
+    VideoMode videoMode{STEREO};
+    int fps{60};
 };
 
 struct SystemInfo {
     std::string openXrRuntime;
     std::string openXrSystem;
-    const unsigned char* openGlVersion;
-    const unsigned char* openGlVendor;
-    const unsigned char* openGlRenderer;
+    const unsigned char *openGlVersion;
+    const unsigned char *openGlVendor;
+    const unsigned char *openGlRenderer;
 };
 
 struct AppState {
