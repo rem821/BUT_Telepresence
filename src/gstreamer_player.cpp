@@ -69,7 +69,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool &threadPool, const StreamingC
                                                          "queue_identity");
 
     GstElement *leftudpsrc = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc");
-    g_object_set(leftudpsrc, "port", 8554, NULL);
+    g_object_set(leftudpsrc, "port", IP_CONFIG_LEFT_CAMERA_PORT, NULL);
     GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "appsink");
     gst_element_set_name(pipelineLeft_, "pipeline_left");
     gst_element_set_state(pipelineLeft_, GST_STATE_READY);
@@ -114,7 +114,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool &threadPool, const StreamingC
                                                           "queue_identity");
 
     GstElement *rightudpsrc = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc");
-    g_object_set(rightudpsrc, "port", 8556, NULL);
+    g_object_set(rightudpsrc, "port", IP_CONFIG_RIGHT_CAMERA_PORT, NULL);
     GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "appsink");
     gst_element_set_name(pipelineRight_, "pipeline_right");
     gst_element_set_state(pipelineRight_, GST_STATE_READY);

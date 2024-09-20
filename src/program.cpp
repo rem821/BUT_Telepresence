@@ -66,7 +66,7 @@ void TelepresenceProgram::UpdateFrame() {
     }
 
     PollActions();
-    //TODO: SendControllerDatagram();
+    SendControllerDatagram();
 
     RenderFrame();
 }
@@ -559,14 +559,9 @@ void TelepresenceProgram::SendControllerDatagram() {
 }
 
 void TelepresenceProgram::InitializeStreaming() {
-    appState_->streamingConfig = StreamingConfig{
-            "192.168.1.100", 8554, 8556, Codec::JPEG, 85, 4000, 1920, 1080,
-            VideoMode::STEREO, 60
-    };
-
-    restClient_ = std::make_unique<RestClient>();
+    restClient_ = std::make_unique<RestClient>(appState_->streamingConfig);
     restClient_->StopStream();
-    restClient_->StartStream(appState_->streamingConfig);
+    restClient_->StartStream();
 
     gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
     gstreamerPlayer_->playPipelines();

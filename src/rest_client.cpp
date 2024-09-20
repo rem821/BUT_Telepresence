@@ -3,12 +3,28 @@
 //
 #include <nlohmann/json.hpp>
 #include "rest_client.h"
+#include "log.h"
 
 using json = nlohmann::json;
 
-int RestClient::StartStream(const StreamingConfig &config) {
+RestClient::RestClient(StreamingConfig& config): config_(config) {
+
+    ipApiClient_ = std::make_unique<httplib::Client>("ifconfig.me");
+    auto res = ipApiClient_->Get("/ip");
+
+    if (res && res->status == 200) {
+        config_.ip = res->body;
+        LOG_INFO("Successfully retrieved the public ip: %s",  config_.ip.c_str());
+    } else {
+        LOG_ERROR("Couldn't obtain the public IP: using default value %s",  config_.ip.c_str());
+    }
+
+    httpClient_ = std::make_unique<httplib::Client>(IP_CONFIG_JETSON_IP.data(), IP_CONFIG_REST_API_PORT);
+}
+
+int RestClient::StartStream() {
     std::string codec = "JPEG";
-    switch (config.codec) {
+    switch (config_.codec) {
         case Codec::JPEG:
             codec = "JPEG";
             break;
@@ -27,27 +43,27 @@ int RestClient::StartStream(const StreamingConfig &config) {
     }
     std::string req = json{{"bitrate",          "400k"},
                            {"codec",            codec},
-                           {"encoding_quality", config.encodingQuality},
-                           {"fps",              config.fps},
-                           {"ip_address",       config.ip},
-                           {"port_left",        config.portLeft},
-                           {"port_right",       config.portRight},
-                           {"resolution",       {{"height", config.verticalResolution}, {"width", config.horizontalResolution}}},
-                           {"video_mode",       config.videoMode == VideoMode::STEREO ? "stereo"
+                           {"encoding_quality", config_.encodingQuality},
+                           {"fps",              config_.fps},
+                           {"ip_address",       config_.ip},
+                           {"port_left",        config_.portLeft},
+                           {"port_right",       config_.portRight},
+                           {"resolution",       {{"height", config_.verticalResolution}, {"width", config_.horizontalResolution}}},
+                           {"video_mode",       config_.videoMode == VideoMode::STEREO ? "stereo"
                                                                                       : "mono"}}.dump();
 
-    httpClient_.Post("/api/v1/stream/start", req, "application/json");
+    httpClient_->Post("/api/v1/stream/start", req, "application/json");
     return 0;
 }
 
 int RestClient::StopStream() {
-    httpClient_.Post("/api/v1/stream/stop");
+    httpClient_->Post("/api/v1/stream/stop");
     return 0;
 }
 
 StreamingConfig RestClient::GetStreamingConfig() {
     auto conf = StreamingConfig();
-    if (auto result = httpClient_.Get("/api/v1/stream/state")) {
+    if (auto result = httpClient_->Get("/api/v1/stream/state")) {
         std::string body = result->body;
         auto parsedBody = json::parse(body);
 
@@ -79,6 +95,7 @@ int RestClient::UpdateStreamingConfig(const StreamingConfig &config) {
                            {"resolution",       {{"height", config.verticalResolution}, {"width", config.horizontalResolution}}},
                            {"video_mode",       config.videoMode == VideoMode::STEREO ? "stereo"
                                                                                       : "mono"}}.dump();
-    httpClient_.Put("/api/v1/stream/update", req, "application/json");
+    httpClient_->Put("/api/v1/stream/update", req, "application/json");
+    config_ = config;
     return 0;
 }
