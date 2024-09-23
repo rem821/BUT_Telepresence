@@ -1,15 +1,54 @@
 #pragma once
 
 #include <openxr/openxr_reflection.h>
+#include <iostream>
+#include <cstring>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 
 // <!-- IP CONFIGURATION SECTION --!>
-constexpr std::string_view IP_CONFIG_JETSON_IP = "89.24.6.27";
+constexpr std::string_view IP_CONFIG_JETSON_ADDR = "jetsontelepresence.zapto.org";
 constexpr int IP_CONFIG_REST_API_PORT = 32281;
 constexpr int IP_CONFIG_SERVO_PORT = 32115;
 constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
 constexpr int IP_CONFIG_RIGHT_CAMERA_PORT = 8556;
 
-constexpr std::string_view IP_CONFIG_HEADSET_IP = "147.229.75.216"; // Only servers as a backup, the actual public IP is queried at the start of the application
+constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "147.229.75.216"; // Only servers as a backup, the actual public IP is queried at the start of the application
+
+inline std::string resolveIPv4(const std::string& hostname) {
+    struct addrinfo hints, *res, *p;
+    int status;
+    char ipstr[INET_ADDRSTRLEN];  // To hold the IPv4 address
+
+    // Clear the hints struct
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET;     // AF_INET for IPv4 only
+    hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
+
+    // Resolve the domain name to an IPv4 address
+    if ((status = getaddrinfo(hostname.c_str(), NULL, &hints, &res)) != 0) {
+        std::cerr << "getaddrinfo error: " << gai_strerror(status) << std::endl;
+        return "";
+    }
+
+    // Loop through the results and find the first IPv4 address
+    for (p = res; p != NULL; p = p->ai_next) {
+        if (p->ai_family == AF_INET) {  // IPv4 address
+            struct sockaddr_in* ipv4 = (struct sockaddr_in*)p->ai_addr;
+            // Convert the IP to a string and return it
+            inet_ntop(p->ai_family, &(ipv4->sin_addr), ipstr, sizeof ipstr);
+            freeaddrinfo(res);  // Free the allocated memory
+            return std::string(ipstr);  // Return the IPv4 address as a string
+        }
+    }
+
+    // If no IPv4 address was found, return an empty string
+    freeaddrinfo(res);  // Free the allocated memory
+    return "";
+}
 // <!-- IP CONFIGURATION SECTION --!>
 
 inline std::string Fmt(const char *fmt, ...) {
@@ -101,7 +140,7 @@ struct CameraFrame {
 using CamPair = std::pair<CameraFrame, CameraFrame>;
 
 struct StreamingConfig {
-    std::string ip{IP_CONFIG_HEADSET_IP};
+    std::string ip{IP_CONFIG_HEADSET_ADDR};
     int portLeft{IP_CONFIG_LEFT_CAMERA_PORT};
     int portRight{IP_CONFIG_RIGHT_CAMERA_PORT};
     Codec codec{JPEG}; //TODO: Implement different codecs

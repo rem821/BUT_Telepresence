@@ -44,7 +44,7 @@ ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool) : socket_(sock
 
     memset(&destAddr_, 0, sizeof(destAddr_));
     destAddr_.sin_family = AF_INET;
-    destAddr_.sin_addr.s_addr = inet_addr(IP_CONFIG_JETSON_IP.data());
+    destAddr_.sin_addr.s_addr = inet_addr(resolveIPv4(IP_CONFIG_JETSON_ADDR.data()).c_str());
     destAddr_.sin_port = htons(IP_CONFIG_SERVO_PORT);
 
     setMode(threadPool);
