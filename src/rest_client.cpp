@@ -19,7 +19,7 @@ RestClient::RestClient(StreamingConfig& config): config_(config) {
         LOG_ERROR("Couldn't obtain the public IP: using default value %s",  config_.ip.c_str());
     }
 
-    httpClient_ = std::make_unique<httplib::Client>(IP_CONFIG_JETSON_IP.data(), IP_CONFIG_REST_API_PORT);
+    httpClient_ = std::make_unique<httplib::Client>(IP_CONFIG_JETSON_ADDR.data(), IP_CONFIG_REST_API_PORT);
 }
 
 int RestClient::StartStream() {
