@@ -11,12 +11,12 @@
 
 // <!-- IP CONFIGURATION SECTION --!>
 constexpr std::string_view IP_CONFIG_JETSON_ADDR = "jetsontelepresence.zapto.org";
+constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "vrtelepresence.zapto.org";
 constexpr int IP_CONFIG_REST_API_PORT = 32281;
 constexpr int IP_CONFIG_SERVO_PORT = 32115;
 constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
 constexpr int IP_CONFIG_RIGHT_CAMERA_PORT = 8556;
 
-constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "147.229.75.216"; // Only servers as a backup, the actual public IP is queried at the start of the application
 
 inline std::string resolveIPv4(const std::string& hostname) {
     struct addrinfo hints, *res, *p;
@@ -140,7 +140,7 @@ struct CameraFrame {
 using CamPair = std::pair<CameraFrame, CameraFrame>;
 
 struct StreamingConfig {
-    std::string ip{IP_CONFIG_HEADSET_ADDR};
+    std::string ip{"1.2.3.4"};
     int portLeft{IP_CONFIG_LEFT_CAMERA_PORT};
     int portRight{IP_CONFIG_RIGHT_CAMERA_PORT};
     Codec codec{JPEG}; //TODO: Implement different codecs
