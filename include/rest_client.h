@@ -22,5 +22,5 @@ public:
 private:
 
     StreamingConfig& config_;
-    std::unique_ptr<httplib::Client> ipApiClient_, httpClient_;
+    std::unique_ptr<httplib::Client> httpClient_;
 };

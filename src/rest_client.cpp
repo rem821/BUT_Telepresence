@@ -9,15 +9,7 @@ using json = nlohmann::json;
 
 RestClient::RestClient(StreamingConfig& config): config_(config) {
 
-    ipApiClient_ = std::make_unique<httplib::Client>("ifconfig.me");
-    auto res = ipApiClient_->Get("/ip");
-
-    if (res && res->status == 200) {
-        config_.ip = res->body;
-        LOG_INFO("Successfully retrieved the public ip: %s",  config_.ip.c_str());
-    } else {
-        LOG_ERROR("Couldn't obtain the public IP: using default value %s",  config_.ip.c_str());
-    }
+    config_.ip = resolveIPv4(IP_CONFIG_HEADSET_ADDR.data());
 
     httpClient_ = std::make_unique<httplib::Client>(IP_CONFIG_JETSON_ADDR.data(), IP_CONFIG_REST_API_PORT);
 }
