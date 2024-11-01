@@ -10,14 +10,20 @@
 #include <unistd.h>
 
 // <!-- IP CONFIGURATION SECTION --!>
-constexpr std::string_view IP_CONFIG_JETSON_ADDR = "jetsontelepresence.zapto.org";
-constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "vrtelepresence.zapto.org";
+//constexpr std::string_view IP_CONFIG_JETSON_ADDR = "jetsontelepresence.zapto.org";
+//constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "vrtelepresence.zapto.org";
+constexpr std::string_view IP_CONFIG_JETSON_ADDR = "192.168.1.105";
+constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "192.168.1.111";
 constexpr int IP_CONFIG_REST_API_PORT = 32281;
 constexpr int IP_CONFIG_SERVO_PORT = 32115;
 constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
 constexpr int IP_CONFIG_RIGHT_CAMERA_PORT = 8556;
 
 
+inline std::string resolveIPv4(const std::string& hostname) {
+    return hostname;
+}
+/*
 inline std::string resolveIPv4(const std::string& hostname) {
     struct addrinfo hints, *res, *p;
     int status;
@@ -49,6 +55,7 @@ inline std::string resolveIPv4(const std::string& hostname) {
     freeaddrinfo(res);  // Free the allocated memory
     return "";
 }
+*/
 // <!-- IP CONFIGURATION SECTION --!>
 
 inline std::string Fmt(const char *fmt, ...) {
@@ -140,11 +147,11 @@ struct CameraFrame {
 using CamPair = std::pair<CameraFrame, CameraFrame>;
 
 struct StreamingConfig {
-    std::string ip{"1.2.3.4"};
+    std::string ip{"192.168.1.105"};
     int portLeft{IP_CONFIG_LEFT_CAMERA_PORT};
     int portRight{IP_CONFIG_RIGHT_CAMERA_PORT};
     Codec codec{JPEG}; //TODO: Implement different codecs
-    int encodingQuality{25};
+    int encodingQuality{35};
     int bitrate{4000}; //TODO: Implement rate control
     int horizontalResolution{1920}, verticalResolution{
             1080}; //TODO: Restrict to specific supported resolutions

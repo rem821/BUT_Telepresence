@@ -49,6 +49,7 @@ private:
     UserState userState_;
 
     bool mono_ = false;
+    bool renderGui_ = false;
     int32_t speed_ = 200000;
 
 

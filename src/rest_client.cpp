@@ -54,26 +54,27 @@ int RestClient::StopStream() {
 }
 
 StreamingConfig RestClient::GetStreamingConfig() {
-    auto conf = StreamingConfig();
-    if (auto result = httpClient_->Get("/api/v1/stream/state")) {
-        std::string body = result->body;
-        auto parsedBody = json::parse(body);
-
-        parsedBody["ip_address"].get_to(conf.ip);
-        parsedBody["port_left"].get_to(conf.portLeft);
-        parsedBody["port_right"].get_to(conf.portRight);
-        conf.codec = Codec::JPEG;
-        parsedBody["encoding_quality"].get_to(conf.encodingQuality);
-        conf.bitrate = 400;
-        parsedBody["resolution"]["width"].get_to(conf.horizontalResolution);
-        parsedBody["resolution"]["height"].get_to(conf.verticalResolution);
-        conf.videoMode =
-                parsedBody["video_mode"].template get<std::string>() == "stereo" ? VideoMode::STEREO
-                                                                                 : VideoMode::MONO;
-        parsedBody["fps"].get_to(conf.fps);
-    }
-
-    return conf;
+    return config_;
+//    auto conf = StreamingConfig();
+//    if (auto result = httpClient_->Get("/api/v1/stream/state")) {
+//        std::string body = result->body;
+//        auto parsedBody = json::parse(body);
+//
+//        parsedBody["ip_address"].get_to(conf.ip);
+//        parsedBody["port_left"].get_to(conf.portLeft);
+//        parsedBody["port_right"].get_to(conf.portRight);
+//        conf.codec = Codec::JPEG;
+//        parsedBody["encoding_quality"].get_to(conf.encodingQuality);
+//        conf.bitrate = 400;
+//        parsedBody["resolution"]["width"].get_to(conf.horizontalResolution);
+//        parsedBody["resolution"]["height"].get_to(conf.verticalResolution);
+//        conf.videoMode =
+//                parsedBody["video_mode"].template get<std::string>() == "stereo" ? VideoMode::STEREO
+//                                                                                 : VideoMode::MONO;
+//        parsedBody["fps"].get_to(conf.fps);
+//    }
+//
+//    return conf;
 }
 
 int RestClient::UpdateStreamingConfig(const StreamingConfig &config) {

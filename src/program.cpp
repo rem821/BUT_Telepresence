@@ -123,7 +123,7 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
     Quad quad{};
     quad.Pose.position = {0.0f, 0.0f, 0.0f};
     quad.Pose.orientation = {0.0f, 0.0f, 0.0f, 1.0f};
-    quad.Scale = {3.5f, 1.97f, 0.0f};
+    quad.Scale = {4.44f, 2.5f, 0.0f};
 
     for (uint32_t i = 0; i < viewCount; i++) {
         XrSwapchainSubImage subImg;
@@ -138,12 +138,25 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
 
         void *imageHandle = i == 0 ? appState_->cameraStreamingStates.second.dataHandle
                                    : appState_->cameraStreamingStates.first.dataHandle;
-        if (userState_.aPressed) mono_ = true;
-        if (userState_.bPressed) mono_ = false;
-        if (mono_) imageHandle = appState_->cameraStreamingStates.second.dataHandle;
+        if (userState_.aPressed && !mono_) {
+            auto config = restClient_->GetStreamingConfig();
+            config.videoMode = VideoMode::MONO;
+            restClient_->UpdateStreamingConfig(config);
+            mono_ = true;
+        }
+        if (userState_.bPressed && mono_) {
+            auto config = restClient_->GetStreamingConfig();
+            config.videoMode = VideoMode::STEREO;
+            restClient_->UpdateStreamingConfig(config);
+            mono_ = false;
+        }
 
+        if (mono_) imageHandle = appState_->cameraStreamingStates.first.dataHandle;
 
-        render_scene(layerViews[i], rtarget, quad, appState_, imageHandle);
+        if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.yPressed) renderGui_ = true;
+        if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.xPressed) renderGui_ = false;
+
+        render_scene(layerViews[i], rtarget, quad, appState_, imageHandle, renderGui_);
 
         openxr_release_viewsurface(viewsurfaces_[i]);
         auto end = std::chrono::high_resolution_clock::now();

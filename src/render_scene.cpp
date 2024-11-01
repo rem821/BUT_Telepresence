@@ -127,8 +127,9 @@ void init_image_plane() {
 }
 
 void render_scene(const XrCompositionLayerProjectionView &layerView,
-                  render_target_t &rtarget, const Quad &quad, const std::shared_ptr<AppState>& appState,
-                  const void *image) {
+                  render_target_t &rtarget, const Quad &quad,
+                  const std::shared_ptr<AppState> &appState,
+                  const void *image, bool drawGui) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, rtarget.fbo_id);
     glViewport(
@@ -163,8 +164,8 @@ void render_scene(const XrCompositionLayerProjectionView &layerView,
     XrMatrix4x4f_Multiply(&vp, &proj, &view);
 
     draw_image_plane(vp, quad, image);
-    draw_imgui(vp, appState);
-
+    if (drawGui) draw_imgui(vp, appState);
+    
     glUseProgram(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -195,7 +196,7 @@ int draw_image_plane(const XrMatrix4x4f &vp, const Quad &quad, const void *image
     return 0;
 }
 
-int draw_imgui(const XrMatrix4x4f &vp, const std::shared_ptr<AppState>& appState) {
+int draw_imgui(const XrMatrix4x4f &vp, const std::shared_ptr<AppState> &appState) {
 
     /* save current FBO */
     render_target_t rtarget0{};
