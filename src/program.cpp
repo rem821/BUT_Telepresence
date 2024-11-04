@@ -141,14 +141,14 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
         void *imageHandle = i == 0 ? appState_->cameraStreamingStates.second.dataHandle
                                    : appState_->cameraStreamingStates.first.dataHandle;
         if (userState_.aPressed && !mono_) {
-            auto config = restClient_->GetStreamingConfig();
-            config.videoMode = VideoMode::MONO;
+            //auto config = restClient_->GetStreamingConfig();
+            //config.videoMode = VideoMode::MONO;
             ///restClient_->UpdateStreamingConfig(config);
             mono_ = true;
         }
         if (userState_.bPressed && mono_) {
-            auto config = restClient_->GetStreamingConfig();
-            config.videoMode = VideoMode::STEREO;
+            //auto config = restClient_->GetStreamingConfig();
+            //config.videoMode = VideoMode::STEREO;
             //restClient_->UpdateStreamingConfig(config);
             mono_ = false;
         }

@@ -99,6 +99,13 @@ private:
 
     void processQueue();
 
+    uint64_t getCurrentUs() {
+        struct timespec res{};
+        clock_gettime(CLOCK_REALTIME, &res);
+        int64_t us = 1e6 * res.tv_sec + (int64_t) res.tv_nsec / 1e3;
+        return us;
+    }
+
     template<typename IntType>
     [[nodiscard]] inline static std::vector<uint8_t> serializeLEInt(const IntType &value) {
         std::vector<uint8_t> data{};
@@ -120,5 +127,5 @@ private:
 
     MessagePriorityQueue<std::function<void()>> taskQueue_;
 
-    std::chrono::time_point<std::chrono::high_resolution_clock> timestamp_;
+    uint64_t commStart_{}, commEnd_{};
 };

@@ -18,37 +18,37 @@ ProcessAndroidCmd(struct android_app *app, int32_t cmd) {
 
     switch (cmd) {
         case APP_CMD_START:
-            //LOGI ("APP_CMD_START");
+            LOG_INFO ("APP_CMD_START");
             break;
 
         case APP_CMD_RESUME:
-            //LOGI ("APP_CMD_RESUME");
+            LOG_INFO("APP_CMD_RESUME");
             appState->Resumed = true;
             break;
 
         case APP_CMD_PAUSE:
-            //LOGI ("APP_CMD_PAUSE");
+            LOG_INFO ("APP_CMD_PAUSE");
             appState->Resumed = false;
             break;
 
         case APP_CMD_STOP:
-            //LOGI ("APP_CMD_STOP");
+            LOG_INFO ("APP_CMD_STOP");
             break;
 
         case APP_CMD_DESTROY:
-            //LOGI ("APP_CMD_DESTROY");
+            LOG_INFO ("APP_CMD_DESTROY");
             appState->NativeWindow = nullptr;
             break;
 
             // The window is being shown, get it ready.
         case APP_CMD_INIT_WINDOW:
-            //LOGI ("APP_CMD_INIT_WINDOW");
+            LOG_INFO ("APP_CMD_INIT_WINDOW");
             appState->NativeWindow = app->window;
             break;
 
             // The window is being hidden or closed, clean it up.
         case APP_CMD_TERM_WINDOW:
-            //LOGI ("APP_CMD_TERM_WINDOW");
+            LOG_INFO ("APP_CMD_TERM_WINDOW");
             appState->NativeWindow = nullptr;
             break;
     }

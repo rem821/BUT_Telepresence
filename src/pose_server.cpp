@@ -48,6 +48,8 @@ void PoseServer::listenForTrigger() {
         char buffer[1024];
         ssize_t received = recvfrom(socket_, buffer, sizeof(buffer) - 1, 0,
                                     (sockaddr *) &clientAddr_, &clientAddrLen_);
+        commStart_ = getCurrentUs();
+
         if (received > 0) {
             buffer[received] = '\0';  // Null-terminate the received data
             std::string message(buffer);
@@ -75,16 +77,22 @@ void PoseServer::processQueue() {
 
             // Execute the highest priority task
             task.second();
+        } else {
+            LOG_ERROR("Task queue was empty!");
         }
     }
 }
 
-// Send message directly to client address
+// Send message to the client address
 void PoseServer::sendMessage(const std::vector<unsigned char> &message) {
     if (sendto(socket_, message.data(), message.size(), 0, (sockaddr *) &clientAddr_,
                clientAddrLen_) < 0) {
         LOG_ERROR("Failed to send message to client address");
     }
+    uint64_t commPrevEnd = commEnd_;
+    commEnd_ = getCurrentUs();
+    float fps = 1e6f / float(commEnd_ - commPrevEnd);
+    LOG_ERROR("Pose server took %f to respond. Running with %f FPS", (commEnd_ - commStart_)/1000.0, fps);
 }
 
 // Schedule methods by priority
