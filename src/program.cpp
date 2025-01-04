@@ -141,15 +141,15 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
         void *imageHandle = i == 0 ? appState_->cameraStreamingStates.second.dataHandle
                                    : appState_->cameraStreamingStates.first.dataHandle;
         if (userState_.aPressed && !mono_) {
-            //auto config = restClient_->GetStreamingConfig();
-            //config.videoMode = VideoMode::MONO;
-            ///restClient_->UpdateStreamingConfig(config);
+            auto config = restClient_->GetStreamingConfig();
+            config.videoMode = VideoMode::MONO;
+            restClient_->UpdateStreamingConfig(config);
             mono_ = true;
         }
         if (userState_.bPressed && mono_) {
-            //auto config = restClient_->GetStreamingConfig();
-            //config.videoMode = VideoMode::STEREO;
-            //restClient_->UpdateStreamingConfig(config);
+            auto config = restClient_->GetStreamingConfig();
+            config.videoMode = VideoMode::STEREO;
+            restClient_->UpdateStreamingConfig(config);
             mono_ = false;
         }
 
@@ -587,9 +587,9 @@ void TelepresenceProgram::SendControllerDatagram() {
 }
 
 void TelepresenceProgram::InitializeStreaming() {
-//    restClient_ = std::make_unique<RestClient>(appState_->streamingConfig);
-//    restClient_->StopStream();
-//    restClient_->StartStream();
+    restClient_ = std::make_unique<RestClient>(appState_->streamingConfig);
+    restClient_->StopStream();
+    restClient_->StartStream();
 
     gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
     gstreamerPlayer_->playPipelines();

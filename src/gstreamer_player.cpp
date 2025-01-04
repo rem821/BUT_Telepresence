@@ -19,6 +19,11 @@ GstreamerPlayer::GstreamerPlayer(CamPair* camPair) {
     camPair_->second.dataHandle = (void *) emptyFrameRight;
 
     gst_init(nullptr, nullptr);
+    guint major, minor, micro, nano;
+    gst_version(&major, &minor, &micro, &nano);
+    LOG_INFO("Running GStreamer version: %d.%d.%d.%d", major, minor, micro, nano);
+
+    listAvailableDecoders();
     //dumpGstreamerFeatures();
 
     /* Create our own GLib Main Context and make it the default one */
@@ -54,7 +59,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool &threadPool, const StreamingC
     }
 
     if (error) {
-        LOG_ERROR("Unable to build pipeline");
+        LOG_ERROR("Unable to build pipeline!: %s", error->message);
         throw std::runtime_error("Unable to build pipeline!");
     }
 
@@ -322,6 +327,46 @@ uint64_t GstreamerPlayer::getCurrentUs() {
     return us;
 }
 
+void GstreamerPlayer::listAvailableDecoders() {
+    // Initialize GStreamer if not already done
+    gst_init(nullptr, nullptr);
+
+    // Get the list of decoders
+    GList *decoders = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODABLE,
+                                                            GST_RANK_MARGINAL);
+
+    if (!decoders) {
+        LOG_INFO("No decoders found in the GStreamer registry.");
+        return;
+    }
+
+    // Iterate through the list of decoders
+    for (GList *iter = decoders; iter != nullptr; iter = iter->next) {
+        GstElementFactory *factory = (GstElementFactory *) iter->data;
+
+        // Get the factory name (suitable for use in pipelines)
+        const gchar *name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory));
+
+        // Get a description of the element
+        const gchar *longname = gst_element_factory_get_longname(factory);
+
+        // Check if it might be hardware-accelerated (e.g., contains "omx", "amc", or "hardware")
+        gboolean is_hardware = g_strstr_len(name, -1, "omx") ||
+                               g_strstr_len(name, -1, "amc") ||
+                               g_strstr_len(name, -1, "hardware");
+
+        // Log the decoder details
+        if (is_hardware) {
+            LOG_INFO("HW Decoder: %s (%s)", name, longname);
+        } else {
+            LOG_INFO("SW Decoder: %s (%s)", name, longname);
+        }
+    }
+
+    // Free the list
+    gst_plugin_feature_list_free(decoders);
+}
+
 void GstreamerPlayer::dumpGstreamerFeatures() {
     GstRegistry *registry = gst_registry_get();
 
@@ -360,7 +405,7 @@ GstreamerPlayer::printGstreamerFeature(const GstPluginFeature *feature, gpointer
     /* Append the feature name and plugin name (if any) to the string */
     if (plugin_name != nullptr) {
         LOG_INFO("GStreamer found feature from plugin: %s (%s)\n", name, plugin_name);
-        temp = g_strdup_printf("%s (%s)\n", name, plugin_name);
+        temp = g_strdup_printf("%s (%s)", name, plugin_name);
     } else {
         LOG_INFO("GStreamer found feature: %s \n", name);
         temp = g_strdup_printf("%s\n", name);

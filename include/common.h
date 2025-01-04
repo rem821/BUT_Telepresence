@@ -12,8 +12,8 @@
 // <!-- IP CONFIGURATION SECTION --!>
 //constexpr std::string_view IP_CONFIG_JETSON_ADDR = "jetsontelepresence.zapto.org";
 //constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "vrtelepresence.zapto.org";
-constexpr std::string_view IP_CONFIG_JETSON_ADDR = "192.168.1.105";
-constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "192.168.1.111";
+constexpr std::string_view IP_CONFIG_JETSON_ADDR = "192.168.10.191";
+constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "192.168.10.196";
 constexpr int IP_CONFIG_REST_API_PORT = 32281;
 constexpr int IP_CONFIG_SERVO_PORT = 32115;
 constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
@@ -147,14 +147,13 @@ struct CameraFrame {
 using CamPair = std::pair<CameraFrame, CameraFrame>;
 
 struct StreamingConfig {
-    std::string ip{"192.168.1.105"};
+    std::string ip{"192.168.10.196"};
     int portLeft{IP_CONFIG_LEFT_CAMERA_PORT};
     int portRight{IP_CONFIG_RIGHT_CAMERA_PORT};
-    Codec codec{JPEG}; //TODO: Implement different codecs
-    int encodingQuality{35};
+    Codec codec{H264}; //TODO: Implement different codecs
+    int encodingQuality{60};
     int bitrate{4000}; //TODO: Implement rate control
-    int horizontalResolution{1920}, verticalResolution{
-            1080}; //TODO: Restrict to specific supported resolutions
+    int horizontalResolution{1920}, verticalResolution{1080};
     VideoMode videoMode{STEREO};
     int fps{60};
 };

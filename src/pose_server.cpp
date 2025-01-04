@@ -42,7 +42,7 @@ PoseServer::PoseServer()
     std::thread(&PoseServer::processQueue, this).detach();
 }
 
-// Method to listen for "now" trigger on port 31285
+// Method to listen for the trigger on port 31285
 void PoseServer::listenForTrigger() {
     while (true) {
         char buffer[1024];
@@ -63,7 +63,7 @@ void PoseServer::listenForTrigger() {
     }
 }
 
-// Queue processor: processes one task per "now" trigger
+// Queue processor: processes one task per trigger
 void PoseServer::processQueue() {
     while (true) {
         std::unique_lock<std::mutex> lock(queueMutex_);

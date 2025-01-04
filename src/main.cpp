@@ -54,6 +54,79 @@ ProcessAndroidCmd(struct android_app *app, int32_t cmd) {
     }
 }
 
+// Function to retrieve native library path
+std::string GetNativeLibraryPath(JNIEnv *env, jobject activity) {
+    jclass activityClass = env->GetObjectClass(activity);
+    jmethodID getAppInfoMethod = env->GetMethodID(activityClass, "getApplicationInfo", "()Landroid/content/pm/ApplicationInfo;");
+    jobject appInfo = env->CallObjectMethod(activity, getAppInfoMethod);
+
+    jclass appInfoClass = env->GetObjectClass(appInfo);
+    jfieldID nativeLibDirField = env->GetFieldID(appInfoClass, "nativeLibraryDir", "Ljava/lang/String;");
+    jstring nativeLibDir = (jstring) env->GetObjectField(appInfo, nativeLibDirField);
+
+    const char *nativeLibDirCStr = env->GetStringUTFChars(nativeLibDir, nullptr);
+    std::string nativeLibraryPath(nativeLibDirCStr);
+    env->ReleaseStringUTFChars(nativeLibDir, nativeLibDirCStr);
+
+    // Clean up references
+    env->DeleteLocalRef(nativeLibDir);
+    env->DeleteLocalRef(appInfoClass);
+    env->DeleteLocalRef(appInfo);
+    env->DeleteLocalRef(activityClass);
+
+    return nativeLibraryPath;
+}
+
+// Function to log hardware-accelerated codecs
+void LogHardwareAcceleratedCodecs(JNIEnv *env) {
+    jclass codecListClass = env->FindClass("android/media/MediaCodecList");
+
+    jmethodID getCodecInfosMethod = env->GetMethodID(codecListClass, "getCodecInfos", "()[Landroid/media/MediaCodecInfo;");
+    jmethodID codecListConstructor = env->GetMethodID(codecListClass, "<init>", "(I)V");
+    jobject codecListInstance = env->NewObject(codecListClass, codecListConstructor, 1); // Pass 1 for hardware codecs
+    jobjectArray codecInfos = (jobjectArray) env->CallObjectMethod(codecListInstance, getCodecInfosMethod);
+
+    jsize codecCount = env->GetArrayLength(codecInfos);
+    jclass codecInfoClass = env->FindClass("android/media/MediaCodecInfo");
+    jmethodID isEncoderMethod = env->GetMethodID(codecInfoClass, "isEncoder", "()Z");
+    jmethodID getSupportedTypesMethod = env->GetMethodID(codecInfoClass, "getSupportedTypes", "()[Ljava/lang/String;");
+    jmethodID getNameMethod = env->GetMethodID(codecInfoClass, "getName", "()Ljava/lang/String;");
+
+    for (jsize i = 0; i < codecCount; i++) {
+        jobject codecInfo = env->GetObjectArrayElement(codecInfos, i);
+        jboolean isEncoder = env->CallBooleanMethod(codecInfo, isEncoderMethod);
+
+        if (!isEncoder) {
+            jstring codecName = (jstring) env->CallObjectMethod(codecInfo, getNameMethod);
+            jobjectArray supportedTypes = (jobjectArray) env->CallObjectMethod(codecInfo, getSupportedTypesMethod);
+
+            const char *codecNameCStr = env->GetStringUTFChars(codecName, nullptr);
+            jsize typeCount = env->GetArrayLength(supportedTypes);
+
+            for (jsize j = 0; j < typeCount; j++) {
+                jstring codecType = (jstring) env->GetObjectArrayElement(supportedTypes, j);
+                const char *codecTypeCStr = env->GetStringUTFChars(codecType, nullptr);
+
+                // Log only hardware-accelerated video codecs
+                if (strstr(codecNameCStr, "OMX") || strstr(codecNameCStr, "hardware")) {
+                    LOG_INFO("HW Codec: %s, Type: %s", codecNameCStr, codecTypeCStr);
+                }
+
+                env->ReleaseStringUTFChars(codecType, codecTypeCStr);
+                env->DeleteLocalRef(codecType);
+            }
+
+            env->ReleaseStringUTFChars(codecName, codecNameCStr);
+            env->DeleteLocalRef(codecName);
+        }
+
+        env->DeleteLocalRef(codecInfo);
+    }
+
+    env->DeleteLocalRef(codecInfoClass);
+    env->DeleteLocalRef(codecListClass);
+}
+
 void android_main(struct android_app *app) {
     try {
         JNIEnv *Env;
@@ -62,6 +135,13 @@ void android_main(struct android_app *app) {
         AndroidAppState appState = {};
         app->userData = &appState;
         app->onAppCmd = ProcessAndroidCmd;
+
+        // Retrieve native library path
+        std::string nativeLibraryPath = GetNativeLibraryPath(Env, app->activity->clazz);
+        LOG_INFO("Native Library Path: %s", nativeLibraryPath.c_str());
+
+        // Log hardware-accelerated codecs
+        LogHardwareAcceleratedCodecs(Env);
 
         std::unique_ptr<TelepresenceProgram> telepresenceProgram = std::make_unique<TelepresenceProgram>(
                 app);
