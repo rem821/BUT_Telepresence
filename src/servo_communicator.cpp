@@ -18,7 +18,7 @@ constexpr int32_t AZIMUTH_MIN_VALUE = -500'000'000;
 constexpr int32_t ELEVATION_MAX_VALUE = 1'000'000'000;
 constexpr int32_t ELEVATION_MIN_VALUE = 100'000;
 
-ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool) : socket_(socket(AF_INET, SOCK_DGRAM, 0)) {
+ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool, StreamingConfig &config) : socket_(socket(AF_INET, SOCK_DGRAM, 0)) {
 
     if (socket_ < 0) {
         LOG_ERROR("socket creation failed");
@@ -44,7 +44,7 @@ ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool) : socket_(sock
 
     memset(&destAddr_, 0, sizeof(destAddr_));
     destAddr_.sin_family = AF_INET;
-    destAddr_.sin_addr.s_addr = inet_addr(resolveIPv4(IP_CONFIG_JETSON_ADDR.data()).c_str());
+    destAddr_.sin_addr.s_addr = inet_addr(IpToString(config.jetson_ip).c_str());
     destAddr_.sin_port = htons(IP_CONFIG_SERVO_PORT);
 
     setMode(threadPool);

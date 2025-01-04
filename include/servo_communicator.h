@@ -41,7 +41,7 @@ class ServoCommunicator {
 
 public:
 
-    explicit ServoCommunicator(BS::thread_pool &threadPool);
+    explicit ServoCommunicator(BS::thread_pool &threadPool, StreamingConfig &config);
 
     ~ServoCommunicator() = default;
 

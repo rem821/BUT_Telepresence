@@ -8,12 +8,11 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <sstream>
 
 // <!-- IP CONFIGURATION SECTION --!>
-//constexpr std::string_view IP_CONFIG_JETSON_ADDR = "jetsontelepresence.zapto.org";
-//constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "vrtelepresence.zapto.org";
-constexpr std::string_view IP_CONFIG_JETSON_ADDR = "192.168.10.191";
-constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "192.168.10.196";
+constexpr uint8_t IP_CONFIG_JETSON_ADDR[4] = {192,168,1,188};
+constexpr uint8_t IP_CONFIG_HEADSET_ADDR[4] = {192,168,1,49};
 constexpr int IP_CONFIG_REST_API_PORT = 32281;
 constexpr int IP_CONFIG_SERVO_PORT = 32115;
 constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
@@ -122,12 +121,58 @@ struct UserState {
 };
 
 enum Codec {
-    JPEG, VP8, VP9, H264, H265
+    JPEG, VP8, VP9, H264, H265, Count
 };
 
+inline std::string CodecToString(Codec codec) {
+    switch(codec) {
+        case JPEG:
+            return "JPEG";
+            break;
+        case VP8:
+            return "VP8";
+            break;
+        case VP9:
+            return "VP9";
+            break;
+        case H264:
+            return "H264";
+            break;
+        case H265:
+            return "H265";
+            break;
+        default:
+            return "Unknown";
+            break;
+    }
+}
+
 enum VideoMode {
-    STEREO, MONO
+    STEREO, MONO, CNT
 };
+
+inline std::string VideoModeToString(VideoMode mode) {
+    switch(mode) {
+        case STEREO:
+            return "STEREO";
+            break;
+        case MONO:
+            return "MONO";
+            break;
+        default:
+            return "Unknown";
+            break;
+    }
+}
+
+inline std::string IpToString(uint8_t ip[4]) {
+    std::ostringstream oss;
+    oss << static_cast<int>(ip[0]) << "."
+        << static_cast<int>(ip[1]) << "."
+        << static_cast<int>(ip[2]) << "."
+        << static_cast<int>(ip[3]);
+    return oss.str();
+}
 
 struct CameraStats {
     double prevTimestamp, currTimestamp;
@@ -147,15 +192,22 @@ struct CameraFrame {
 using CamPair = std::pair<CameraFrame, CameraFrame>;
 
 struct StreamingConfig {
-    std::string ip{"192.168.10.196"};
+    uint8_t headset_ip[4];
+    uint8_t jetson_ip[4];
     int portLeft{IP_CONFIG_LEFT_CAMERA_PORT};
     int portRight{IP_CONFIG_RIGHT_CAMERA_PORT};
-    Codec codec{H264}; //TODO: Implement different codecs
+    Codec codec{H264};
     int encodingQuality{60};
-    int bitrate{4000}; //TODO: Implement rate control
+    int bitrate{4000};
     int horizontalResolution{1920}, verticalResolution{1080};
     VideoMode videoMode{STEREO};
     int fps{60};
+
+    StreamingConfig()
+    {
+        std::copy(std::begin(IP_CONFIG_HEADSET_ADDR), std::end(IP_CONFIG_HEADSET_ADDR), headset_ip);
+        std::copy(std::begin(IP_CONFIG_JETSON_ADDR), std::end(IP_CONFIG_JETSON_ADDR), jetson_ip);
+    }
 };
 
 struct SystemInfo {
@@ -166,10 +218,18 @@ struct SystemInfo {
     const unsigned char *openGlRenderer;
 };
 
+struct GUIControl {
+    bool focusMoveUp, focusMoveDown, focusMoveLeft, focusMoveRight;
+    int focusedElement = 0, focusedSegment = 0; // Element and its segment that currently has focus
+    bool changesEnqueued; // If this flag si set, do not modify this struct until GUI layer sets it to false
+    int cooldown = 0; // Number of frames gui can't be controlled (set in GUI layer, decreased every frame
+};
+
 struct AppState {
     CamPair cameraStreamingStates{};
     StreamingConfig streamingConfig{};
     float appFrameRate{0.0f};
     long long appFrameTime{0};
     SystemInfo systemInfo;
+    GUIControl guiControl;
 };

@@ -20,6 +20,9 @@ static ImVec2 s_win_pos[10];
 static int s_win_num = 0;
 static ImVec2 s_mouse_pos;
 
+static int numberOfElements = 5;
+static int numberOfSegments = 4;
+
 int
 init_imgui(int win_w, int win_h) {
     // Setup Dear ImGui context
@@ -93,41 +96,90 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
     s_win_num = 0;
 
     /* Show main window */
-    win_y += win_h;
-    win_h = 140;
-    ImGui::SetNextWindowPos(ImVec2(_X(win_x), _Y(win_y)), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(_X(win_w), _Y(win_h)), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Runtime");
-    {
-        ImGui::Text("OXR_RUNTIME: %s", appState->systemInfo.openXrRuntime.c_str());
-        ImGui::Text("OXR_SYSTEM : %s", appState->systemInfo.openXrSystem.c_str());
-        ImGui::Text("GL_VERSION : %s", appState->systemInfo.openGlVersion);
-        ImGui::Text("GL_VENDOR  : %s", appState->systemInfo.openGlVendor);
-        ImGui::Text("GL_RENDERER: %s", appState->systemInfo.openGlRenderer);
-        ImGui::Text("Framerate: %f, Frametime: %f", appState->appFrameRate, appState->appFrameTime / 1000.0f);
-        s_win_pos[s_win_num] = ImGui::GetWindowPos();
-        s_win_size[s_win_num] = ImGui::GetWindowSize();
-        s_win_num++;
-    }
-    ImGui::End();
+//    win_y += win_h;
+//    win_h = 140;
+//    ImGui::SetNextWindowPos(ImVec2(_X(win_x), _Y(win_y)), ImGuiCond_FirstUseEver);
+//    ImGui::SetNextWindowSize(ImVec2(_X(win_w), _Y(win_h)), ImGuiCond_FirstUseEver);
+//    ImGui::Begin("Runtime");
+//    {
+//        ImGui::Text("OXR_RUNTIME: %s", appState->systemInfo.openXrRuntime.c_str());
+//        ImGui::Text("OXR_SYSTEM : %s", appState->systemInfo.openXrSystem.c_str());
+//        ImGui::Text("GL_VERSION : %s", appState->systemInfo.openGlVersion);
+//        ImGui::Text("GL_VENDOR  : %s", appState->systemInfo.openGlVendor);
+//        ImGui::Text("GL_RENDERER: %s", appState->systemInfo.openGlRenderer);
+//        ImGui::Text("Framerate: %f, Frametime: %f", appState->appFrameRate,
+//                    appState->appFrameTime / 1000.0f);
+//        s_win_pos[s_win_num] = ImGui::GetWindowPos();
+//        s_win_size[s_win_num] = ImGui::GetWindowSize();
+//        s_win_num++;
+//    }
+//    ImGui::End();
 
     win_y += win_h;
-    win_h = 220;
+    win_h = 360;
     ImGui::SetNextWindowPos(ImVec2(_X(win_x), _Y(win_y)), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(_X(win_w), _Y(win_h)), ImGuiCond_FirstUseEver);
     ImGui::Begin("Streaming info");
     {
-        ImGui::Text("Destination IP: %s [%d:%d]", appState->streamingConfig.ip.c_str(),
-                    appState->streamingConfig.portLeft, appState->streamingConfig.portRight);
-        ImGui::Text("Codec: %d @ Encoding quality: %d", appState->streamingConfig.codec,
-                    appState->streamingConfig.encodingQuality);
-        ImGui::Text("Resolution: %dx%d @ %d FPS", appState->streamingConfig.horizontalResolution,
-                    appState->streamingConfig.verticalResolution, appState->streamingConfig.fps);
-        if (appState->streamingConfig.videoMode == VideoMode::STEREO) {
-            ImGui::Text("Stereo");
-        } else {
-            ImGui::Text("Mono");
+
+        if (appState->guiControl.changesEnqueued) {
+            if (appState->guiControl.focusMoveUp) {
+                appState->guiControl.focusedElement -= 1;
+                appState->guiControl.focusedSegment = 0;
+                if (appState->guiControl.focusedElement < 0) { appState->guiControl.focusedElement = numberOfElements - 1; }
+            }
+            if (appState->guiControl.focusMoveDown) {
+                appState->guiControl.focusedElement += 1;
+                appState->guiControl.focusedSegment = 0;
+                if (appState->guiControl.focusedElement >= numberOfElements) { appState->guiControl.focusedElement = 0; }
+            }
+            if (appState->guiControl.focusMoveLeft) {
+                appState->guiControl.focusedSegment -= 1;
+                if (appState->guiControl.focusedSegment < 0) { appState->guiControl.focusedSegment = numberOfSegments - 1; }
+            }
+            if (appState->guiControl.focusMoveRight) {
+                appState->guiControl.focusedSegment += 1;
+                if (appState->guiControl.focusedSegment >= numberOfSegments) { appState->guiControl.focusedSegment = 0; }
+            }
+            appState->guiControl.focusMoveUp = false;
+            appState->guiControl.focusMoveDown = false;
+            appState->guiControl.focusMoveLeft = false;
+            appState->guiControl.focusMoveRight = false;
+            appState->guiControl.cooldown = 25 ;
+            appState->guiControl.changesEnqueued = false;
         }
+
+        focusable_text_ip(
+                fmt::format("Headset IP: {}", IpToString(appState->streamingConfig.headset_ip)),
+                appState->guiControl.focusedElement == 0,
+                appState->guiControl.focusedSegment
+        );
+        focusable_text_ip(
+                fmt::format("Camera stream IP: {}", IpToString(appState->streamingConfig.jetson_ip)),
+                appState->guiControl.focusedElement == 1,
+                appState->guiControl.focusedSegment
+        );
+        focusable_text(
+                fmt::format("Codec: {}", CodecToString(appState->streamingConfig.codec)),
+                appState->guiControl.focusedElement == 2
+        );
+        focusable_text(
+                fmt::format("Encoding quality: {}", appState->streamingConfig.encodingQuality),
+                appState->guiControl.focusedElement == 3
+        );
+        focusable_text(
+                fmt::format("{}",
+                            VideoModeToString(appState->streamingConfig.videoMode)),
+                appState->guiControl.focusedElement == 4
+        );
+        focusable_text(
+                fmt::format("Resolution: {}x{} @ {} FPS",
+                            appState->streamingConfig.horizontalResolution,
+                            appState->streamingConfig.verticalResolution,
+                            appState->streamingConfig.fps),
+                appState->guiControl.focusedElement == -1 // Disabled focus
+        );
+
         ImGui::Text("");
         ImGui::Text("Latencies:");
         auto s = appState->cameraStreamingStates.first.stats;
@@ -141,6 +193,47 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
         s_win_num++;
     }
     ImGui::End();
+}
+
+void focusable_text(const std::string& text, bool isFocused) {
+    ImVec2 p = ImGui::GetCursorScreenPos(); // Top-left position of the current drawing cursor
+    ImVec2 textSize = ImGui::CalcTextSize(text.c_str()); // Size of the text
+
+    // Draw a background rectangle if isFocused is true
+    if (isFocused) {
+        ImDrawList *drawList = ImGui::GetWindowDrawList();
+        drawList->AddRectFilled(
+                p,
+                ImVec2(p.x + textSize.x, p.y + textSize.y),
+                IM_COL32(100, 100, 255, 100) // Light blue color with transparency
+        );
+    }
+
+    // Draw the text
+    ImGui::Text("%s", text.c_str());
+}
+
+void focusable_text_ip(const std::string& text, bool isFocused, int segment) {
+    ImVec2 p = ImGui::GetCursorScreenPos(); // Top-left position of the current drawing cursor
+
+    // Split the text into 4 IP segments
+    size_t start = text.find_first_of("0123456789");
+    for (int i = 0; i < segment && start != std::string::npos; ++i) {
+        start = text.find_first_of("0123456789", text.find_first_not_of("0123456789", start));
+    }
+    size_t end = text.find_first_not_of("0123456789", start);
+
+    // Draw highlight if focused
+    if (isFocused && start != std::string::npos) {
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImVec2 highlightStart = ImVec2(p.x + ImGui::CalcTextSize(text.substr(0, start).c_str()).x, p.y);
+        ImVec2 highlightSize = ImGui::CalcTextSize(text.substr(start, end - start).c_str());
+        drawList->AddRectFilled(highlightStart, ImVec2(highlightStart.x + highlightSize.x, highlightStart.y + highlightSize.y),
+                                IM_COL32(100, 100, 255, 100));
+    }
+
+    // Render the full text
+    ImGui::Text("%s", text.c_str());
 }
 
 int

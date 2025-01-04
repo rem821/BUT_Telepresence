@@ -8,6 +8,8 @@
 #include "pch.h"
 #include "common.h"
 #include <string>
+#define FMT_HEADER_ONLY
+#include "fmt/core.h"
 
 typedef struct _imgui_data_t {
 } imgui_data_t;
@@ -18,6 +20,8 @@ void imgui_mousebutton(int button, int state, int x, int y);
 
 void imgui_mousemove(int x, int y);
 
+void focusable_text(const std::string& text, bool isFocused = false);
+void focusable_text_ip(const std::string& text, bool isFocused = false, int segment = 0);
 int invoke_imgui(const std::shared_ptr<AppState>& appState);
 
 #endif /* UTIL_IMGUI_H_ */

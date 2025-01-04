@@ -56,6 +56,8 @@ GstreamerPlayer::configurePipeline(BS::thread_pool &threadPool, const StreamingC
         case Codec::H265:
             //TODO:
             break;
+        default:
+            break;
     }
 
     if (error) {

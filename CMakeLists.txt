@@ -44,6 +44,7 @@ include_directories(
         external/imgui/backends
         external/cpp-httplib
         external/json/include
+        external/fmt/include
         include
 )
 

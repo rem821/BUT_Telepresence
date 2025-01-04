@@ -37,6 +37,8 @@ private:
 
     void InitializeStreaming();
 
+    void HandleControllers();
+
     XrInstance openxr_instance_ = XR_NULL_HANDLE;
     XrSystemId openxr_system_id_ = XR_NULL_SYSTEM_ID;
     XrSession openxr_session_ = XR_NULL_HANDLE;
@@ -50,7 +52,7 @@ private:
     UserState userState_;
 
     bool mono_ = false;
-    bool renderGui_ = false;
+    bool renderGui_ = true;
     int32_t speed_ = 200000;
 
 
