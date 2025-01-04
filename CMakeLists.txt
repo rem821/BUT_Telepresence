@@ -60,6 +60,7 @@ add_library(
         src/gstreamer_player.cpp
         src/udp_socket.cpp
         src/servo_communicator.cpp
+        src/pose_server.cpp
         src/rest_client.cpp
         src/render_imgui.cpp
         src/util_openxr.cpp

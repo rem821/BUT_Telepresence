@@ -9,9 +9,9 @@
 
 class RestClient {
 public:
-    RestClient() {};
+    explicit RestClient(StreamingConfig& config);
 
-    int StartStream(const StreamingConfig& config);
+    int StartStream();
 
     int StopStream();
 
@@ -21,7 +21,6 @@ public:
 
 private:
 
-    std::string API_IP = "192.168.1.105";
-    int API_PORT = 8080;
-    httplib::Client httpClient_{API_IP, API_PORT};
+    StreamingConfig& config_;
+    std::unique_ptr<httplib::Client> httpClient_;
 };

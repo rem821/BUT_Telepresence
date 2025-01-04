@@ -66,7 +66,7 @@ void TelepresenceProgram::UpdateFrame() {
     }
 
     PollActions();
-    //TODO: SendControllerDatagram();
+    SendControllerDatagram();
 
     RenderFrame();
 }
@@ -89,8 +89,10 @@ void TelepresenceProgram::RenderFrame() {
 
     openxr_end_frame(&openxr_session_, &display_time, layers);
     auto end = std::chrono::high_resolution_clock::now();
-    appState_->appFrameTime = std::chrono::duration_cast<std::chrono::microseconds>(end - frameStart_).count();
-    appState_->appFrameRate = 1e6f / std::chrono::duration_cast<std::chrono::microseconds>(frameStart_ - prevFrameStart_).count();
+    appState_->appFrameTime = std::chrono::duration_cast<std::chrono::microseconds>(
+            end - frameStart_).count();
+    appState_->appFrameRate = 1e6f / std::chrono::duration_cast<std::chrono::microseconds>(
+            frameStart_ - prevFrameStart_).count();
 }
 
 bool TelepresenceProgram::RenderLayer(XrTime displayTime,
@@ -123,7 +125,7 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
     Quad quad{};
     quad.Pose.position = {0.0f, 0.0f, 0.0f};
     quad.Pose.orientation = {0.0f, 0.0f, 0.0f, 1.0f};
-    quad.Scale = {3.5f, 1.97f, 0.0f};
+    quad.Scale = {4.44f, 2.5f, 0.0f};
 
     for (uint32_t i = 0; i < viewCount; i++) {
         XrSwapchainSubImage subImg;
@@ -138,12 +140,25 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
 
         void *imageHandle = i == 0 ? appState_->cameraStreamingStates.second.dataHandle
                                    : appState_->cameraStreamingStates.first.dataHandle;
-        if (userState_.aPressed) mono_ = true;
-        if (userState_.bPressed) mono_ = false;
-        if (mono_) imageHandle = appState_->cameraStreamingStates.second.dataHandle;
+        if (userState_.aPressed && !mono_) {
+            auto config = restClient_->GetStreamingConfig();
+            config.videoMode = VideoMode::MONO;
+            restClient_->UpdateStreamingConfig(config);
+            mono_ = true;
+        }
+        if (userState_.bPressed && mono_) {
+            auto config = restClient_->GetStreamingConfig();
+            config.videoMode = VideoMode::STEREO;
+            restClient_->UpdateStreamingConfig(config);
+            mono_ = false;
+        }
 
+        if (mono_) imageHandle = appState_->cameraStreamingStates.first.dataHandle;
 
-        render_scene(layerViews[i], rtarget, quad, appState_, imageHandle);
+        if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.yPressed) renderGui_ = true;
+        if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.xPressed) renderGui_ = false;
+
+        render_scene(layerViews[i], rtarget, quad, appState_, imageHandle, renderGui_);
 
         openxr_release_viewsurface(viewsurfaces_[i]);
         auto end = std::chrono::high_resolution_clock::now();
@@ -541,32 +556,40 @@ void TelepresenceProgram::SendControllerDatagram() {
 //    if (udpSocket_ == -1) udpSocket_ = createSocket();
 //    sendUDPPacket(udpSocket_, userState_);
 
-    if (servoCommunicator_ == nullptr) {
-        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_);
-    }
-    if (!servoCommunicator_->servosEnabled()) {
-        servoCommunicator_->enableServos(true, threadPool_);
-    }
-    if (servoCommunicator_->isReady()) {
-        if (userState_.xPressed) { speed_ -= 10000; }
-        if (userState_.yPressed) { speed_ += 10000; }
-        if (userState_.xPressed && userState_.yPressed) {
-            servoCommunicator_->resetErrors(threadPool_);
-        }
+//    if (servoCommunicator_ == nullptr) {
+//        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_);
+//    }
+//    if (!servoCommunicator_->servosEnabled()) {
+//        servoCommunicator_->enableServos(true, threadPool_);
+//    }
+//    if (servoCommunicator_->isReady()) {
+//        if (userState_.xPressed) { speed_ -= 10000; }
+//        if (userState_.yPressed) { speed_ += 10000; }
+//        if (userState_.xPressed && userState_.yPressed) {
+//            servoCommunicator_->resetErrors(threadPool_);
+//        }
+//
+//        servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation, speed_, threadPool_);
+//    }
 
-        servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation, speed_, threadPool_);
+    if (poseServer_ == nullptr) {
+        poseServer_ = std::make_unique<PoseServer>();
+        poseServer_->enableServos(true);
     }
+
+    if (userState_.xPressed) { speed_ -= 10000; }
+    if (userState_.yPressed) { speed_ += 10000; }
+    if (userState_.xPressed && userState_.yPressed) {
+        poseServer_->resetErrors();
+    }
+
+    poseServer_->setPoseAndSpeed(userState_.hmdPose.orientation, speed_);
 }
 
 void TelepresenceProgram::InitializeStreaming() {
-    appState_->streamingConfig = StreamingConfig{
-            "192.168.1.100", 8554, 8556, Codec::JPEG, 85, 4000, 1920, 1080,
-            VideoMode::STEREO, 60
-    };
-
-    restClient_ = std::make_unique<RestClient>();
+    restClient_ = std::make_unique<RestClient>(appState_->streamingConfig);
     restClient_->StopStream();
-    restClient_->StartStream(appState_->streamingConfig);
+    restClient_->StartStream();
 
     gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
     gstreamerPlayer_->playPipelines();

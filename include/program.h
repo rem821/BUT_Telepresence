@@ -3,7 +3,8 @@
 #include "util_openxr.h"
 #include "util_egl.h"
 #include "BS_thread_pool.hpp"
-#include "servo_communicator.h"
+//#include "servo_communicator.h"
+#include "pose_server.h"
 #include "gstreamer_player.h"
 #include "rest_client.h"
 #include "ntp_timer.h"
@@ -49,6 +50,7 @@ private:
     UserState userState_;
 
     bool mono_ = false;
+    bool renderGui_ = false;
     int32_t speed_ = 200000;
 
 
@@ -58,9 +60,10 @@ private:
 
     std::unique_ptr<GstreamerPlayer> gstreamerPlayer_;
     std::unique_ptr<RestClient> restClient_;
-    std::unique_ptr<ServoCommunicator> servoCommunicator_;
     std::unique_ptr<NtpTimer> ntpTimer_;
     std::string ntpServerAddress_ = "192.168.1.100";
+    //std::unique_ptr<ServoCommunicator> servoCommunicator_;
+    std::unique_ptr<PoseServer> poseServer_;
 
     unsigned char* testFrame_;
     std::chrono::time_point<std::chrono::high_resolution_clock> prevFrameStart_, frameStart_;

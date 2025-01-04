@@ -7,9 +7,6 @@
 #include "servo_communicator.h"
 
 constexpr int RESPONSE_TIMEOUT_US = 50000;
-constexpr std::string_view SERVO_IP = "192.168.1.200";
-constexpr int SERVO_PORT = 502;
-
 constexpr int RESPONSE_MIN_BYTES = 6;
 
 constexpr unsigned char IDENTIFIER_1 = 0x47;
@@ -31,6 +28,7 @@ ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool) : socket_(sock
     memset(&myAddr_, 0, sizeof(myAddr_));
     myAddr_.sin_family = AF_INET;
     myAddr_.sin_addr.s_addr = INADDR_ANY;
+    myAddr_.sin_port = htons(IP_CONFIG_SERVO_PORT);
 
     if (bind(socket_, (sockaddr *) &myAddr_, sizeof(myAddr_)) < 0) {
         LOG_ERROR("bind socket failed");
@@ -46,8 +44,8 @@ ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool) : socket_(sock
 
     memset(&destAddr_, 0, sizeof(destAddr_));
     destAddr_.sin_family = AF_INET;
-    destAddr_.sin_addr.s_addr = inet_addr(SERVO_IP.data());
-    destAddr_.sin_port = htons(SERVO_PORT);
+    destAddr_.sin_addr.s_addr = inet_addr(resolveIPv4(IP_CONFIG_JETSON_ADDR.data()).c_str());
+    destAddr_.sin_port = htons(IP_CONFIG_SERVO_PORT);
 
     setMode(threadPool);
 }

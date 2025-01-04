@@ -1,6 +1,62 @@
 #pragma once
 
 #include <openxr/openxr_reflection.h>
+#include <iostream>
+#include <cstring>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+// <!-- IP CONFIGURATION SECTION --!>
+//constexpr std::string_view IP_CONFIG_JETSON_ADDR = "jetsontelepresence.zapto.org";
+//constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "vrtelepresence.zapto.org";
+constexpr std::string_view IP_CONFIG_JETSON_ADDR = "192.168.10.191";
+constexpr std::string_view IP_CONFIG_HEADSET_ADDR = "192.168.10.196";
+constexpr int IP_CONFIG_REST_API_PORT = 32281;
+constexpr int IP_CONFIG_SERVO_PORT = 32115;
+constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
+constexpr int IP_CONFIG_RIGHT_CAMERA_PORT = 8556;
+
+
+inline std::string resolveIPv4(const std::string& hostname) {
+    return hostname;
+}
+/*
+inline std::string resolveIPv4(const std::string& hostname) {
+    struct addrinfo hints, *res, *p;
+    int status;
+    char ipstr[INET_ADDRSTRLEN];  // To hold the IPv4 address
+
+    // Clear the hints struct
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET;     // AF_INET for IPv4 only
+    hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
+
+    // Resolve the domain name to an IPv4 address
+    if ((status = getaddrinfo(hostname.c_str(), NULL, &hints, &res)) != 0) {
+        std::cerr << "getaddrinfo error: " << gai_strerror(status) << std::endl;
+        return "";
+    }
+
+    // Loop through the results and find the first IPv4 address
+    for (p = res; p != NULL; p = p->ai_next) {
+        if (p->ai_family == AF_INET) {  // IPv4 address
+            struct sockaddr_in* ipv4 = (struct sockaddr_in*)p->ai_addr;
+            // Convert the IP to a string and return it
+            inet_ntop(p->ai_family, &(ipv4->sin_addr), ipstr, sizeof ipstr);
+            freeaddrinfo(res);  // Free the allocated memory
+            return std::string(ipstr);  // Return the IPv4 address as a string
+        }
+    }
+
+    // If no IPv4 address was found, return an empty string
+    freeaddrinfo(res);  // Free the allocated memory
+    return "";
+}
+*/
+// <!-- IP CONFIGURATION SECTION --!>
 
 inline std::string Fmt(const char *fmt, ...) {
     va_list vl;
@@ -83,7 +139,7 @@ struct CameraStats {
 };
 
 struct CameraFrame {
-    CameraStats* stats;
+    CameraStats *stats;
     unsigned long memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
     void *dataHandle;
 };
@@ -91,23 +147,23 @@ struct CameraFrame {
 using CamPair = std::pair<CameraFrame, CameraFrame>;
 
 struct StreamingConfig {
-    std::string ip{};
-    int portLeft{};
-    int portRight{};
-    Codec codec{}; //TODO: Implement different codecs
-    int encodingQuality{};
-    int bitrate{}; //TODO: Implement rate control
-    int horizontalResolution{}, verticalResolution{}; //TODO: Restrict to specific supported resolutions
-    VideoMode videoMode{};
-    int fps{};
+    std::string ip{"192.168.10.196"};
+    int portLeft{IP_CONFIG_LEFT_CAMERA_PORT};
+    int portRight{IP_CONFIG_RIGHT_CAMERA_PORT};
+    Codec codec{H264}; //TODO: Implement different codecs
+    int encodingQuality{60};
+    int bitrate{4000}; //TODO: Implement rate control
+    int horizontalResolution{1920}, verticalResolution{1080};
+    VideoMode videoMode{STEREO};
+    int fps{60};
 };
 
 struct SystemInfo {
     std::string openXrRuntime;
     std::string openXrSystem;
-    const unsigned char* openGlVersion;
-    const unsigned char* openGlVendor;
-    const unsigned char* openGlRenderer;
+    const unsigned char *openGlVersion;
+    const unsigned char *openGlVendor;
+    const unsigned char *openGlRenderer;
 };
 
 struct AppState {
