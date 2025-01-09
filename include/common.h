@@ -262,4 +262,5 @@ struct AppState {
     long long appFrameTime{0};
     SystemInfo systemInfo;
     GUIControl guiControl;
+    bool robotControlEnabled = true;
 };

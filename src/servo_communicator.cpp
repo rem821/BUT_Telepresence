@@ -197,6 +197,31 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
     });
 }
 
+struct __attribute__((__packed__)) __attribute__((aligned(1))) Drive {
+    float linearSpeedXMps = 0;
+    float linearSpeedYMps = 0;
+    float angularSpeedYawRadps = 0;
+};
+
+void ServoCommunicator::sendOdinControlPacket(float linSpeedX, float linSpeedY, float angSpeed, BS::thread_pool &threadPool) {
+    threadPool.push_task([this, linSpeedX, linSpeedY, angSpeed]() {
+        Drive driveStruct;
+        driveStruct.linearSpeedXMps = linSpeedX * 0.05;
+        driveStruct.linearSpeedYMps = linSpeedY * 0.05;
+        driveStruct.angularSpeedYawRadps = angSpeed * 0.25;
+        const unsigned char* driveData = reinterpret_cast<const unsigned char*>(&driveStruct);
+
+        std::string prefix = "|#|256|";
+        std::string suffix = "|0000000000000000|";
+
+        std::vector<unsigned char> packetBuffer(prefix.begin(), prefix.end());
+        packetBuffer.insert(packetBuffer.end(), driveData, driveData + sizeof(Drive));
+        packetBuffer.insert(packetBuffer.end(), suffix.begin(), suffix.end());
+
+        sendMessage(packetBuffer);
+    });
+}
+
 bool ServoCommunicator::checkReadiness() const {
     if (!isInitialized()) {
         LOG_ERROR("ServoCommunicator is not yet initialized!");

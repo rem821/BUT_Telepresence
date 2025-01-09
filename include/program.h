@@ -3,8 +3,8 @@
 #include "util_openxr.h"
 #include "util_egl.h"
 #include "BS_thread_pool.hpp"
-//#include "servo_communicator.h"
-#include "pose_server.h"
+#include "servo_communicator.h"
+//#include "pose_server.h"
 #include "gstreamer_player.h"
 #include "rest_client.h"
 #include "ntp_timer.h"
@@ -62,8 +62,8 @@ private:
     std::unique_ptr<RestClient> restClient_;
     std::unique_ptr<NtpTimer> ntpTimer_;
     std::string ntpServerAddress_ = "192.168.1.100";
-    //std::unique_ptr<ServoCommunicator> servoCommunicator_;
-    std::unique_ptr<PoseServer> poseServer_;
+    std::unique_ptr<ServoCommunicator> servoCommunicator_;
+    //std::unique_ptr<PoseServer> poseServer_;
     std::unique_ptr<StateStorage> stateStorage_;
 
     unsigned char* testFrame_;

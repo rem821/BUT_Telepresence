@@ -57,6 +57,8 @@ public:
 
     void setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, BS::thread_pool &threadPool);
 
+    void sendOdinControlPacket(float linSpeedX, float linSpeedY, float angSpeed, BS::thread_pool &threadPool);
+
 private:
 
     [[nodiscard]] bool checkReadiness() const;
