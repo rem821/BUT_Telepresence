@@ -1,10 +1,3 @@
-== Oculus x OpenXR PoC
+== BUT VR Telepresence for remote robot controlling
 
-=== Setup
-
-Set `ovr_openxr_mobile_sdk.dir` in your `local.properties`
-
-[source,properties]
-----
-ovr_openxr_mobile_sdk.dir=/path/to/ovr_openxr_mobile_sdk
-----
+=== This package is a part of my thesis, so it is a part of an active research. Due to this, it lacks documentation and it isn't versioned.
