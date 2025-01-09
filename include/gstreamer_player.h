@@ -12,15 +12,12 @@ class GstreamerPlayer {
 public:
 
 
-    explicit GstreamerPlayer(CamPair* camPair);
+    explicit GstreamerPlayer(CamPair *camPair);
 
     ~GstreamerPlayer() = default;
 
-    void configurePipeline(BS::thread_pool &threadPool, const StreamingConfig& config);
+    void configurePipeline(BS::thread_pool &threadPool, const StreamingConfig &config);
 
-    void playPipelines();
-
-    void stopPipelines();
 
 private:
 
@@ -41,6 +38,7 @@ private:
     static uint64_t getCurrentUs();
 
     void listAvailableDecoders();
+
     void dumpGstreamerFeatures();
 
     gboolean printGstreamerFeature(const GstPluginFeature *feature, gpointer user_data);
@@ -49,9 +47,9 @@ private:
     GMainContext *context_{};
     GMainLoop *mainLoop_{};
 
-    CamPair* camPair_;
+    CamPair *camPair_;
 
-    const std::string jpegPipeline_ = "udpsrc name=udpsrc ! application/x-rtp, encoding-name=JPEG, payload=26 ! identity name=udpsrc_identity ! rtpjpegdepay ! identity name=rtpjpegdepay_identity ! jpegdec ! video/x-raw,format=RGB ! identity name=jpegdec_identity ! queue ! identity name=queue_identity ! appsink emit-signals=true name=appsink sync=false";
-    const std::string h264Pipeline_ = "udpsrc name=udpsrc ! application/x-rtp, encoding-name=H264, media=video, clock-rate=90000, payload=96 ! identity name=udpsrc_identity ! rtph264depay ! identity name=rtpjpegdepay_identity ! h264parse ! decodebin3 ! video/x-raw, width=1920,height=1080 ! videoconvert ! video/x-raw,format=RGB ! identity name=jpegdec_identity ! queue ! identity name=queue_identity ! appsink emit-signals=true name=appsink sync=false";
+    const std::string jpegPipeline_ = "udpsrc name=udpsrc ! application/x-rtp, encoding-name=JPEG, payload=26 ! identity name=udpsrc_ident ! rtpjpegdepay ! identity name=rtpdepay_ident ! jpegparse ! decodebin3 ! video/x-raw, width=1920,height=1080 ! videoconvert ! video/x-raw,format=RGB ! identity name=dec_ident ! queue ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
+    const std::string h264Pipeline_ = "udpsrc name=udpsrc ! application/x-rtp, encoding-name=H264, media=video, clock-rate=90000, payload=96 ! identity name=udpsrc_ident ! rtph264depay ! identity name=rtpdepay_ident ! h264parse ! decodebin3 ! video/x-raw, width=1920,height=1080 ! videoconvert ! video/x-raw,format=RGB ! identity name=dec_ident ! queue ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
 
 };

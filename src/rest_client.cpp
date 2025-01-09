@@ -7,11 +7,10 @@
 
 using json = nlohmann::json;
 
-RestClient::RestClient(StreamingConfig& config): config_(config) {
+RestClient::RestClient(StreamingConfig &config) : config_(config) {
 
-    config_.ip = resolveIPv4(IP_CONFIG_HEADSET_ADDR.data());
-
-    httpClient_ = std::make_unique<httplib::Client>(IP_CONFIG_JETSON_ADDR.data(), IP_CONFIG_REST_API_PORT);
+    httpClient_ = std::make_unique<httplib::Client>(IpToString(config.jetson_ip).c_str(),
+                                                    IP_CONFIG_REST_API_PORT);
 }
 
 int RestClient::StartStream() {
@@ -32,17 +31,19 @@ int RestClient::StartStream() {
         case Codec::H265:
             codec = "H265";
             break;
+        default:
+            break;
     }
     std::string req = json{{"bitrate",          "400k"},
                            {"codec",            codec},
                            {"encoding_quality", config_.encodingQuality},
                            {"fps",              config_.fps},
-                           {"ip_address",       config_.ip},
+                           {"ip_address",       IpToString(config_.headset_ip)},
                            {"port_left",        config_.portLeft},
                            {"port_right",       config_.portRight},
                            {"resolution",       {{"height", config_.verticalResolution}, {"width", config_.horizontalResolution}}},
                            {"video_mode",       config_.videoMode == VideoMode::STEREO ? "stereo"
-                                                                                      : "mono"}}.dump();
+                                                                                       : "mono"}}.dump();
 
     httpClient_->Post("/api/v1/stream/start", req, "application/json");
     return 0;
@@ -79,10 +80,10 @@ StreamingConfig RestClient::GetStreamingConfig() {
 
 int RestClient::UpdateStreamingConfig(const StreamingConfig &config) {
     std::string req = json{{"bitrate",          "400k"},
-                           {"codec",            "JPEG"},
+                           {"codec",            CodecToString(config.codec)},
                            {"encoding_quality", config.encodingQuality},
                            {"fps",              config.fps},
-                           {"ip_address",       config.ip},
+                           {"ip_address",       IpToString(config_.headset_ip)},
                            {"port_left",        config.portLeft},
                            {"port_right",       config.portRight},
                            {"resolution",       {{"height", config.verticalResolution}, {"width", config.horizontalResolution}}},

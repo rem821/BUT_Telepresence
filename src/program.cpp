@@ -38,9 +38,13 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
         testFrame_[i] = rand() % 255;  // Generate a random number between 0 and 254
     }
 
+    stateStorage_ = std::make_unique<StateStorage>(app);
+
     appState_ = std::make_shared<AppState>();
+    appState_->streamingConfig = stateStorage_->LoadStreamingConfig();
+
     gstreamerPlayer_ = std::make_unique<GstreamerPlayer>(&appState_->cameraStreamingStates);
-    ntpTimer_ = std::make_unique<NtpTimer>(ntpServerAddress_);
+    //ntpTimer_ = std::make_unique<NtpTimer>(ntpServerAddress_);
 
     appState_->systemInfo.openXrRuntime = openxr_get_runtime_name(&openxr_instance_);
     appState_->systemInfo.openXrSystem = openxr_get_system_name(&openxr_instance_,
@@ -140,23 +144,10 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
 
         void *imageHandle = i == 0 ? appState_->cameraStreamingStates.second.dataHandle
                                    : appState_->cameraStreamingStates.first.dataHandle;
-        if (userState_.aPressed && !mono_) {
-            auto config = restClient_->GetStreamingConfig();
-            config.videoMode = VideoMode::MONO;
-            restClient_->UpdateStreamingConfig(config);
-            mono_ = true;
-        }
-        if (userState_.bPressed && mono_) {
-            auto config = restClient_->GetStreamingConfig();
-            config.videoMode = VideoMode::STEREO;
-            restClient_->UpdateStreamingConfig(config);
-            mono_ = false;
-        }
+
+        HandleControllers();
 
         if (mono_) imageHandle = appState_->cameraStreamingStates.first.dataHandle;
-
-        if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.yPressed) renderGui_ = true;
-        if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.xPressed) renderGui_ = false;
 
         render_scene(layerViews[i], rtarget, quad, appState_, imageHandle, renderGui_);
 
@@ -557,7 +548,7 @@ void TelepresenceProgram::SendControllerDatagram() {
 //    sendUDPPacket(udpSocket_, userState_);
 
 //    if (servoCommunicator_ == nullptr) {
-//        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_);
+//        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_, appstate_->streamingConfig );
 //    }
 //    if (!servoCommunicator_->servosEnabled()) {
 //        servoCommunicator_->enableServos(true, threadPool_);
@@ -592,5 +583,114 @@ void TelepresenceProgram::InitializeStreaming() {
     restClient_->StartStream();
 
     gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
-    gstreamerPlayer_->playPipelines();
+}
+
+void TelepresenceProgram::HandleControllers() {
+    // Toggling GUI rendering
+    if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.yPressed && !renderGui_)
+        renderGui_ = true;
+    if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.xPressed && renderGui_) {
+        renderGui_ = false;
+        // Also triggers saving of the Streaming Config for now
+        stateStorage_->SaveStreamingConfig(appState_->streamingConfig);
+        gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
+        restClient_->UpdateStreamingConfig(appState_->streamingConfig);
+    }
+
+    // GUI interaction
+    if (appState_->guiControl.cooldown > 0) {
+        appState_->guiControl.cooldown -= 1;
+    }
+
+    if (renderGui_ && userState_.triggerValue[Side::LEFT] < 0.1 && !appState_->guiControl.changesEnqueued && appState_->guiControl.cooldown == 0) {
+
+        // Focus move UP
+        if (userState_.thumbstickPose[Side::LEFT].y > 0.9f) {
+            appState_->guiControl.focusMoveUp = true;
+            appState_->guiControl.changesEnqueued = true;
+        }
+
+            // Focus move DOWN
+        else if (userState_.thumbstickPose[Side::LEFT].y < -0.9f) {
+            appState_->guiControl.focusMoveDown = true;
+            appState_->guiControl.changesEnqueued = true;
+        }
+
+            // Focus move LEFT
+        else if (userState_.thumbstickPose[Side::LEFT].x < -0.9f) {
+            appState_->guiControl.focusMoveLeft = true;
+            appState_->guiControl.changesEnqueued = true;
+        }
+
+            // Focus move RIGHT
+        else if (userState_.thumbstickPose[Side::LEFT].x > 0.9f) {
+            appState_->guiControl.focusMoveRight = true;
+            appState_->guiControl.changesEnqueued = true;
+        }
+
+            // Selection move UP
+        else if (userState_.yPressed) {
+            switch (appState_->guiControl.focusedElement) {
+                case 0: // Headset IP
+                    appState_->streamingConfig.headset_ip[appState_->guiControl.focusedSegment] += 1;
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 1: // Camera IP
+                    appState_->streamingConfig.jetson_ip[appState_->guiControl.focusedSegment] += 1;
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 2: // Codec
+                    appState_->streamingConfig.codec = static_cast<Codec>(
+                            (static_cast<int>(appState_->streamingConfig.codec) + 1 +
+                             static_cast<int>(Codec::Count)) % static_cast<int>(Codec::Count));
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 3: // Encoding quality
+                    if (appState_->streamingConfig.encodingQuality < 100) {
+                        appState_->streamingConfig.encodingQuality += 1;
+                    }
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 4: // Mono / Stereo
+                    appState_->streamingConfig.videoMode = static_cast<VideoMode>(
+                            (static_cast<int>(appState_->streamingConfig.videoMode) + 1 +
+                             static_cast<int>(VideoMode::CNT)) % static_cast<int>(VideoMode::CNT));
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+            }
+        }
+
+            // Selection move DOWN
+        else if (userState_.xPressed) {
+            switch (appState_->guiControl.focusedElement) {
+                case 0: // Headset IP
+                    appState_->streamingConfig.headset_ip[appState_->guiControl.focusedSegment] -= 1;
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 1: // Camera IP
+                    appState_->streamingConfig.jetson_ip[appState_->guiControl.focusedSegment] -= 1;
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 2: // Codec
+                    appState_->streamingConfig.codec = static_cast<Codec>(
+                            (static_cast<int>(appState_->streamingConfig.codec) - 1 +
+                             static_cast<int>(Codec::Count)) % static_cast<int>(Codec::Count));
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 3: // Encoding quality
+                    if (appState_->streamingConfig.encodingQuality > 0) {
+                        appState_->streamingConfig.encodingQuality -= 1;
+                    }
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 4: // Mono / Stereo
+                    appState_->streamingConfig.videoMode = static_cast<VideoMode>(
+                            (static_cast<int>(appState_->streamingConfig.videoMode) - 1 +
+                             static_cast<int>(VideoMode::CNT)) % static_cast<int>(VideoMode::CNT));
+                    appState_->guiControl.changesEnqueued = true;
+                    mono_ = appState_->streamingConfig.videoMode == VideoMode::MONO;
+                    break;
+            }
+        }
+    }
 }
