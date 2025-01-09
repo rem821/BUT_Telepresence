@@ -184,9 +184,9 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
         ImGui::Text("Latencies:");
         auto s = appState->cameraStreamingStates.first.stats;
         ImGui::Text(
-                "NvvidConv: %lu, JpegEnc: %lu, RtpJpegPay: %lu\nUdpStream: %lu\nRtpJpegDepay: %lu, JpegDec: %lu, Queue: %lu",
-                s->nvvidconv / 1000, s->jpegenc / 1000, s->rtpjpegpay / 1000, s->udpstream / 1000,
-                s->rtpjpegdepay / 1000, s->jpegdec / 1000, s->queue / 1000);
+                "vidConv: %lu, enc: %lu, rtpPay: %lu\nudpStream: %lu\nrtpDepay: %lu, dec: %lu, queue: %lu",
+                s->vidConv / 1000, s->enc / 1000, s->rtpPay / 1000, s->udpStream / 1000,
+                s->rtpDepay / 1000, s->dec / 1000, s->queue / 1000);
 
         s_win_pos[s_win_num] = ImGui::GetWindowPos();
         s_win_size[s_win_num] = ImGui::GetWindowSize();

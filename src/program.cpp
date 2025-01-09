@@ -38,7 +38,11 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
         testFrame_[i] = rand() % 255;  // Generate a random number between 0 and 254
     }
 
+    stateStorage_ = std::make_unique<StateStorage>(app);
+
     appState_ = std::make_shared<AppState>();
+    appState_->streamingConfig = stateStorage_->LoadStreamingConfig();
+
     gstreamerPlayer_ = std::make_unique<GstreamerPlayer>(&appState_->cameraStreamingStates);
     //ntpTimer_ = std::make_unique<NtpTimer>(ntpServerAddress_);
 
@@ -579,37 +583,26 @@ void TelepresenceProgram::InitializeStreaming() {
     restClient_->StartStream();
 
     gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
-    gstreamerPlayer_->playPipelines();
 }
 
 void TelepresenceProgram::HandleControllers() {
-
-//TODO: This is handled in the GUI. Update streaming config only when GUI save button has been clicked
-    // Stereo and Mono settings
-//    if (userState_.aPressed && !mono_) {
-//        auto config = restClient_->GetStreamingConfig();
-//        config.videoMode = VideoMode::MONO;
-//        restClient_->UpdateStreamingConfig(config);
-//        mono_ = true;
-//    }
-//    if (userState_.bPressed && mono_) {
-//        auto config = restClient_->GetStreamingConfig();
-//        config.videoMode = VideoMode::STEREO;
-//        restClient_->UpdateStreamingConfig(config);
-//        mono_ = false;
-//    }
-
     // Toggling GUI rendering
-    if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.yPressed) renderGui_ = true;
-    if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.xPressed) renderGui_ = false;
+    if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.yPressed && !renderGui_)
+        renderGui_ = true;
+    if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.xPressed && renderGui_) {
+        renderGui_ = false;
+        // Also triggers saving of the Streaming Config for now
+        stateStorage_->SaveStreamingConfig(appState_->streamingConfig);
+        gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
+        restClient_->UpdateStreamingConfig(appState_->streamingConfig);
+    }
 
     // GUI interaction
     if (appState_->guiControl.cooldown > 0) {
         appState_->guiControl.cooldown -= 1;
     }
 
-    if (renderGui_ && !appState_->guiControl.changesEnqueued &&
-        appState_->guiControl.cooldown == 0) {
+    if (renderGui_ && userState_.triggerValue[Side::LEFT] < 0.1 && !appState_->guiControl.changesEnqueued && appState_->guiControl.cooldown == 0) {
 
         // Focus move UP
         if (userState_.thumbstickPose[Side::LEFT].y > 0.9f) {
@@ -695,6 +688,7 @@ void TelepresenceProgram::HandleControllers() {
                             (static_cast<int>(appState_->streamingConfig.videoMode) - 1 +
                              static_cast<int>(VideoMode::CNT)) % static_cast<int>(VideoMode::CNT));
                     appState_->guiControl.changesEnqueued = true;
+                    mono_ = appState_->streamingConfig.videoMode == VideoMode::MONO;
                     break;
             }
         }

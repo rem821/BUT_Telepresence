@@ -3,34 +3,28 @@
 //
 #pragma once
 
-void SaveStreamingConfig(JNIEnv* env, jobject context, const Stre) {
-    jclass contextClass = env->GetObjectClass(context);
-    jmethodID getSharedPreferences = env->GetMethodID(contextClass, "getSharedPreferences", "(Ljava/lang/String;I)Landroid/content/SharedPreferences;");
+#include <jni.h>
+#include <android_native_app_glue.h>
+#include "common.h"
 
-    jstring prefsName = env->NewStringUTF("MyAppPrefs");
-    jobject sharedPreferences = env->CallObjectMethod(context, getSharedPreferences, prefsName, 0);
-    env->DeleteLocalRef(prefsName);
+class StateStorage {
+public:
 
-    jclass prefsClass = env->GetObjectClass(sharedPreferences);
-    jmethodID edit = env->GetMethodID(prefsClass, "edit", "()Landroid/content/SharedPreferences$Editor;");
-    jobject editor = env->CallObjectMethod(sharedPreferences, edit);
+    explicit StateStorage(android_app *app);
 
-    jclass editorClass = env->GetObjectClass(editor);
-    jmethodID putString = env->GetMethodID(editorClass, "putString", "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;");
+    void SaveStreamingConfig(const StreamingConfig &streamingConfig);
 
-    jstring jKey = env->NewStringUTF(key.c_str());
-    jstring jValue = env->NewStringUTF(value.c_str());
-    env->CallObjectMethod(editor, putString, jKey, jValue);
-    env->DeleteLocalRef(jKey);
-    env->DeleteLocalRef(jValue);
 
-    jmethodID apply = env->GetMethodID(editorClass, "apply", "()V");
-    env->CallVoidMethod(editor, apply);
+    StreamingConfig LoadStreamingConfig();
 
-    // Clean up
-    env->DeleteLocalRef(editor);
-    env->DeleteLocalRef(editorClass);
-    env->DeleteLocalRef(sharedPreferences);
-    env->DeleteLocalRef(prefsClass);
-    env->DeleteLocalRef(contextClass);
-}
+private:
+
+    bool SaveKeyValuePair(jobject editor, jmethodID putString, const std::string& key, const std::string& value);
+    bool SaveKeyValuePair(jobject editor, jmethodID putString, const std::string& key, const int value);
+
+    std::string LoadValue(jobject& sharedPreferences, jmethodID& getString, const std::string& key);
+
+
+    JNIEnv* env_ = nullptr;
+    jobject context_;
+};

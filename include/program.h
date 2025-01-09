@@ -8,6 +8,7 @@
 #include "gstreamer_player.h"
 #include "rest_client.h"
 #include "ntp_timer.h"
+#include "state_storage.h"
 
 #define HANDL_IN    "/user/hand/left/input"
 #define HANDR_IN    "/user/hand/right/input"
@@ -55,9 +56,6 @@ private:
     bool renderGui_ = true;
     int32_t speed_ = 200000;
 
-
-    //int udpSocket_{-1};
-
     BS::thread_pool threadPool_;
 
     std::unique_ptr<GstreamerPlayer> gstreamerPlayer_;
@@ -66,6 +64,7 @@ private:
     std::string ntpServerAddress_ = "192.168.1.100";
     //std::unique_ptr<ServoCommunicator> servoCommunicator_;
     std::unique_ptr<PoseServer> poseServer_;
+    std::unique_ptr<StateStorage> stateStorage_;
 
     unsigned char* testFrame_;
     std::chrono::time_point<std::chrono::high_resolution_clock> prevFrameStart_, frameStart_;

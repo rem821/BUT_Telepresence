@@ -80,7 +80,7 @@ StreamingConfig RestClient::GetStreamingConfig() {
 
 int RestClient::UpdateStreamingConfig(const StreamingConfig &config) {
     std::string req = json{{"bitrate",          "400k"},
-                           {"codec",            "JPEG"},
+                           {"codec",            CodecToString(config.codec)},
                            {"encoding_quality", config.encodingQuality},
                            {"fps",              config.fps},
                            {"ip_address",       IpToString(config_.headset_ip)},
