@@ -548,7 +548,7 @@ void TelepresenceProgram::SendControllerDatagram() {
 //    sendUDPPacket(udpSocket_, userState_);
 
     if (servoCommunicator_ == nullptr) {
-        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_, appState_->streamingConfig );
+        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_, appState_->streamingConfig);
     }
     if (!servoCommunicator_->servosEnabled()) {
         servoCommunicator_->enableServos(true, threadPool_);
@@ -561,9 +561,9 @@ void TelepresenceProgram::SendControllerDatagram() {
         }
 
         servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation, speed_, threadPool_);
-        if(appState_->robotControlEnabled) {
-            servoCommunicator_->sendOdinControlPacket(userState_.thumbstickPose[Side::LEFT].x, userState_.thumbstickPose[Side::LEFT].y, userState_.thumbstickPose[Side::RIGHT].y, threadPool_);
-        }
+    }
+    if(appState_->robotControlEnabled) {
+        servoCommunicator_->sendOdinControlPacket(userState_.thumbstickPose[Side::LEFT].x, userState_.thumbstickPose[Side::LEFT].y, userState_.thumbstickPose[Side::RIGHT].y, threadPool_);
     }
 
 //    if (poseServer_ == nullptr) {
@@ -597,6 +597,7 @@ void TelepresenceProgram::HandleControllers() {
         // Also triggers saving of the Streaming Config for now
         stateStorage_->SaveStreamingConfig(appState_->streamingConfig);
         gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
+        //servoCommunicator_ = nullptr;
         restClient_->UpdateStreamingConfig(appState_->streamingConfig);
     }
 

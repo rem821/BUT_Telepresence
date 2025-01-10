@@ -205,20 +205,20 @@ struct __attribute__((__packed__)) __attribute__((aligned(1))) Drive {
 
 void ServoCommunicator::sendOdinControlPacket(float linSpeedX, float linSpeedY, float angSpeed, BS::thread_pool &threadPool) {
     threadPool.push_task([this, linSpeedX, linSpeedY, angSpeed]() {
-        Drive driveStruct;
-        driveStruct.linearSpeedXMps = linSpeedX * 0.05;
-        driveStruct.linearSpeedYMps = linSpeedY * 0.05;
-        driveStruct.angularSpeedYawRadps = angSpeed * 0.25;
-        const unsigned char* driveData = reinterpret_cast<const unsigned char*>(&driveStruct);
+        auto linSpeedXBytes = serializeLEFloat(linSpeedX * 0.05);
+        auto linSpeedYBytes = serializeLEFloat(linSpeedY * 0.05);
+        auto angSpeedBytes = serializeLEFloat(angSpeed * 0.25);
 
-        std::string prefix = "|#|256|";
-        std::string suffix = "|0000000000000000|";
+        std::vector<unsigned char> const buffer = {0x23,
+                                                   0x01, 0x00,
+                                                   linSpeedXBytes[0], linSpeedXBytes[1], linSpeedXBytes[2], linSpeedXBytes[3],
+                                                   linSpeedYBytes[0], linSpeedYBytes[1], linSpeedYBytes[2], linSpeedYBytes[3],
+                                                   angSpeedBytes[0], angSpeedBytes[1], angSpeedBytes[2], angSpeedBytes[3],
+                                                   0x00, 0x00
+        };
 
-        std::vector<unsigned char> packetBuffer(prefix.begin(), prefix.end());
-        packetBuffer.insert(packetBuffer.end(), driveData, driveData + sizeof(Drive));
-        packetBuffer.insert(packetBuffer.end(), suffix.begin(), suffix.end());
-
-        sendMessage(packetBuffer);
+        sendMessage(buffer);
+        isReady_ = true;
     });
 }
 

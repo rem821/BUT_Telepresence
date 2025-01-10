@@ -79,6 +79,18 @@ private:
         return data;
     }
 
+    template<typename FloatType>
+    [[nodiscard]] inline static std::vector<uint8_t> serializeLEFloat(const FloatType &value) {
+
+        // Create a vector to hold the serialized bytes
+        std::vector<uint8_t> data(sizeof(FloatType));
+
+        // Copy the binary representation of the float into the vector
+        std::memcpy(data.data(), &value, sizeof(FloatType));
+
+        return data;
+    }
+
     static AzimuthElevation quaternionToAzimuthElevation(XrQuaternionf quat);
 
     bool isInitialized_ = false;
