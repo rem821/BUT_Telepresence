@@ -211,36 +211,36 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, CamPair *pair)
 }
 
 void GstreamerPlayer::onRtpHeaderMetadata(GstElement *identity, GstBuffer *buffer, gpointer data) {
-    auto *pair = reinterpret_cast<CamPair *>(data);
-    bool isLeftCamera = std::string(identity->object.parent->name) == "pipeline_left";
-    auto stats = isLeftCamera ? pair->first.stats : pair->second.stats;
-    stats->totalLatency = 0;
-
-    GstRTPBuffer rtp_buf = GST_RTP_BUFFER_INIT;
-    gst_rtp_buffer_map(buffer, GST_MAP_READ, &rtp_buf);
-    gpointer myInfoBuf = nullptr;
-    guint size_64 = 8;
-    guint8 appbits = 1;
-    if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 0, &myInfoBuf,&size_64) != 0) {
-        stats->frameId = *(static_cast<uint64_t *>(myInfoBuf));
-    }
-    if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 1, &myInfoBuf,&size_64) != 0) {
-        stats->vidConv = *(static_cast<uint64_t *>(myInfoBuf));
-    }
-    if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 2, &myInfoBuf,&size_64) != 0) {
-        stats->enc = *(static_cast<uint64_t *>(myInfoBuf));
-    }
-    if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 3, &myInfoBuf,&size_64) != 0) {
-        stats->rtpPay = *(static_cast<uint64_t *>(myInfoBuf));
-    }
-    if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 4, &myInfoBuf,&size_64) != 0) {
-        stats->rtpPayTimestamp = *(static_cast<uint64_t *>(myInfoBuf));
-    }
-    gst_rtp_buffer_unmap(&rtp_buf);
-
-    // This is so the last packet of rtp gets saved
-    stats->udpSrcTimestamp = getCurrentUs();
-    stats->udpStream = stats->udpSrcTimestamp - stats->rtpPayTimestamp;
+//    auto *pair = reinterpret_cast<CamPair *>(data);
+//    bool isLeftCamera = std::string(identity->object.parent->name) == "pipeline_left";
+//    auto stats = isLeftCamera ? pair->first.stats : pair->second.stats;
+//    stats->totalLatency = 0;
+//
+//    GstRTPBuffer rtp_buf = GST_RTP_BUFFER_INIT;
+//    gst_rtp_buffer_map(buffer, GST_MAP_READ, &rtp_buf);
+//    gpointer myInfoBuf = nullptr;
+//    guint size_64 = 8;
+//    guint8 appbits = 1;
+//    if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 0, &myInfoBuf,&size_64) != 0) {
+//        stats->frameId = *(static_cast<uint64_t *>(myInfoBuf));
+//    }
+//    if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 1, &myInfoBuf,&size_64) != 0) {
+//        stats->vidConv = *(static_cast<uint64_t *>(myInfoBuf));
+//    }
+//    if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 2, &myInfoBuf,&size_64) != 0) {
+//        stats->enc = *(static_cast<uint64_t *>(myInfoBuf));
+//    }
+//    if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 3, &myInfoBuf,&size_64) != 0) {
+//        stats->rtpPay = *(static_cast<uint64_t *>(myInfoBuf));
+//    }
+//    if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 4, &myInfoBuf,&size_64) != 0) {
+//        stats->rtpPayTimestamp = *(static_cast<uint64_t *>(myInfoBuf));
+//    }
+//    gst_rtp_buffer_unmap(&rtp_buf);
+//
+//    // This is so the last packet of rtp gets saved
+//    stats->udpSrcTimestamp = getCurrentUs();
+//    stats->udpStream = stats->udpSrcTimestamp - stats->rtpPayTimestamp;
 }
 
 void GstreamerPlayer::onIdentityHandoff(GstElement *identity, GstBuffer *buffer, gpointer data) {

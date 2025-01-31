@@ -548,7 +548,8 @@ void TelepresenceProgram::SendControllerDatagram() {
 //    sendUDPPacket(udpSocket_, userState_);
 
     if (servoCommunicator_ == nullptr) {
-        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_, appState_->streamingConfig);
+        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_,
+                                                                 appState_->streamingConfig);
     }
     if (!servoCommunicator_->servosEnabled()) {
         servoCommunicator_->enableServos(true, threadPool_);
@@ -562,8 +563,11 @@ void TelepresenceProgram::SendControllerDatagram() {
 
         servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation, speed_, threadPool_);
     }
-    if(appState_->robotControlEnabled) {
-        servoCommunicator_->sendOdinControlPacket(userState_.thumbstickPose[Side::LEFT].x, userState_.thumbstickPose[Side::LEFT].y, userState_.thumbstickPose[Side::RIGHT].y, threadPool_);
+    if (appState_->robotControlEnabled) {
+        servoCommunicator_->sendOdinControlPacket(userState_.thumbstickPose[Side::LEFT].y,
+                                                  userState_.thumbstickPose[Side::LEFT].x,
+                                                  userState_.thumbstickPose[Side::RIGHT].x,
+                                                  threadPool_);
     }
 
 //    if (poseServer_ == nullptr) {
@@ -589,6 +593,19 @@ void TelepresenceProgram::InitializeStreaming() {
 }
 
 void TelepresenceProgram::HandleControllers() {
+    static bool controlLock = false;
+    if (userState_.thumbstickPressed[Side::LEFT] && !controlLock) {
+        appState_->robotControlEnabled = !appState_->robotControlEnabled;
+        if(!
+        appState_->robotControlEnabled) {
+            servoCommunicator_->sendOdinControlPacket(0.0f, 0.0f, 0.0f, threadPool_);
+        }
+        controlLock = true;
+    }
+    if (!userState_.thumbstickPressed[Side::LEFT] && controlLock) {
+        controlLock = false;
+    }
+
     // Toggling GUI rendering
     if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.yPressed && !renderGui_)
         renderGui_ = true;
@@ -606,7 +623,8 @@ void TelepresenceProgram::HandleControllers() {
         appState_->guiControl.cooldown -= 1;
     }
 
-    if (renderGui_ && userState_.triggerValue[Side::LEFT] < 0.1 && !appState_->guiControl.changesEnqueued && appState_->guiControl.cooldown == 0) {
+    if (renderGui_ && userState_.triggerValue[Side::LEFT] < 0.1 &&
+        !appState_->guiControl.changesEnqueued && appState_->guiControl.cooldown == 0) {
 
         // Focus move UP
         if (userState_.thumbstickPose[Side::LEFT].y > 0.9f) {

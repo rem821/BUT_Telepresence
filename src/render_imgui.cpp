@@ -180,6 +180,7 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
                 appState->guiControl.focusedElement == -1 // Disabled focus
         );
 
+        ImGui::Text("Robot control: %s", BoolToString(appState->robotControlEnabled));
         ImGui::Text("");
         ImGui::Text("Latencies:");
         auto s = appState->cameraStreamingStates.first.stats;

@@ -197,25 +197,26 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
     });
 }
 
-struct __attribute__((__packed__)) __attribute__((aligned(1))) Drive {
-    float linearSpeedXMps = 0;
-    float linearSpeedYMps = 0;
-    float angularSpeedYawRadps = 0;
-};
-
 void ServoCommunicator::sendOdinControlPacket(float linSpeedX, float linSpeedY, float angSpeed, BS::thread_pool &threadPool) {
     threadPool.push_task([this, linSpeedX, linSpeedY, angSpeed]() {
-        auto linSpeedXBytes = serializeLEFloat(linSpeedX * 0.05);
-        auto linSpeedYBytes = serializeLEFloat(linSpeedY * 0.05);
-        auto angSpeedBytes = serializeLEFloat(angSpeed * 0.25);
+        float x = linSpeedX * 0.25f;
+        float y = -linSpeedY * 0.25f;
+        float a = -angSpeed * 0.25f;
+
+        auto linSpeedXBytes = serializeLEFloat(x);
+        auto linSpeedYBytes = serializeLEFloat(y);
+        auto angSpeedBytes = serializeLEFloat(a);
 
         std::vector<unsigned char> const buffer = {0x23,
-                                                   0x01, 0x00,
+                                                   0x00, 0x01,
                                                    linSpeedXBytes[0], linSpeedXBytes[1], linSpeedXBytes[2], linSpeedXBytes[3],
                                                    linSpeedYBytes[0], linSpeedYBytes[1], linSpeedYBytes[2], linSpeedYBytes[3],
                                                    angSpeedBytes[0], angSpeedBytes[1], angSpeedBytes[2], angSpeedBytes[3],
                                                    0x00, 0x00
         };
+
+        LOG_INFO("Input speedX: %f, serialized: %x, %x, %x, %x", x, linSpeedXBytes[0], linSpeedXBytes[1], linSpeedXBytes[2], linSpeedXBytes[3]);
+        LOG_INFO("Input speedY: %f, serialized: %x, %x, %x, %x", y, linSpeedYBytes[0], linSpeedYBytes[1], linSpeedYBytes[2], linSpeedYBytes[3]);
 
         sendMessage(buffer);
         isReady_ = true;
@@ -224,7 +225,7 @@ void ServoCommunicator::sendOdinControlPacket(float linSpeedX, float linSpeedY, 
 
 bool ServoCommunicator::checkReadiness() const {
     if (!isInitialized()) {
-        LOG_ERROR("ServoCommunicator is not yet initialized!");
+        //LOG_ERROR("ServoCommunicator is not yet initialized!");
         return false;
     }
 
@@ -263,7 +264,7 @@ void ServoCommunicator::setMode(BS::thread_pool &threadPool) {
 
 void ServoCommunicator::sendMessage(const std::vector<unsigned char> &message) {
     if (sendto(socket_, message.data(), message.size(), 0, (sockaddr *) &destAddr_, sizeof(destAddr_)) < 0) {
-        LOG_ERROR("failed to send message");
+        //LOG_ERROR("failed to send message");
     }
     isReady_ = false;
 }

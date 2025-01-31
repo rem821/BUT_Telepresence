@@ -81,12 +81,12 @@ private:
 
     template<typename FloatType>
     [[nodiscard]] inline static std::vector<uint8_t> serializeLEFloat(const FloatType &value) {
-
+        uint64_t shadow = 0;
         // Create a vector to hold the serialized bytes
-        std::vector<uint8_t> data(sizeof(FloatType));
+        memcpy(&shadow, &value, sizeof(FloatType));
 
-        // Copy the binary representation of the float into the vector
-        std::memcpy(data.data(), &value, sizeof(FloatType));
+        std::vector<uint8_t> data;
+        data = serializeLEInt<uint32_t>(shadow);
 
         return data;
     }

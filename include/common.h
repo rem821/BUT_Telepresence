@@ -201,6 +201,11 @@ inline std::vector<uint8_t> StringToIp(const std::string& ipStr) {
     return ip;
 }
 
+inline const char * const BoolToString(bool b)
+{
+    return b ? "true" : "false";
+}
+
 struct CameraStats {
     double prevTimestamp, currTimestamp;
     double fps;
