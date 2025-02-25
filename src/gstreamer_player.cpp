@@ -32,7 +32,7 @@ GstreamerPlayer::GstreamerPlayer(CamPair *camPair) {
 }
 
 void
-GstreamerPlayer::configurePipeline(BS::thread_pool &threadPool, const StreamingConfig &config) {
+GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config) {
     GstBus *bus;
     GSource *bus_source;
     GError *error = nullptr;
@@ -163,7 +163,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool &threadPool, const StreamingC
     gst_element_set_state(pipelineLeft_, GST_STATE_PLAYING);
     gst_element_set_state(pipelineRight_, GST_STATE_PLAYING);
 
-    threadPool.push_task([&]() {
+    threadPool.detach_task([&]() {
         /* Create a GLib Main Loop and set it to run */
         LOG_INFO("GStreamer entering the main loop");
         mainLoop_ = g_main_loop_new(context_, FALSE);

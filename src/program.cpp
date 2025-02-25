@@ -102,7 +102,7 @@ void TelepresenceProgram::RenderFrame() {
 bool TelepresenceProgram::RenderLayer(XrTime displayTime,
                                       std::vector<XrCompositionLayerProjectionView> &layerViews,
                                       XrCompositionLayerProjection &layer) {
-    //TODO: displayTime += 50e6; //Predict 50 ms into the future
+    displayTime += 50e6; //Predict 50 ms into the future
     auto viewCount = viewsurfaces_.size();
     std::vector<XrView> views(viewCount, {XR_TYPE_VIEW});
     openxr_locate_views(&openxr_session_, &displayTime, app_reference_space_, viewCount,
@@ -129,7 +129,7 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
     Quad quad{};
     quad.Pose.position = {0.0f, 0.0f, 0.0f};
     quad.Pose.orientation = {0.0f, 0.0f, 0.0f, 1.0f};
-    quad.Scale = {4.44f, 2.5f, 0.0f};
+    quad.Scale = {3.56f, 2.0f, 0.0f};
 
     for (uint32_t i = 0; i < viewCount; i++) {
         XrSwapchainSubImage subImg;
@@ -589,7 +589,7 @@ void TelepresenceProgram::InitializeStreaming() {
     restClient_->StopStream();
     restClient_->StartStream();
 
-    gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
+    gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig);
 }
 
 void TelepresenceProgram::HandleControllers() {
@@ -613,7 +613,7 @@ void TelepresenceProgram::HandleControllers() {
         renderGui_ = false;
         // Also triggers saving of the Streaming Config for now
         stateStorage_->SaveStreamingConfig(appState_->streamingConfig);
-        gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
+        gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig);
         //servoCommunicator_ = nullptr;
         restClient_->UpdateStreamingConfig(appState_->streamingConfig);
     }

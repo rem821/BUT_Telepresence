@@ -16,8 +16,7 @@ public:
 
     ~GstreamerPlayer() = default;
 
-    void configurePipeline(BS::thread_pool &threadPool, const StreamingConfig &config);
-
+    void configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config);
 
 private:
 
@@ -49,7 +48,7 @@ private:
 
     CamPair *camPair_;
 
-    const std::string jpegPipeline_ = "udpsrc name=udpsrc ! application/x-rtp, encoding-name=JPEG, payload=26 ! queue max-size-bytes=50000000 max-size-time=10000000000 ! identity name=udpsrc_ident ! rtpjpegdepay ! identity name=rtpdepay_ident ! jpegparse ! queue max-size-bytes=50000000 max-size-time=10000000000 ! decodebin3 ! video/x-raw, width=1920,height=1080 ! videoconvert ! video/x-raw,format=RGB ! identity name=dec_ident ! queue max-size-bytes=50000000 max-size-time=10000000000 ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
-    const std::string h264Pipeline_ = "udpsrc name=udpsrc ! application/x-rtp, encoding-name=H264, media=video, clock-rate=90000, payload=96 ! queue max-size-bytes=50000000 max-size-time=10000000000 ! identity name=udpsrc_ident ! rtph264depay ! identity name=rtpdepay_ident ! h264parse ! queue max-size-bytes=50000000 max-size-time=10000000000 ! decodebin3 ! video/x-raw, width=1920,height=1080 ! queue max-size-bytes=50000000 max-size-time=10000000000 ! videoconvert ! video/x-raw,format=RGB ! identity name=dec_ident ! queue ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
+    const std::string jpegPipeline_ = "udpsrc name=udpsrc ! application/x-rtp, encoding-name=JPEG, payload=26 ! identity name=udpsrc_ident ! rtpjpegdepay ! identity name=rtpdepay_ident ! jpegparse ! decodebin3 ! video/x-raw, width=1920,height=1080 ! videoconvert ! video/x-raw,format=RGB ! identity name=dec_ident ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
+    const std::string h264Pipeline_ = "udpsrc name=udpsrc ! application/x-rtp, encoding-name=H264, media=video, clock-rate=90000, payload=96 ! identity name=udpsrc_ident ! rtph264depay ! identity name=rtpdepay_ident ! h264parse ! decodebin3 ! video/x-raw, width=1920,height=1080 ! videoconvert ! video/x-raw,format=RGB ! identity name=dec_ident ! queue ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
 
 };

@@ -12,13 +12,13 @@ constexpr int RESPONSE_MIN_BYTES = 6;
 constexpr unsigned char IDENTIFIER_1 = 0x47;
 constexpr unsigned char IDENTIFIER_2 = 0x54;
 
-constexpr int32_t AZIMUTH_MAX_VALUE = 1'200'000'000;
-constexpr int32_t AZIMUTH_MIN_VALUE = -500'000'000;
+constexpr int32_t AZIMUTH_MAX_VALUE = 1'500'000'000;
+constexpr int32_t AZIMUTH_MIN_VALUE = -700'000'000;
 
-constexpr int32_t ELEVATION_MAX_VALUE = 1'000'000'000;
+constexpr int32_t ELEVATION_MAX_VALUE = 1'400'000'000;
 constexpr int32_t ELEVATION_MIN_VALUE = 100'000;
 
-ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool, StreamingConfig &config) : socket_(socket(AF_INET, SOCK_DGRAM, 0)) {
+ServoCommunicator::ServoCommunicator(BS::thread_pool<BS::tp::none> &threadPool, StreamingConfig &config) : socket_(socket(AF_INET, SOCK_DGRAM, 0)) {
 
     if (socket_ < 0) {
         LOG_ERROR("socket creation failed");
@@ -50,12 +50,12 @@ ServoCommunicator::ServoCommunicator(BS::thread_pool &threadPool, StreamingConfi
     setMode(threadPool);
 }
 
-void ServoCommunicator::resetErrors(BS::thread_pool &threadPool) {
+void ServoCommunicator::resetErrors(BS::thread_pool<BS::tp::none> &threadPool) {
     if (!checkReadiness()) {
         return;
     }
 
-    threadPool.push_task([this]() {
+    threadPool.detach_task([this]() {
         std::vector<unsigned char> const buffer = {IDENTIFIER_1, IDENTIFIER_2,
                                                          Operation::WRITE,
                                                          MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
@@ -75,12 +75,12 @@ void ServoCommunicator::resetErrors(BS::thread_pool &threadPool) {
 }
 
 
-void ServoCommunicator::enableServos(bool enable, BS::thread_pool &threadPool) {
+void ServoCommunicator::enableServos(bool enable, BS::thread_pool<BS::tp::none> &threadPool) {
     if (!checkReadiness()) {
         return;
     }
 
-    threadPool.push_task([this, enable]() {
+    threadFuture_ = threadPool.submit_task([this, enable]() {
         unsigned char const en = enable ? 0x01 : 0x00;
 
         std::vector<unsigned char> const enableBuffer = {IDENTIFIER_1, IDENTIFIER_2,
@@ -106,14 +106,16 @@ void ServoCommunicator::enableServos(bool enable, BS::thread_pool &threadPool) {
             LOG_ERROR("Servos disabled!");
         }
     });
+    threadFuture_.wait();
 }
 
-void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, BS::thread_pool &threadPool) {
+void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, BS::thread_pool<BS::tp::none> &threadPool) {
     if (!checkReadiness()) {
         return;
     }
 
-    threadPool.push_task([this, quatPose, speed]() {
+    //auto beginning = std::chrono::high_resolution_clock::now();
+    threadPool.detach_task([this, quatPose, speed]() {
         auto azimuthElevation = quaternionToAzimuthElevation(quatPose);
 
         auto azimuth_max_side = int32_t((int64_t(AZIMUTH_MAX_VALUE) - AZIMUTH_MIN_VALUE) / 2);
@@ -157,13 +159,16 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
 
         auto speedBytes = serializeLEInt(speed);
 
+        auto frameIdBytes = serializeLEInt(frameId_);
+        frameId_++;
+
         std::vector<unsigned char> const buffer = {IDENTIFIER_1, IDENTIFIER_2,
-                                                        Operation::WRITE_CONTINUOS,
+                                                        Operation::WRITE_CONTINUOUS,
                                                         MessageGroup::AZIMUTH, MessageElement::ANGLE,
                                                         0x02,
                                                         azAngleBytes[0], azAngleBytes[1], azAngleBytes[2], azAngleBytes[3],
                                                         azRevolBytes[0], azRevolBytes[1], azRevolBytes[2], azRevolBytes[3],
-                                                        Operation::WRITE_CONTINUOS,
+                                                        Operation::WRITE_CONTINUOUS,
                                                         MessageGroup::ELEVATION, MessageElement::ANGLE,
                                                         0x02,
                                                         elAngleBytes[0], elAngleBytes[1], elAngleBytes[2], elAngleBytes[3],
@@ -179,26 +184,31 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
                                                         0x01, 0x00, 0x00, 0x00,
                                                         Operation::WRITE,
                                                         MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
-                                                        0x01, 0x00, 0x00, 0x00
+                                                        0x01, 0x00, 0x00, 0x00,
+                                                        frameIdBytes[0], frameIdBytes[1], frameIdBytes[2], frameIdBytes[3], // Additional info only for the TGDrivesRelayScript
         };
 
         while (true) {
             sendMessage(buffer);
-
-            if (waitForResponse({5, 10})) {
-                auto newStamp = std::chrono::high_resolution_clock::now();
-                LOG_ERROR("ServoCommunication FPS: %f ",
-                          1e6f/std::chrono::duration_cast<std::chrono::microseconds>(newStamp - timestamp_).count());
-                timestamp_ = newStamp;
-
-                break;
-            }
+            break;
+            isReady_ = true;
+//            if (waitForResponse({5, 10})) {
+//                auto newStamp = std::chrono::high_resolution_clock::now();
+//                LOG_ERROR("ServoCommunication FPS: %f ",
+//                          1e6f/std::chrono::duration_cast<std::chrono::microseconds>(newStamp - timestamp_).count());
+//                timestamp_ = newStamp;
+//
+//                break;
+//            }
         }
     });
+//    threadFuture_.wait();
+//    auto end = std::chrono::high_resolution_clock::now();
+//    LOG_ERROR("ServoCommunication microseconds: %lld ", std::chrono::duration_cast<std::chrono::microseconds>(end - beginning).count());
 }
 
-void ServoCommunicator::sendOdinControlPacket(float linSpeedX, float linSpeedY, float angSpeed, BS::thread_pool &threadPool) {
-    threadPool.push_task([this, linSpeedX, linSpeedY, angSpeed]() {
+void ServoCommunicator::sendOdinControlPacket(float linSpeedX, float linSpeedY, float angSpeed, BS::thread_pool<BS::tp::none> &threadPool) {
+    threadPool.detach_task([this, linSpeedX, linSpeedY, angSpeed]() {
         float x = linSpeedX * 0.25f;
         float y = -linSpeedY * 0.25f;
         float a = -angSpeed * 0.25f;
@@ -237,8 +247,8 @@ bool ServoCommunicator::checkReadiness() const {
     return true;
 }
 
-void ServoCommunicator::setMode(BS::thread_pool &threadPool) {
-    threadPool.push_task([this]() {
+void ServoCommunicator::setMode(BS::thread_pool<BS::tp::none> &threadPool) {
+    threadPool.detach_task([this]() {
         std::vector<unsigned char> const modeBuffer = {IDENTIFIER_1, IDENTIFIER_2,
                                                        Operation::WRITE,
                                                        MessageGroup::AZIMUTH, MessageElement::MODE,
