@@ -43,8 +43,8 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
     appState_ = std::make_shared<AppState>();
     appState_->streamingConfig = stateStorage_->LoadStreamingConfig();
 
-    gstreamerPlayer_ = std::make_unique<GstreamerPlayer>(&appState_->cameraStreamingStates);
-    //ntpTimer_ = std::make_unique<NtpTimer>(ntpServerAddress_);
+    ntpTimer_ = std::make_unique<NtpTimer>(ntpServerAddress_);
+    gstreamerPlayer_ = std::make_unique<GstreamerPlayer>(&appState_->cameraStreamingStates, ntpTimer_.get());
 
     appState_->systemInfo.openXrRuntime = openxr_get_runtime_name(&openxr_instance_);
     appState_->systemInfo.openXrSystem = openxr_get_system_name(&openxr_instance_,
@@ -546,7 +546,7 @@ void TelepresenceProgram::PollActions() {
 void TelepresenceProgram::SendControllerDatagram() {
 //    if (udpSocket_ == -1) udpSocket_ = createSocket();
 //    sendUDPPacket(udpSocket_, userState_);
-
+    ntpTimer_->SyncWithServer();
     if (servoCommunicator_ == nullptr) {
         servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_,
                                                                  appState_->streamingConfig);

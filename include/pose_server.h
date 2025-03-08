@@ -18,6 +18,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+#include "ntp_timer.h"
+
 class PoseServer {
     // Define priority levels
     enum Priority { SET_MODE = 0, RESET_ERRORS = 1, ENABLE_SERVOS = 2, SET_POSE_AND_SPEED = 3 };
@@ -82,7 +84,7 @@ class PoseServer {
 
 public:
 
-    explicit PoseServer();
+    explicit PoseServer(NtpTimer *ntpTimer);
 
     ~PoseServer() = default;
 
@@ -99,13 +101,6 @@ private:
 
     void processQueue();
 
-    uint64_t getCurrentUs() {
-        struct timespec res{};
-        clock_gettime(CLOCK_REALTIME, &res);
-        int64_t us = 1e6 * res.tv_sec + (int64_t) res.tv_nsec / 1e3;
-        return us;
-    }
-
     template<typename IntType>
     [[nodiscard]] inline static std::vector<uint8_t> serializeLEInt(const IntType &value) {
         std::vector<uint8_t> data{};
@@ -117,6 +112,8 @@ private:
     }
 
     static AzimuthElevation quaternionToAzimuthElevation(XrQuaternionf quat);
+
+    NtpTimer *ntpTimer_;
 
     int socket_;
     struct sockaddr_in myAddr_, clientAddr_;

@@ -2,22 +2,24 @@
 // Created by stand on 05.09.2024.
 //
 #pragma once
-#include <string>
+#include "pch.h"
 
 
 class NtpTimer {
 public:
     NtpTimer(const std::string& ntpServerAddress);
 
-    uint32_t GetCurrentTimeUs();
+    void SyncWithServer();
+
+    [[nodiscard]] uint64_t GetCurrentTimeUs() const;
 
 private:
 
-    void SyncWithServer();
+    static uint64_t GetCurrentTimeUsNonAdjusted();
 
     std::string ntpServerAddress_;
-    uint32_t lastSyncedTimestamp_;
-    uint32_t localTimeOffset_;
-    uint32_t NTP_TIMESTAMP_DELTA = 2208988800U;
-    uint32_t roundTripDelay_;
+    uint64_t lastSyncedTimestampLocal_;
+    int64_t localTimeOffset_;
+    uint64_t NTP_TIMESTAMP_DELTA = 2208988800U;
+    uint64_t roundTripDelay_;
 };

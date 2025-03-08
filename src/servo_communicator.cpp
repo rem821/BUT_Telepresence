@@ -225,8 +225,8 @@ void ServoCommunicator::sendOdinControlPacket(float linSpeedX, float linSpeedY, 
                                                    0x00, 0x00
         };
 
-        LOG_INFO("Input speedX: %f, serialized: %x, %x, %x, %x", x, linSpeedXBytes[0], linSpeedXBytes[1], linSpeedXBytes[2], linSpeedXBytes[3]);
-        LOG_INFO("Input speedY: %f, serialized: %x, %x, %x, %x", y, linSpeedYBytes[0], linSpeedYBytes[1], linSpeedYBytes[2], linSpeedYBytes[3]);
+        //LOG_INFO("Input speedX: %f, serialized: %x, %x, %x, %x", x, linSpeedXBytes[0], linSpeedXBytes[1], linSpeedXBytes[2], linSpeedXBytes[3]);
+        //LOG_INFO("Input speedY: %f, serialized: %x, %x, %x, %x", y, linSpeedYBytes[0], linSpeedYBytes[1], linSpeedYBytes[2], linSpeedYBytes[3]);
 
         sendMessage(buffer);
         isReady_ = true;
