@@ -32,6 +32,20 @@ GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair
     g_main_context_push_thread_default(context_);
 }
 
+
+// Callback function to log packet arrivals
+static GstPadProbeReturn udpPacketProbeCallback(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
+    static auto last_time = std::chrono::steady_clock::now();
+
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count();
+    last_time = now;
+
+    LOG_INFO("[UDP Packet] Arrived. Interval: %lld ms", elapsed);
+
+    return GST_PAD_PROBE_OK;
+}
+
 void
 GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config) {
     GstBus *bus;
@@ -100,6 +114,11 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
     GstElement *leftqueue_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "queue_ident");
 
     GstElement *leftudpsrc = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc");
+    GstPad *pad = gst_element_get_static_pad(leftudpsrc, "src");
+    if (pad) {
+        gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, udpPacketProbeCallback, nullptr, nullptr);
+        gst_object_unref(pad);
+    }
     g_object_set(leftudpsrc, "port", IP_CONFIG_LEFT_CAMERA_PORT, NULL);
     GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "appsink");
     gst_element_set_name(pipelineLeft_, "pipeline_left");
@@ -134,6 +153,11 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
 
     GstElement *rightudpsrc = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc");
     g_object_set(rightudpsrc, "port", IP_CONFIG_RIGHT_CAMERA_PORT, NULL);
+    pad = gst_element_get_static_pad(rightudpsrc, "src");
+    if (pad) {
+        gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, udpPacketProbeCallback, nullptr, nullptr);
+        gst_object_unref(pad);
+    }
     GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "appsink");
     gst_element_set_name(pipelineRight_, "pipeline_right");
     gst_element_set_state(pipelineRight_, GST_STATE_READY);
