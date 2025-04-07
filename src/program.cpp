@@ -44,7 +44,7 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
     appState_->streamingConfig = stateStorage_->LoadStreamingConfig();
     appState_->streamingConfig.headset_ip = GetLocalIPAddr();
 
-    ntpTimer_ = std::make_unique<NtpTimer>(ntpServerAddress_);
+    ntpTimer_ = std::make_unique<NtpTimer>(IpToString(appState_->streamingConfig.jetson_ip));
     gstreamerPlayer_ = std::make_unique<GstreamerPlayer>(&appState_->cameraStreamingStates, ntpTimer_.get());
 
     appState_->systemInfo.openXrRuntime = openxr_get_runtime_name(&openxr_instance_);
