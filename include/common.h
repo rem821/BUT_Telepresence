@@ -201,6 +201,40 @@ inline std::vector<uint8_t> StringToIp(const std::string& ipStr) {
     return ip;
 }
 
+inline std::vector<uint8_t> GetLocalIPAddr() {
+    int sock = socket(PF_INET, SOCK_DGRAM, 0);
+    sockaddr_in loopback{};
+
+    if(sock == -1) {
+        std::cerr << "Error creating socket" << std::endl;
+        return {};
+    }
+
+    std::memset(&loopback, 0, sizeof(loopback));
+    loopback.sin_family = AF_INET;
+    loopback.sin_addr.s_addr = 1337;
+    loopback.sin_port = htons(9);
+
+    if(connect(sock, reinterpret_cast<sockaddr*>(&loopback), sizeof(loopback)) == -1) {
+        close(sock);
+        std::cerr << "Error connecting while getting local IP" << std::endl;
+        return {};
+    }
+
+    socklen_t addrlen = sizeof(loopback);
+    if(getsockname(sock, reinterpret_cast<sockaddr*>(&loopback), &addrlen) == -1) {
+        close(sock);
+        std::cerr << "Error getting local IP" << std::endl;
+        return {};
+    }
+
+    auto ip = std::string(inet_ntoa(loopback.sin_addr));
+    std::cout << "Local IP: " << ip << std::endl;
+    close(sock);
+    auto ipVector = StringToIp(ip);
+    return ipVector;
+}
+
 inline const char * const BoolToString(bool b)
 {
     return b ? "true" : "false";
