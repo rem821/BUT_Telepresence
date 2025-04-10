@@ -302,4 +302,5 @@ struct AppState {
     SystemInfo systemInfo;
     GUIControl guiControl;
     bool robotControlEnabled = true;
+    bool headsetMounted = false;
 };
