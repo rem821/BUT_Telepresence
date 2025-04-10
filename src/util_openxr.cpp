@@ -633,8 +633,7 @@ int openxr_begin_session(XrSession *session) {
     return 0;
 }
 
-int openxr_handle_session_state_changed(XrSession *session, XrEventDataSessionStateChanged &ev,
-                                        bool *exitLoop, bool *reqRestart, bool *mounted) {
+int openxr_handle_session_state_changed(XrSession *session, XrEventDataSessionStateChanged &ev, bool *exitLoop, bool *reqRestart) {
     XrSessionState old_state = s_session_state;
     XrSessionState new_state = ev.state;
     s_session_state = new_state;
@@ -668,19 +667,6 @@ int openxr_handle_session_state_changed(XrSession *session, XrEventDataSessionSt
             *exitLoop = true;
             *reqRestart = true;     // Poll for a new instance.
             break;
-
-        case XR_SESSION_STATE_IDLE:
-            break;
-        case XR_SESSION_STATE_SYNCHRONIZED:
-            *mounted = false;
-            LOG_INFO("[OpenXR] Headset UNMOUNTED");
-            break;
-        case XR_SESSION_STATE_VISIBLE:
-        case XR_SESSION_STATE_FOCUSED:
-            *mounted = true;
-            LOG_INFO("[OpenXR] Headset MOUNTED");
-            break;
-
         default:
             break;
 
@@ -711,7 +697,7 @@ openxr_poll_events(XrInstance *instance, XrSession *session, bool *exit, bool *r
             case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED: {
                 LOG_ERROR("XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED");
                 XrEventDataSessionStateChanged sess_ev = *(XrEventDataSessionStateChanged *) ev;
-                openxr_handle_session_state_changed(session, sess_ev, exit, request_restart, mounted);
+                openxr_handle_session_state_changed(session, sess_ev, exit, request_restart);
                 break;
             }
 
@@ -723,6 +709,18 @@ openxr_poll_events(XrInstance *instance, XrSession *session, bool *exit, bool *r
                 LOG_ERROR("XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING");
                 break;
 
+            case XR_TYPE_EVENT_DATA_USER_PRESENCE_CHANGED_EXT: {
+                LOG_ERROR("XR_TYPE_EVENT_DATA_USER_PRESENCE_CHANGED_EXT");
+                XrEventDataUserPresenceChangedEXT presence_ev = *(XrEventDataUserPresenceChangedEXT *) ev;
+                if (presence_ev.isUserPresent == XR_TRUE) {
+                    LOG_INFO("User is present");
+                    *mounted = true;
+                } else {
+                    LOG_INFO("User is not present");
+                    *mounted = false;
+                }
+                break;
+            }
             default:
                 LOG_ERROR("Unknown event type %d", ev->type);
                 break;

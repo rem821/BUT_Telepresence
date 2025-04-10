@@ -102,8 +102,7 @@ XrSpace openxr_create_action_space(XrSession *session, XrAction action, XrPath p
 
 int openxr_begin_session(XrSession *session);
 
-int openxr_handle_session_state_changed(XrSession *session, XrEventDataSessionStateChanged &ev,
-                                        bool *exitLoop, bool *reqRestart, bool *mounted);
+int openxr_handle_session_state_changed(XrSession *session, XrEventDataSessionStateChanged &ev, bool *exitLoop, bool *reqRestart);
 
 bool openxr_is_session_running();
 
