@@ -23,33 +23,30 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
     egl_init_with_pbuffer_surface();
     openxr_confirm_gfx_reqs(&openxr_instance_, &openxr_system_id_);
 
-    init_scene();
-
-    openxr_create_session(&openxr_instance_, &openxr_system_id_, &openxr_session_);
-    openxr_log_reference_spaces(&openxr_session_);
-    openxr_create_reference_spaces(&openxr_session_, reference_spaces_);
-    app_reference_space_ = reference_spaces_[0]; // "ViewFront"
-
-    viewsurfaces_ = openxr_create_swapchains(&openxr_instance_, &openxr_system_id_,
-                                             &openxr_session_);
-
-    testFrame_ = new unsigned char[1920 * 1080 * 3];
-    for (int i = 0; i < 1920 * 1080 * 3; ++i) {
-        testFrame_[i] = rand() % 255;  // Generate a random number between 0 and 254
-    }
-
     stateStorage_ = std::make_unique<StateStorage>(app);
 
     appState_ = std::make_shared<AppState>();
     appState_->streamingConfig = stateStorage_->LoadStreamingConfig();
     appState_->streamingConfig.headset_ip = GetLocalIPAddr();
 
+    init_scene(CAMERA_FRAME_HORIZONTAL_RESOLUTION, CAMERA_FRAME_VERTICAL_RESOLUTION);
+
+    openxr_create_session(&openxr_instance_, &openxr_system_id_, &openxr_session_);
+    openxr_log_reference_spaces(&openxr_session_);
+    openxr_create_reference_spaces(&openxr_session_, reference_spaces_);
+    app_reference_space_ = reference_spaces_[0]; // "ViewFront"
+
+    viewsurfaces_ = openxr_create_swapchains(&openxr_instance_, &openxr_system_id_, &openxr_session_);
+//    testFrame_ = new unsigned char[CAMERA_FRAME_HORIZONTAL_RESOLUTION * CAMERA_FRAME_VERTICAL_RESOLUTION * 3];
+//    for (int i = 0; i < CAMERA_FRAME_HORIZONTAL_RESOLUTION * CAMERA_FRAME_VERTICAL_RESOLUTION * 3; ++i) {
+//        testFrame_[i] = rand() % 255;  // Generate a random number between 0 and 254
+//    }
+
     ntpTimer_ = std::make_unique<NtpTimer>(IpToString(appState_->streamingConfig.jetson_ip));
     gstreamerPlayer_ = std::make_unique<GstreamerPlayer>(&appState_->cameraStreamingStates, ntpTimer_.get());
 
     appState_->systemInfo.openXrRuntime = openxr_get_runtime_name(&openxr_instance_);
-    appState_->systemInfo.openXrSystem = openxr_get_system_name(&openxr_instance_,
-                                                                &openxr_system_id_);
+    appState_->systemInfo.openXrSystem = openxr_get_system_name(&openxr_instance_, &openxr_system_id_);
     appState_->systemInfo.openGlVersion = glGetString(GL_VERSION);
     appState_->systemInfo.openGlVendor = glGetString(GL_VENDOR);
     appState_->systemInfo.openGlRenderer = glGetString(GL_RENDERER);
@@ -130,7 +127,12 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
     Quad quad{};
     quad.Pose.position = {0.0f, 0.0f, 0.0f};
     quad.Pose.orientation = {0.0f, 0.0f, 0.0f, 1.0f};
-    quad.Scale = {3.56f, 2.0f, 0.0f};
+    bool fullscreen = true;
+    if(!fullscreen) {
+        quad.Scale = {3.56f, 3.56f / CAMERA_FRAME_ASPECT_RATIO, 0.0f};
+    } else {
+        quad.Scale = {3.56f * CAMERA_FRAME_ASPECT_RATIO , 3.56f, 0.0f};
+    }
 
     for (uint32_t i = 0; i < viewCount; i++) {
         XrSwapchainSubImage subImg;
@@ -143,12 +145,12 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
         layerViews[i].fov = views[i].fov;
         layerViews[i].subImage = subImg;
 
-        void *imageHandle = i == 0 ? appState_->cameraStreamingStates.second.dataHandle
-                                   : appState_->cameraStreamingStates.first.dataHandle;
+        CameraFrame *imageHandle = i == 0 ? &appState_->cameraStreamingStates.second
+                                   : &appState_->cameraStreamingStates.first;
 
         HandleControllers();
 
-        if (mono_) imageHandle = appState_->cameraStreamingStates.first.dataHandle;
+        if (mono_) imageHandle = &appState_->cameraStreamingStates.first;
 
         render_scene(layerViews[i], rtarget, quad, appState_, imageHandle, renderGui_);
 

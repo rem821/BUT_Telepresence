@@ -41,8 +41,8 @@ void StateStorage::SaveStreamingConfig(const StreamingConfig &streamingConfig) {
         SaveKeyValuePair(editor, putString, "codec", streamingConfig.codec);
         SaveKeyValuePair(editor, putString, "encoding_quality", streamingConfig.encodingQuality);
         SaveKeyValuePair(editor, putString, "bitrate", streamingConfig.bitrate);
-        SaveKeyValuePair(editor, putString, "horizontal_resolution", streamingConfig.horizontalResolution);
-        SaveKeyValuePair(editor, putString, "vertical_resolution", streamingConfig.verticalResolution);
+        SaveKeyValuePair(editor, putString, "horizontal_resolution", CAMERA_FRAME_HORIZONTAL_RESOLUTION);
+        SaveKeyValuePair(editor, putString, "vertical_resolution", CAMERA_FRAME_VERTICAL_RESOLUTION);
         SaveKeyValuePair(editor, putString, "video_mode", streamingConfig.videoMode);
         SaveKeyValuePair(editor, putString, "fps", streamingConfig.fps);
     }

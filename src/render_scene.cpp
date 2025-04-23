@@ -13,8 +13,6 @@
 
 #include "render_scene.h"
 
-static int TEXTURE_WIDTH = 1920;
-static int TEXTURE_HEIGHT = 1080;
 static const std::array<float, 4> CLEAR_COLOR{0.05f, 0.05f, 0.05f, 1.0f};
 
 static int GUI_WIDTH = 300;
@@ -77,27 +75,25 @@ static const char *GuiFragmentShaderGlsl = R"_(#version 320 es
     }
 )_";
 
-void init_scene() {
+void init_scene(const int textureWidth, const int textureHeight) {
     generate_shader(&image_shader_object, ImageVertexShaderGlsl, ImageFragmentShaderGlsl);
     generate_shader(&gui_shader_object, GuiVertexShaderGlsl, GuiFragmentShaderGlsl);
-    init_image_plane();
+    init_image_plane(textureWidth, textureHeight);
     init_imgui(GUI_WIDTH, GUI_HEIGHT);
     init_texplate();
 
     create_render_target(&gui_render_target, GUI_WIDTH, GUI_HEIGHT);
 }
 
-void init_image_plane() {
+void init_image_plane(const int textureWidth, const int textureHeight) {
 
     glGenBuffers(1, &cubeVertexBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, cubeVertexBuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Geometry::c_quadVertices), Geometry::c_quadVertices,
-                 GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Geometry::c_quadVertices), Geometry::c_quadVertices, GL_STATIC_DRAW);
 
     glGenBuffers(1, &cubeIndexBuffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeIndexBuffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Geometry::c_quadIndices), Geometry::c_quadIndices,
-                 GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Geometry::c_quadIndices), Geometry::c_quadIndices, GL_STATIC_DRAW);
 
     vertexAttribCoords = image_shader_object.loc_position;
     vertexAttribTexCoords = image_shader_object.loc_tex_coord;
@@ -121,15 +117,14 @@ void init_image_plane() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_SRGB,
-                 GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, textureWidth, textureHeight, 0, GL_SRGB, GL_UNSIGNED_BYTE, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void render_scene(const XrCompositionLayerProjectionView &layerView,
                   render_target_t &rtarget, const Quad &quad,
                   const std::shared_ptr<AppState> &appState,
-                  const void *image, bool drawGui) {
+                  const CameraFrame *cameraFrame, bool drawGui) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, rtarget.fbo_id);
     glViewport(
@@ -163,14 +158,14 @@ void render_scene(const XrCompositionLayerProjectionView &layerView,
     XrMatrix4x4f vp;
     XrMatrix4x4f_Multiply(&vp, &proj, &view);
 
-    draw_image_plane(vp, quad, image);
+    draw_image_plane(vp, quad, cameraFrame);
     if (drawGui) draw_imgui(vp, appState);
     
     glUseProgram(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-int draw_image_plane(const XrMatrix4x4f &vp, const Quad &quad, const void *image) {
+int draw_image_plane(const XrMatrix4x4f &vp, const Quad &quad, const CameraFrame *cameraFrame) {
 
     glUseProgram(image_shader_object.program);
 
@@ -185,8 +180,7 @@ int draw_image_plane(const XrMatrix4x4f &vp, const Quad &quad, const void *image
                        reinterpret_cast<const GLfloat *>(&mvp));
 
     glBindTexture(GL_TEXTURE_2D, texture2D);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_SRGB,
-                 GL_UNSIGNED_BYTE, image);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, CAMERA_FRAME_HORIZONTAL_RESOLUTION, CAMERA_FRAME_VERTICAL_RESOLUTION, 0, GL_SRGB, GL_UNSIGNED_BYTE, cameraFrame->dataHandle);
 
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)),
                    GL_UNSIGNED_SHORT, nullptr);

@@ -1,7 +1,7 @@
 #include "gstreamer_player.h"
 #include <ctime>
 #include <gst/rtp/rtp.h>
-
+#include <fmt/format.h>
 
 GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair_(camPair),
                                                                          ntpTimer_(ntpTimer) {
@@ -107,6 +107,8 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         throw std::runtime_error("Unable to build pipeline!");
     }
 
+    std::string xDimString = fmt::format("{},{}", config.horizontalResolution, config.verticalResolution);
+
 
     GstElement *leftudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc_ident");
     GstElement *leftrtpdepay_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "rtpdepay_ident");
@@ -120,6 +122,18 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(pad);
     }
     g_object_set(leftudpsrc, "port", IP_CONFIG_LEFT_CAMERA_PORT, NULL);
+
+    //TODO: Modify for different codecs
+    GstElement* rtp_capsfilter_left = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "rtp_capsfilter");
+    GstCaps *new_caps_left = gst_caps_new_simple("application/x-rtp",
+                                            "encoding-name", G_TYPE_STRING, "JPEG",
+                                            "payload", G_TYPE_INT, 26,
+                                            "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
+                                            NULL);
+    g_object_set(rtp_capsfilter_left, "caps", new_caps_left, NULL);
+    gst_caps_unref(new_caps_left);
+    gst_object_unref(rtp_capsfilter_left);
+
     GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "appsink");
     gst_element_set_name(pipelineLeft_, "pipeline_left");
     gst_element_set_state(pipelineLeft_, GST_STATE_READY);
@@ -158,16 +172,34 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, udpPacketProbeCallback, nullptr, nullptr);
         gst_object_unref(pad);
     }
+
+    //TODO: Modify for different codecs
+    GstElement* rtp_capsfilter_right = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtp_capsfilter");
+    GstCaps *new_caps_right = gst_caps_new_simple("application/x-rtp",
+                                            "encoding-name", G_TYPE_STRING, "JPEG",
+                                            "payload", G_TYPE_INT, 26,
+                                            "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
+                                            NULL);
+    g_object_set(rtp_capsfilter_right, "caps", new_caps_right, NULL);
+    gst_caps_unref(new_caps_right);
+    gst_object_unref(rtp_capsfilter_right);
+
     GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "appsink");
     gst_element_set_name(pipelineRight_, "pipeline_right");
     gst_element_set_state(pipelineRight_, GST_STATE_READY);
 
     bus = gst_element_get_bus(pipelineRight_);
     bus_source = gst_bus_create_watch(bus);
-    g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr,
-                          nullptr);
+    g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
     g_source_attach(bus_source, context_);
     g_source_unref(bus_source);
+
+    camPair_->first.frameWidth = config.horizontalResolution;
+    camPair_->first.frameHeight = config.verticalResolution;
+    camPair_->second.frameWidth = config.horizontalResolution;
+    camPair_->second.frameHeight = config.verticalResolution;
+    camPair_->first.memorySize = camPair_->first.frameWidth * camPair_->first.frameHeight * 3;
+    camPair_->second.memorySize = camPair_->second.frameWidth * camPair_->second.frameHeight * 3;
 
     g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineRight_);
     g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineRight_);

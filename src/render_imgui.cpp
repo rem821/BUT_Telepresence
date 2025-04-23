@@ -174,8 +174,8 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
         );
         focusable_text(
                 fmt::format("Resolution: {}x{} @ {} FPS",
-                            appState->streamingConfig.horizontalResolution,
-                            appState->streamingConfig.verticalResolution,
+                            CAMERA_FRAME_HORIZONTAL_RESOLUTION,
+                            CAMERA_FRAME_VERTICAL_RESOLUTION,
                             appState->streamingConfig.fps),
                 appState->guiControl.focusedElement == -1 // Disabled focus
         );
