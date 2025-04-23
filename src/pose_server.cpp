@@ -18,8 +18,8 @@ constexpr int32_t AZIMUTH_MIN_VALUE = -500'000'000;
 constexpr int32_t ELEVATION_MAX_VALUE = 1'000'000'000;
 constexpr int32_t ELEVATION_MIN_VALUE = 100'000;
 
-PoseServer::PoseServer()
-        : socket_(socket(AF_INET, SOCK_DGRAM, 0)), trigger_(false),
+PoseServer::PoseServer(NtpTimer *ntpTimer)
+        : ntpTimer_(ntpTimer), socket_(socket(AF_INET, SOCK_DGRAM, 0)), trigger_(false),
           clientAddrLen_(sizeof(clientAddr_)) {
 
     if (socket_ < 0) {
@@ -48,7 +48,7 @@ void PoseServer::listenForTrigger() {
         char buffer[1024];
         ssize_t received = recvfrom(socket_, buffer, sizeof(buffer) - 1, 0,
                                     (sockaddr *) &clientAddr_, &clientAddrLen_);
-        commStart_ = getCurrentUs();
+        commStart_ = ntpTimer_->GetCurrentTimeUs();
 
         if (received > 0) {
             buffer[received] = '\0';  // Null-terminate the received data
@@ -90,7 +90,7 @@ void PoseServer::sendMessage(const std::vector<unsigned char> &message) {
         LOG_ERROR("Failed to send message to client address");
     }
     uint64_t commPrevEnd = commEnd_;
-    commEnd_ = getCurrentUs();
+    commEnd_ = ntpTimer_->GetCurrentTimeUs();
     float fps = 1e6f / float(commEnd_ - commPrevEnd);
     LOG_ERROR("Pose server took %f to respond. Running with %f FPS", (commEnd_ - commStart_)/1000.0, fps);
 }

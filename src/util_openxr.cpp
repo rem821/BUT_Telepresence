@@ -57,7 +57,8 @@ void openxr_create_instance(android_app *app, XrInstance *instance) {
 
     // Transform platform and graphics extension std::strings to C strings.
     const std::vector<const char *> extensions = {XR_KHR_ANDROID_CREATE_INSTANCE_EXTENSION_NAME,
-                                                  XR_KHR_OPENGL_ES_ENABLE_EXTENSION_NAME};
+                                                  XR_KHR_OPENGL_ES_ENABLE_EXTENSION_NAME,
+                                                  XR_EXT_USER_PRESENCE_EXTENSION_NAME};
 
     XrInstanceCreateInfoAndroidKHR instance_create_info = {
             XR_TYPE_INSTANCE_CREATE_INFO_ANDROID_KHR};
@@ -433,7 +434,6 @@ void openxr_allocate_swapchain_rendertargets(viewsurface_t &viewsurface) {
                                            (XrSwapchainImageBaseHeader *) swapchain_images))
 
 
-
     for (uint32_t i = 0; i < imageCount; i++) {
         GLuint tex_c = swapchain_images[i].image;
         GLuint tex_z = 0;
@@ -633,8 +633,7 @@ int openxr_begin_session(XrSession *session) {
     return 0;
 }
 
-int openxr_handle_session_state_changed(XrSession *session, XrEventDataSessionStateChanged &ev,
-                                        bool *exitLoop, bool *reqRestart) {
+int openxr_handle_session_state_changed(XrSession *session, XrEventDataSessionStateChanged &ev, bool *exitLoop, bool *reqRestart) {
     XrSessionState old_state = s_session_state;
     XrSessionState new_state = ev.state;
     s_session_state = new_state;
@@ -668,9 +667,9 @@ int openxr_handle_session_state_changed(XrSession *session, XrEventDataSessionSt
             *exitLoop = true;
             *reqRestart = true;     // Poll for a new instance.
             break;
-
         default:
             break;
+
     }
     return 0;
 }
@@ -681,7 +680,7 @@ bool openxr_is_session_running() {
 
 
 int
-openxr_poll_events(XrInstance *instance, XrSession *session, bool *exit, bool *request_restart) {
+openxr_poll_events(XrInstance *instance, XrSession *session, bool *exit, bool *request_restart, bool *mounted) {
     *exit = false;
     *request_restart = false;
 
@@ -710,6 +709,18 @@ openxr_poll_events(XrInstance *instance, XrSession *session, bool *exit, bool *r
                 LOG_ERROR("XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING");
                 break;
 
+            case XR_TYPE_EVENT_DATA_USER_PRESENCE_CHANGED_EXT: {
+                LOG_ERROR("XR_TYPE_EVENT_DATA_USER_PRESENCE_CHANGED_EXT");
+                XrEventDataUserPresenceChangedEXT presence_ev = *(XrEventDataUserPresenceChangedEXT *) ev;
+                if (presence_ev.isUserPresent == XR_TRUE) {
+                    LOG_INFO("User is present");
+                    *mounted = true;
+                } else {
+                    LOG_INFO("User is not present");
+                    *mounted = false;
+                }
+                break;
+            }
             default:
                 LOG_ERROR("Unknown event type %d", ev->type);
                 break;
@@ -757,7 +768,7 @@ int openxr_locate_views(XrSession *session, XrTime *displayTime, XrSpace space, 
     uint32_t viewCountOutput;
 
     auto res = CHECK_XRCMD(xrLocateViews(*session, &viewLocateInfo, &viewState, viewCapacityInput,
-                             &viewCountOutput, view_array));
+                                         &viewCountOutput, view_array));
     CHECK_XRRESULT(res, "xrLocateViews")
     if ((viewState.viewStateFlags & XR_VIEW_STATE_POSITION_VALID_BIT) == 0 ||
         (viewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT) == 0) {
@@ -772,21 +783,32 @@ int openxr_locate_views(XrSession *session, XrTime *displayTime, XrSpace space, 
 
 std::string openxr_get_runtime_name(XrInstance *instance) {
     XrInstanceProperties prop = {XR_TYPE_INSTANCE_PROPERTIES};
-    xrGetInstanceProperties (*instance, &prop);
+    xrGetInstanceProperties(*instance, &prop);
 
     char strbuf[128];
-    snprintf (strbuf, 127, "%s (%u.%u.%u)", prop.runtimeName,
-              XR_VERSION_MAJOR (prop.runtimeVersion),
-              XR_VERSION_MINOR (prop.runtimeVersion),
-              XR_VERSION_PATCH (prop.runtimeVersion));
+    snprintf(strbuf, 127, "%s (%u.%u.%u)", prop.runtimeName,
+             XR_VERSION_MAJOR (prop.runtimeVersion),
+             XR_VERSION_MINOR (prop.runtimeVersion),
+             XR_VERSION_PATCH (prop.runtimeVersion));
     std::string runtime_name = strbuf;
     return runtime_name;
 }
 
-std::string openxr_get_system_name(XrInstance *instance, XrSystemId* system_id) {
+std::string openxr_get_system_name(XrInstance *instance, XrSystemId *system_id) {
     XrSystemProperties prop = {XR_TYPE_SYSTEM_PROPERTIES};
-    xrGetSystemProperties (*instance, *system_id, &prop);
+    xrGetSystemProperties(*instance, *system_id, &prop);
 
     std::string sys_name = prop.systemName;
     return sys_name;
+}
+
+void openxr_has_user_presence_capability(XrInstance *instance, XrSystemId *system_id) {
+    XrSystemUserPresencePropertiesEXT presenceProps = {XR_TYPE_SYSTEM_USER_PRESENCE_PROPERTIES_EXT};
+    XrSystemProperties sysProps = {XR_TYPE_SYSTEM_PROPERTIES, &presenceProps};
+    CHECK_XRCMD(xrGetSystemProperties(*instance, *system_id, &sysProps))
+    if (presenceProps.supportsUserPresence) {
+        LOG_INFO("System supports user presence");
+    } else {
+        LOG_INFO("System doesn't support user presence");
+    }
 }

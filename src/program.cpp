@@ -23,32 +23,30 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
     egl_init_with_pbuffer_surface();
     openxr_confirm_gfx_reqs(&openxr_instance_, &openxr_system_id_);
 
-    init_scene();
+    stateStorage_ = std::make_unique<StateStorage>(app);
+
+    appState_ = std::make_shared<AppState>();
+    appState_->streamingConfig = stateStorage_->LoadStreamingConfig();
+    appState_->streamingConfig.headset_ip = GetLocalIPAddr();
+
+    init_scene(CAMERA_FRAME_HORIZONTAL_RESOLUTION, CAMERA_FRAME_VERTICAL_RESOLUTION);
 
     openxr_create_session(&openxr_instance_, &openxr_system_id_, &openxr_session_);
     openxr_log_reference_spaces(&openxr_session_);
     openxr_create_reference_spaces(&openxr_session_, reference_spaces_);
     app_reference_space_ = reference_spaces_[0]; // "ViewFront"
 
-    viewsurfaces_ = openxr_create_swapchains(&openxr_instance_, &openxr_system_id_,
-                                             &openxr_session_);
+    viewsurfaces_ = openxr_create_swapchains(&openxr_instance_, &openxr_system_id_, &openxr_session_);
+//    testFrame_ = new unsigned char[CAMERA_FRAME_HORIZONTAL_RESOLUTION * CAMERA_FRAME_VERTICAL_RESOLUTION * 3];
+//    for (int i = 0; i < CAMERA_FRAME_HORIZONTAL_RESOLUTION * CAMERA_FRAME_VERTICAL_RESOLUTION * 3; ++i) {
+//        testFrame_[i] = rand() % 255;  // Generate a random number between 0 and 254
+//    }
 
-    testFrame_ = new unsigned char[1920 * 1080 * 3];
-    for (int i = 0; i < 1920 * 1080 * 3; ++i) {
-        testFrame_[i] = rand() % 255;  // Generate a random number between 0 and 254
-    }
-
-    stateStorage_ = std::make_unique<StateStorage>(app);
-
-    appState_ = std::make_shared<AppState>();
-    appState_->streamingConfig = stateStorage_->LoadStreamingConfig();
-
-    gstreamerPlayer_ = std::make_unique<GstreamerPlayer>(&appState_->cameraStreamingStates);
-    //ntpTimer_ = std::make_unique<NtpTimer>(ntpServerAddress_);
+    ntpTimer_ = std::make_unique<NtpTimer>(IpToString(appState_->streamingConfig.jetson_ip));
+    gstreamerPlayer_ = std::make_unique<GstreamerPlayer>(&appState_->cameraStreamingStates, ntpTimer_.get());
 
     appState_->systemInfo.openXrRuntime = openxr_get_runtime_name(&openxr_instance_);
-    appState_->systemInfo.openXrSystem = openxr_get_system_name(&openxr_instance_,
-                                                                &openxr_system_id_);
+    appState_->systemInfo.openXrSystem = openxr_get_system_name(&openxr_instance_, &openxr_system_id_);
     appState_->systemInfo.openGlVersion = glGetString(GL_VERSION);
     appState_->systemInfo.openGlVendor = glGetString(GL_VENDOR);
     appState_->systemInfo.openGlRenderer = glGetString(GL_RENDERER);
@@ -63,7 +61,7 @@ TelepresenceProgram::~TelepresenceProgram() {
 
 void TelepresenceProgram::UpdateFrame() {
     bool exit, request_restart;
-    openxr_poll_events(&openxr_instance_, &openxr_session_, &exit, &request_restart);
+    openxr_poll_events(&openxr_instance_, &openxr_session_, &exit, &request_restart, &appState_->headsetMounted);
 
     if (!openxr_is_session_running()) {
         return;
@@ -102,7 +100,7 @@ void TelepresenceProgram::RenderFrame() {
 bool TelepresenceProgram::RenderLayer(XrTime displayTime,
                                       std::vector<XrCompositionLayerProjectionView> &layerViews,
                                       XrCompositionLayerProjection &layer) {
-    //TODO: displayTime += 50e6; //Predict 50 ms into the future
+    displayTime += 50e6; //Predict 50 ms into the future
     auto viewCount = viewsurfaces_.size();
     std::vector<XrView> views(viewCount, {XR_TYPE_VIEW});
     openxr_locate_views(&openxr_session_, &displayTime, app_reference_space_, viewCount,
@@ -129,7 +127,12 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
     Quad quad{};
     quad.Pose.position = {0.0f, 0.0f, 0.0f};
     quad.Pose.orientation = {0.0f, 0.0f, 0.0f, 1.0f};
-    quad.Scale = {4.44f, 2.5f, 0.0f};
+    bool fullscreen = true;
+    if(!fullscreen) {
+        quad.Scale = {3.56f, 3.56f / CAMERA_FRAME_ASPECT_RATIO, 0.0f};
+    } else {
+        quad.Scale = {3.56f * CAMERA_FRAME_ASPECT_RATIO , 3.56f, 0.0f};
+    }
 
     for (uint32_t i = 0; i < viewCount; i++) {
         XrSwapchainSubImage subImg;
@@ -142,12 +145,12 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
         layerViews[i].fov = views[i].fov;
         layerViews[i].subImage = subImg;
 
-        void *imageHandle = i == 0 ? appState_->cameraStreamingStates.second.dataHandle
-                                   : appState_->cameraStreamingStates.first.dataHandle;
+        CameraFrame *imageHandle = i == 0 ? &appState_->cameraStreamingStates.second
+                                   : &appState_->cameraStreamingStates.first;
 
         HandleControllers();
 
-        if (mono_) imageHandle = appState_->cameraStreamingStates.first.dataHandle;
+        if (mono_) imageHandle = &appState_->cameraStreamingStates.first;
 
         render_scene(layerViews[i], rtarget, quad, appState_, imageHandle, renderGui_);
 
@@ -285,63 +288,50 @@ void TelepresenceProgram::InitializeActions() {
                                                        Side::COUNT,
                                                        input_.handSubactionPath.data());
 
+//    openxr_has_user_presence_capability(&openxr_instance_, &openxr_system_id_);
+//    // User presence action
+//    input_.userPresenceAction = openxr_create_action(&input_.actionSet,
+//                                                     XR_ACTION_TYPE_BOOLEAN_INPUT,
+//                                                     "user_presence",
+//                                                     "User Presence",
+//                                                     0,
+//                                                     nullptr);
+
+
     std::vector<XrActionSuggestedBinding> bindings;
-    bindings.push_back(
-            {input_.quitAction, openxr_string2path(&openxr_instance_, HANDL_IN"/menu/click")});
-    bindings.push_back(
-            {input_.quitAction, openxr_string2path(&openxr_instance_, HANDR_IN"/menu/click")});
-    openxr_bind_interaction(&openxr_instance_, "/interaction_profiles/khr/simple_controller",
-                            bindings);
+    bindings.push_back({input_.quitAction, openxr_string2path(&openxr_instance_, HANDL_IN"/menu/click")});
+    bindings.push_back({input_.quitAction, openxr_string2path(&openxr_instance_, HANDR_IN"/menu/click")});
+    openxr_bind_interaction(&openxr_instance_, "/interaction_profiles/khr/simple_controller", bindings);
 
     std::vector<XrActionSuggestedBinding> touch_bindings;
-    touch_bindings.push_back(
-            {input_.quitAction, openxr_string2path(&openxr_instance_, HANDL_IN"/menu/click")});
-    touch_bindings.push_back({input_.controllerPoseAction,
-                              openxr_string2path(&openxr_instance_, HANDL_IN"/aim/pose")});
-    touch_bindings.push_back({input_.controllerPoseAction,
-                              openxr_string2path(&openxr_instance_, HANDR_IN"/aim/pose")});
-    touch_bindings.push_back({input_.thumbstickPoseAction,
-                              openxr_string2path(&openxr_instance_, HANDL_IN"/thumbstick")});
-    touch_bindings.push_back({input_.thumbstickPoseAction,
-                              openxr_string2path(&openxr_instance_, HANDR_IN"/thumbstick")});
-    touch_bindings.push_back({input_.thumbstickPressedAction,
-                              openxr_string2path(&openxr_instance_, HANDL_IN"/thumbstick/click")});
-    touch_bindings.push_back({input_.thumbstickPressedAction,
-                              openxr_string2path(&openxr_instance_, HANDR_IN"/thumbstick/click")});
-    touch_bindings.push_back({input_.thumbstickTouchedAction,
-                              openxr_string2path(&openxr_instance_, HANDL_IN"/thumbstick/touch")});
-    touch_bindings.push_back({input_.thumbstickTouchedAction,
-                              openxr_string2path(&openxr_instance_, HANDR_IN"/thumbstick/touch")});
-    touch_bindings.push_back({input_.buttonAPressedAction,
-                              openxr_string2path(&openxr_instance_, HANDR_IN"/a/click")});
-    touch_bindings.push_back({input_.buttonATouchedAction,
-                              openxr_string2path(&openxr_instance_, HANDR_IN"/a/touch")});
-    touch_bindings.push_back({input_.buttonBPressedAction,
-                              openxr_string2path(&openxr_instance_, HANDR_IN"/b/click")});
-    touch_bindings.push_back({input_.buttonBTouchedAction,
-                              openxr_string2path(&openxr_instance_, HANDR_IN"/b/touch")});
-    touch_bindings.push_back({input_.buttonXPressedAction,
-                              openxr_string2path(&openxr_instance_, HANDL_IN"/x/click")});
-    touch_bindings.push_back({input_.buttonXTouchedAction,
-                              openxr_string2path(&openxr_instance_, HANDL_IN"/x/touch")});
-    touch_bindings.push_back({input_.buttonYPressedAction,
-                              openxr_string2path(&openxr_instance_, HANDL_IN"/y/click")});
-    touch_bindings.push_back({input_.buttonYTouchedAction,
-                              openxr_string2path(&openxr_instance_, HANDL_IN"/y/touch")});
-    touch_bindings.push_back({input_.squeezeValueAction,
-                              openxr_string2path(&openxr_instance_, HANDL_IN"/squeeze/value")});
-    touch_bindings.push_back({input_.squeezeValueAction,
-                              openxr_string2path(&openxr_instance_, HANDR_IN"/squeeze/value")});
-    touch_bindings.push_back({input_.triggerValueAction,
-                              openxr_string2path(&openxr_instance_, HANDL_IN"/trigger/value")});
-    touch_bindings.push_back({input_.triggerValueAction,
-                              openxr_string2path(&openxr_instance_, HANDR_IN"/trigger/value")});
-    touch_bindings.push_back({input_.triggerTouchedAction,
-                              openxr_string2path(&openxr_instance_, HANDL_IN"/trigger/touch")});
-    touch_bindings.push_back({input_.triggerTouchedAction,
-                              openxr_string2path(&openxr_instance_, HANDR_IN"/trigger/touch")});
-    openxr_bind_interaction(&openxr_instance_, "/interaction_profiles/oculus/touch_controller",
-                            touch_bindings);
+    touch_bindings.push_back({input_.quitAction, openxr_string2path(&openxr_instance_, HANDL_IN"/menu/click")});
+    touch_bindings.push_back({input_.controllerPoseAction, openxr_string2path(&openxr_instance_, HANDL_IN"/aim/pose")});
+    touch_bindings.push_back({input_.controllerPoseAction, openxr_string2path(&openxr_instance_, HANDR_IN"/aim/pose")});
+    touch_bindings.push_back({input_.thumbstickPoseAction, openxr_string2path(&openxr_instance_, HANDL_IN"/thumbstick")});
+    touch_bindings.push_back({input_.thumbstickPoseAction, openxr_string2path(&openxr_instance_, HANDR_IN"/thumbstick")});
+    touch_bindings.push_back({input_.thumbstickPressedAction, openxr_string2path(&openxr_instance_, HANDL_IN"/thumbstick/click")});
+    touch_bindings.push_back({input_.thumbstickPressedAction, openxr_string2path(&openxr_instance_, HANDR_IN"/thumbstick/click")});
+    touch_bindings.push_back({input_.thumbstickTouchedAction, openxr_string2path(&openxr_instance_, HANDL_IN"/thumbstick/touch")});
+    touch_bindings.push_back({input_.thumbstickTouchedAction, openxr_string2path(&openxr_instance_, HANDR_IN"/thumbstick/touch")});
+    touch_bindings.push_back({input_.buttonAPressedAction, openxr_string2path(&openxr_instance_, HANDR_IN"/a/click")});
+    touch_bindings.push_back({input_.buttonATouchedAction, openxr_string2path(&openxr_instance_, HANDR_IN"/a/touch")});
+    touch_bindings.push_back({input_.buttonBPressedAction, openxr_string2path(&openxr_instance_, HANDR_IN"/b/click")});
+    touch_bindings.push_back({input_.buttonBTouchedAction, openxr_string2path(&openxr_instance_, HANDR_IN"/b/touch")});
+    touch_bindings.push_back({input_.buttonXPressedAction, openxr_string2path(&openxr_instance_, HANDL_IN"/x/click")});
+    touch_bindings.push_back({input_.buttonXTouchedAction, openxr_string2path(&openxr_instance_, HANDL_IN"/x/touch")});
+    touch_bindings.push_back({input_.buttonYPressedAction, openxr_string2path(&openxr_instance_, HANDL_IN"/y/click")});
+    touch_bindings.push_back({input_.buttonYTouchedAction, openxr_string2path(&openxr_instance_, HANDL_IN"/y/touch")});
+    touch_bindings.push_back({input_.squeezeValueAction, openxr_string2path(&openxr_instance_, HANDL_IN"/squeeze/value")});
+    touch_bindings.push_back({input_.squeezeValueAction, openxr_string2path(&openxr_instance_, HANDR_IN"/squeeze/value")});
+    touch_bindings.push_back({input_.triggerValueAction, openxr_string2path(&openxr_instance_, HANDL_IN"/trigger/value")});
+    touch_bindings.push_back({input_.triggerValueAction, openxr_string2path(&openxr_instance_, HANDR_IN"/trigger/value")});
+    touch_bindings.push_back({input_.triggerTouchedAction, openxr_string2path(&openxr_instance_, HANDL_IN"/trigger/touch")});
+    touch_bindings.push_back({input_.triggerTouchedAction, openxr_string2path(&openxr_instance_, HANDR_IN"/trigger/touch")});
+    openxr_bind_interaction(&openxr_instance_, "/interaction_profiles/oculus/touch_controller", touch_bindings);
+
+//    std::vector<XrActionSuggestedBinding> user_presence_bindings;
+//    user_presence_bindings.push_back({input_.userPresenceAction, openxr_string2path(&openxr_instance_, "/user/head/user_presence")});
+//    openxr_bind_interaction(&openxr_instance_, "/interaction_profiles/ext/user_presence", user_presence_bindings);
 
     openxr_attach_actionset(&openxr_session_, input_.actionSet);
 
@@ -351,7 +341,6 @@ void TelepresenceProgram::InitializeActions() {
     input_.controllerSpace[Side::RIGHT] = openxr_create_action_space(&openxr_session_,
                                                                      input_.controllerPoseAction,
                                                                      input_.handSubactionPath[Side::RIGHT]);
-
 }
 
 void TelepresenceProgram::PollPoses(XrTime predictedDisplayTime) {
@@ -367,9 +356,7 @@ void TelepresenceProgram::PollPoses(XrTime predictedDisplayTime) {
         XrSpaceLocation loc = {XR_TYPE_SPACE_LOCATION};
         loc.next = &vel;
 
-        CHECK_XRCMD(
-                xrLocateSpace(input_.controllerSpace[i], app_reference_space_, predictedDisplayTime,
-                              &loc))
+        CHECK_XRCMD(xrLocateSpace(input_.controllerSpace[i], app_reference_space_, predictedDisplayTime, &loc))
         if ((loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
             userState_.controllerPose[i] = loc.pose;
         }
@@ -383,8 +370,7 @@ void TelepresenceProgram::PollActions() {
     syncInfo.activeActionSets = &activeActionSet;
     CHECK_XRCMD(xrSyncActions(openxr_session_, &syncInfo))
 
-    XrActionStateGetInfo getQuitInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.quitAction,
-                                     XR_NULL_PATH};
+    XrActionStateGetInfo getQuitInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.quitAction, XR_NULL_PATH};
     XrActionStateBoolean quitValue{XR_TYPE_ACTION_STATE_BOOLEAN};
     CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getQuitInfo, &quitValue))
     if ((quitValue.isActive == XR_TRUE) && (quitValue.changedSinceLastSync == XR_TRUE) &&
@@ -401,12 +387,10 @@ void TelepresenceProgram::PollActions() {
                                                    input_.handSubactionPath[Side::LEFT]};
     XrActionStateVector2f thumbstickPose{XR_TYPE_ACTION_STATE_VECTOR2F};
 
-    CHECK_XRCMD(
-            xrGetActionStateVector2f(openxr_session_, &getThumbstickPoseRightInfo, &thumbstickPose))
+    CHECK_XRCMD(xrGetActionStateVector2f(openxr_session_, &getThumbstickPoseRightInfo, &thumbstickPose))
     userState_.thumbstickPose[Side::RIGHT] = thumbstickPose.currentState;
 
-    CHECK_XRCMD(
-            xrGetActionStateVector2f(openxr_session_, &getThumbstickPoseLeftInfo, &thumbstickPose))
+    CHECK_XRCMD(xrGetActionStateVector2f(openxr_session_, &getThumbstickPoseLeftInfo, &thumbstickPose))
     userState_.thumbstickPose[Side::LEFT] = thumbstickPose.currentState;
 
     // Thumbstick pressed
@@ -418,12 +402,10 @@ void TelepresenceProgram::PollActions() {
                                                       input_.handSubactionPath[Side::LEFT]};
     XrActionStateBoolean thumbstickPressed{XR_TYPE_ACTION_STATE_BOOLEAN};
 
-    CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getThumbstickPressedRightInfo,
-                                        &thumbstickPressed))
+    CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getThumbstickPressedRightInfo, &thumbstickPressed))
     userState_.thumbstickPressed[Side::RIGHT] = thumbstickPressed.currentState;
 
-    CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getThumbstickPressedLeftInfo,
-                                        &thumbstickPressed))
+    CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getThumbstickPressedLeftInfo, &thumbstickPressed))
     userState_.thumbstickPressed[Side::LEFT] = thumbstickPressed.currentState;
 
     // Thumbstick touched
@@ -435,19 +417,15 @@ void TelepresenceProgram::PollActions() {
                                                       input_.handSubactionPath[Side::LEFT]};
     XrActionStateBoolean thumbstickTouched{XR_TYPE_ACTION_STATE_BOOLEAN};
 
-    CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getThumbstickTouchedRightInfo,
-                                        &thumbstickTouched))
+    CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getThumbstickTouchedRightInfo, &thumbstickTouched))
     userState_.thumbstickTouched[Side::RIGHT] = thumbstickTouched.currentState;
 
-    CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getThumbstickTouchedLeftInfo,
-                                        &thumbstickTouched))
+    CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getThumbstickTouchedLeftInfo, &thumbstickTouched))
     userState_.thumbstickTouched[Side::LEFT] = thumbstickTouched.currentState;
 
     // Button A
-    XrActionStateGetInfo getButtonAPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr,
-                                               input_.buttonAPressedAction, XR_NULL_PATH};
-    XrActionStateGetInfo getButtonATouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr,
-                                               input_.buttonATouchedAction, XR_NULL_PATH};
+    XrActionStateGetInfo getButtonAPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.buttonAPressedAction, XR_NULL_PATH};
+    XrActionStateGetInfo getButtonATouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.buttonATouchedAction, XR_NULL_PATH};
     XrActionStateBoolean buttonA{XR_TYPE_ACTION_STATE_BOOLEAN};
 
     CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getButtonAPressedInfo, &buttonA))
@@ -457,10 +435,8 @@ void TelepresenceProgram::PollActions() {
     userState_.aTouched = buttonA.currentState;
 
     // Button B
-    XrActionStateGetInfo getButtonBPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr,
-                                               input_.buttonBPressedAction, XR_NULL_PATH};
-    XrActionStateGetInfo getButtonBTouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr,
-                                               input_.buttonBTouchedAction, XR_NULL_PATH};
+    XrActionStateGetInfo getButtonBPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.buttonBPressedAction, XR_NULL_PATH};
+    XrActionStateGetInfo getButtonBTouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.buttonBTouchedAction, XR_NULL_PATH};
     XrActionStateBoolean buttonB{XR_TYPE_ACTION_STATE_BOOLEAN};
 
     CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getButtonBPressedInfo, &buttonB))
@@ -470,10 +446,8 @@ void TelepresenceProgram::PollActions() {
     userState_.bTouched = buttonB.currentState;
 
     // Button X
-    XrActionStateGetInfo getButtonXPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr,
-                                               input_.buttonXPressedAction, XR_NULL_PATH};
-    XrActionStateGetInfo getButtonXTouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr,
-                                               input_.buttonXTouchedAction, XR_NULL_PATH};
+    XrActionStateGetInfo getButtonXPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.buttonXPressedAction, XR_NULL_PATH};
+    XrActionStateGetInfo getButtonXTouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.buttonXTouchedAction, XR_NULL_PATH};
     XrActionStateBoolean buttonX{XR_TYPE_ACTION_STATE_BOOLEAN};
 
     CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getButtonXPressedInfo, &buttonX))
@@ -483,10 +457,8 @@ void TelepresenceProgram::PollActions() {
     userState_.xTouched = buttonX.currentState;
 
     // Button Y
-    XrActionStateGetInfo getButtonYPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr,
-                                               input_.buttonYPressedAction, XR_NULL_PATH};
-    XrActionStateGetInfo getButtonYTouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr,
-                                               input_.buttonYTouchedAction, XR_NULL_PATH};
+    XrActionStateGetInfo getButtonYPressedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.buttonYPressedAction, XR_NULL_PATH};
+    XrActionStateGetInfo getButtonYTouchedInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.buttonYTouchedAction, XR_NULL_PATH};
     XrActionStateBoolean buttonY{XR_TYPE_ACTION_STATE_BOOLEAN};
 
     CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getButtonYPressedInfo, &buttonY))
@@ -534,21 +506,31 @@ void TelepresenceProgram::PollActions() {
                                                    input_.handSubactionPath[Side::LEFT]};
     XrActionStateBoolean triggerTouched{XR_TYPE_ACTION_STATE_BOOLEAN};
 
-    CHECK_XRCMD(
-            xrGetActionStateBoolean(openxr_session_, &getTriggerTouchedRightInfo, &triggerTouched))
+    CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getTriggerTouchedRightInfo, &triggerTouched))
     userState_.triggerTouched[Side::RIGHT] = triggerTouched.currentState;
 
-    CHECK_XRCMD(
-            xrGetActionStateBoolean(openxr_session_, &getTriggerTouchedLeftInfo, &triggerTouched))
+    CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getTriggerTouchedLeftInfo, &triggerTouched))
     userState_.triggerTouched[Side::LEFT] = triggerTouched.currentState;
+
+    // User presence
+    //XrActionStateGetInfo userPresentInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.userPresenceAction, XR_NULL_PATH};
+    //XrActionStateBoolean userPresent{XR_TYPE_ACTION_STATE_BOOLEAN};
+    //CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &userPresentInfo, &userPresent))
+    //appState_->headsetMounted = userPresent.isActive && userPresent.currentState;
+    //LOG_INFO("User presence: %d, %d", userPresent.isActive, userPresent.currentState);
 }
 
 void TelepresenceProgram::SendControllerDatagram() {
 //    if (udpSocket_ == -1) udpSocket_ = createSocket();
 //    sendUDPPacket(udpSocket_, userState_);
+    ntpTimer_->SyncWithServer();
+    if (!appState_->headsetMounted) {
+        return;
+    }
 
     if (servoCommunicator_ == nullptr) {
-        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_, appState_->streamingConfig);
+        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_,
+                                                                 appState_->streamingConfig);
     }
     if (!servoCommunicator_->servosEnabled()) {
         servoCommunicator_->enableServos(true, threadPool_);
@@ -562,8 +544,11 @@ void TelepresenceProgram::SendControllerDatagram() {
 
         servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation, speed_, threadPool_);
     }
-    if(appState_->robotControlEnabled) {
-        servoCommunicator_->sendOdinControlPacket(userState_.thumbstickPose[Side::LEFT].x, userState_.thumbstickPose[Side::LEFT].y, userState_.thumbstickPose[Side::RIGHT].y, threadPool_);
+    if (appState_->robotControlEnabled) {
+        servoCommunicator_->sendOdinControlPacket(userState_.thumbstickPose[Side::LEFT].y,
+                                                  userState_.thumbstickPose[Side::LEFT].x,
+                                                  userState_.thumbstickPose[Side::RIGHT].x,
+                                                  threadPool_);
     }
 
 //    if (poseServer_ == nullptr) {
@@ -585,10 +570,22 @@ void TelepresenceProgram::InitializeStreaming() {
     restClient_->StopStream();
     restClient_->StartStream();
 
-    gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
+    gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig);
 }
 
 void TelepresenceProgram::HandleControllers() {
+    static bool controlLock = false;
+    if (userState_.thumbstickPressed[Side::LEFT] && !controlLock) {
+        appState_->robotControlEnabled = !appState_->robotControlEnabled;
+        if (!appState_->robotControlEnabled) {
+            servoCommunicator_->sendOdinControlPacket(0.0f, 0.0f, 0.0f, threadPool_);
+        }
+        controlLock = true;
+    }
+    if (!userState_.thumbstickPressed[Side::LEFT] && controlLock) {
+        controlLock = false;
+    }
+
     // Toggling GUI rendering
     if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.yPressed && !renderGui_)
         renderGui_ = true;
@@ -596,7 +593,7 @@ void TelepresenceProgram::HandleControllers() {
         renderGui_ = false;
         // Also triggers saving of the Streaming Config for now
         stateStorage_->SaveStreamingConfig(appState_->streamingConfig);
-        gstreamerPlayer_->configurePipeline(threadPool_, appState_->streamingConfig);
+        gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig);
         //servoCommunicator_ = nullptr;
         restClient_->UpdateStreamingConfig(appState_->streamingConfig);
     }
@@ -606,7 +603,8 @@ void TelepresenceProgram::HandleControllers() {
         appState_->guiControl.cooldown -= 1;
     }
 
-    if (renderGui_ && userState_.triggerValue[Side::LEFT] < 0.1 && !appState_->guiControl.changesEnqueued && appState_->guiControl.cooldown == 0) {
+    if (renderGui_ && userState_.triggerValue[Side::LEFT] < 0.1 &&
+        !appState_->guiControl.changesEnqueued && appState_->guiControl.cooldown == 0) {
 
         // Focus move UP
         if (userState_.thumbstickPose[Side::LEFT].y > 0.9f) {

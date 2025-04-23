@@ -56,12 +56,12 @@ private:
     bool renderGui_ = true;
     int32_t speed_ = 200000;
 
-    BS::thread_pool threadPool_;
+    BS::thread_pool<BS::tp::none> gstreamerThreadPool_{1};
+    BS::thread_pool<BS::tp::none> threadPool_{3};
 
     std::unique_ptr<GstreamerPlayer> gstreamerPlayer_;
     std::unique_ptr<RestClient> restClient_;
     std::unique_ptr<NtpTimer> ntpTimer_;
-    std::string ntpServerAddress_ = "192.168.1.100";
     std::unique_ptr<ServoCommunicator> servoCommunicator_;
     //std::unique_ptr<PoseServer> poseServer_;
     std::unique_ptr<StateStorage> stateStorage_;

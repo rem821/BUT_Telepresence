@@ -22,8 +22,8 @@
 #include <type_traits>
 #include <vector>
 
-#include <time.h>
-#include <string.h>
+#include <ctime>
+#include <cstring>
 
 #ifdef XR_USE_PLATFORM_ANDROID
 #include <android/log.h>

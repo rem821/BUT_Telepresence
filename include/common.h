@@ -19,6 +19,9 @@ constexpr int IP_CONFIG_SERVO_PORT = 32115;
 constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
 constexpr int IP_CONFIG_RIGHT_CAMERA_PORT = 8556;
 
+constexpr int CAMERA_FRAME_HORIZONTAL_RESOLUTION = 1920;
+constexpr int CAMERA_FRAME_VERTICAL_RESOLUTION = 1080;
+constexpr float CAMERA_FRAME_ASPECT_RATIO = (float)CAMERA_FRAME_HORIZONTAL_RESOLUTION / (float)CAMERA_FRAME_VERTICAL_RESOLUTION;
 
 inline std::string resolveIPv4(const std::string& hostname) {
     return hostname;
@@ -201,6 +204,45 @@ inline std::vector<uint8_t> StringToIp(const std::string& ipStr) {
     return ip;
 }
 
+inline std::vector<uint8_t> GetLocalIPAddr() {
+    int sock = socket(PF_INET, SOCK_DGRAM, 0);
+    sockaddr_in loopback{};
+
+    if(sock == -1) {
+        std::cerr << "Error creating socket" << std::endl;
+        return {};
+    }
+
+    std::memset(&loopback, 0, sizeof(loopback));
+    loopback.sin_family = AF_INET;
+    loopback.sin_addr.s_addr = 1337;
+    loopback.sin_port = htons(9);
+
+    if(connect(sock, reinterpret_cast<sockaddr*>(&loopback), sizeof(loopback)) == -1) {
+        close(sock);
+        std::cerr << "Error connecting while getting local IP" << std::endl;
+        return {};
+    }
+
+    socklen_t addrlen = sizeof(loopback);
+    if(getsockname(sock, reinterpret_cast<sockaddr*>(&loopback), &addrlen) == -1) {
+        close(sock);
+        std::cerr << "Error getting local IP" << std::endl;
+        return {};
+    }
+
+    auto ip = std::string(inet_ntoa(loopback.sin_addr));
+    std::cout << "Local IP: " << ip << std::endl;
+    close(sock);
+    auto ipVector = StringToIp(ip);
+    return ipVector;
+}
+
+inline const char * const BoolToString(bool b)
+{
+    return b ? "true" : "false";
+}
+
 struct CameraStats {
     double prevTimestamp, currTimestamp;
     double fps;
@@ -212,7 +254,9 @@ struct CameraStats {
 
 struct CameraFrame {
     CameraStats *stats;
-    unsigned long memorySize = 1920 * 1080 * 3; // Size of single Full HD RGB frame
+    int frameWidth = CAMERA_FRAME_HORIZONTAL_RESOLUTION;
+    int frameHeight = CAMERA_FRAME_VERTICAL_RESOLUTION;
+    unsigned long memorySize = CAMERA_FRAME_HORIZONTAL_RESOLUTION * CAMERA_FRAME_VERTICAL_RESOLUTION * 3; // Size of single Full HD RGB frame
     void *dataHandle;
 };
 
@@ -223,10 +267,10 @@ struct StreamingConfig {
     std::vector<uint8_t> jetson_ip;
     int portLeft{IP_CONFIG_LEFT_CAMERA_PORT};
     int portRight{IP_CONFIG_RIGHT_CAMERA_PORT};
-    Codec codec{H264};
+    Codec codec{JPEG};
     int encodingQuality{60};
     int bitrate{4000};
-    int horizontalResolution{1920}, verticalResolution{1080};
+    int horizontalResolution{CAMERA_FRAME_HORIZONTAL_RESOLUTION}, verticalResolution{CAMERA_FRAME_VERTICAL_RESOLUTION};
     VideoMode videoMode{STEREO};
     int fps{60};
 
@@ -263,4 +307,5 @@ struct AppState {
     SystemInfo systemInfo;
     GUIControl guiControl;
     bool robotControlEnabled = true;
+    bool headsetMounted = false;
 };

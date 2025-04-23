@@ -15,7 +15,7 @@ class ServoCommunicator {
     enum Operation {
         READ = 0x01,
         WRITE = 0x02,
-        WRITE_CONTINUOS = 0x04,
+        WRITE_CONTINUOUS = 0x04,
     };
 
     enum MessageGroup {
@@ -41,7 +41,7 @@ class ServoCommunicator {
 
 public:
 
-    explicit ServoCommunicator(BS::thread_pool &threadPool, StreamingConfig &config);
+    explicit ServoCommunicator(BS::thread_pool<BS::tp::none> &threadPool, StreamingConfig &config);
 
     ~ServoCommunicator() = default;
 
@@ -51,19 +51,19 @@ public:
 
     [[nodiscard]] bool servosEnabled() const { return servosEnabled_; }
 
-    void resetErrors(BS::thread_pool &threadPool);
+    void resetErrors(BS::thread_pool<BS::tp::none> &threadPool);
 
-    void enableServos(bool enable, BS::thread_pool &threadPool);
+    void enableServos(bool enable, BS::thread_pool<BS::tp::none> &threadPool);
 
-    void setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, BS::thread_pool &threadPool);
+    void setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, BS::thread_pool<BS::tp::none> &threadPool);
 
-    void sendOdinControlPacket(float linSpeedX, float linSpeedY, float angSpeed, BS::thread_pool &threadPool);
+    void sendOdinControlPacket(float linSpeedX, float linSpeedY, float angSpeed, BS::thread_pool<BS::tp::none> &threadPool);
 
 private:
 
     [[nodiscard]] bool checkReadiness() const;
 
-    void setMode(BS::thread_pool &threadPool);
+    void setMode(BS::thread_pool<BS::tp::none> &threadPool);
 
     void sendMessage(const std::vector<unsigned char> &message);
 
@@ -81,12 +81,12 @@ private:
 
     template<typename FloatType>
     [[nodiscard]] inline static std::vector<uint8_t> serializeLEFloat(const FloatType &value) {
-
+        uint64_t shadow = 0;
         // Create a vector to hold the serialized bytes
-        std::vector<uint8_t> data(sizeof(FloatType));
+        memcpy(&shadow, &value, sizeof(FloatType));
 
-        // Copy the binary representation of the float into the vector
-        std::memcpy(data.data(), &value, sizeof(FloatType));
+        std::vector<uint8_t> data;
+        data = serializeLEInt<uint32_t>(shadow);
 
         return data;
     }
@@ -97,8 +97,11 @@ private:
     bool isReady_ = false;
     bool servosEnabled_ = false;
 
+    int32_t frameId_ = 0;
+
     int socket_ = -1;
     sockaddr_in myAddr_{}, destAddr_{};
+    std::future<void> threadFuture_;
 
     std::chrono::time_point<std::chrono::high_resolution_clock> timestamp_;
 };

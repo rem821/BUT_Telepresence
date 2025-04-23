@@ -39,6 +39,8 @@ struct InputState {
     XrAction triggerValueAction{XR_NULL_HANDLE};
     XrAction triggerTouchedAction{XR_NULL_HANDLE};
 
+    XrAction userPresenceAction{XR_NULL_HANDLE};
+
     std::array<XrPath, Side::COUNT> handSubactionPath;
 
     std::array<XrSpace, Side::COUNT> controllerSpace;
@@ -100,14 +102,13 @@ XrSpace openxr_create_action_space(XrSession *session, XrAction action, XrPath p
 
 int openxr_begin_session(XrSession *session);
 
-int openxr_handle_session_state_changed(XrSession *session, XrEventDataSessionStateChanged &ev,
-                                        bool *exitLoop, bool *reqRestart);
+int openxr_handle_session_state_changed(XrSession *session, XrEventDataSessionStateChanged &ev, bool *exitLoop, bool *reqRestart);
 
 bool openxr_is_session_running();
 
 static XrEventDataBaseHeader *openxr_poll_event(XrInstance *instance, XrSession *session);
 
-int openxr_poll_events(XrInstance *instance, XrSession *session, bool *exit, bool *request_restart);
+int openxr_poll_events(XrInstance *instance, XrSession *session, bool *exit, bool *request_restart, bool *mounted);
 
 int openxr_begin_frame(XrSession *session, XrTime *display_time);
 
@@ -119,3 +120,5 @@ int openxr_locate_views(XrSession *session, XrTime *displayTime, XrSpace space, 
 std::string openxr_get_runtime_name(XrInstance *instance);
 
 std::string openxr_get_system_name(XrInstance *instance, XrSystemId* system_id);
+
+void openxr_has_user_presence_capability(XrInstance *instance, XrSystemId *system_id);
