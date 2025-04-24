@@ -75,7 +75,12 @@ static const char *GuiFragmentShaderGlsl = R"_(#version 320 es
     }
 )_";
 
-void init_scene(const int textureWidth, const int textureHeight) {
+void init_scene(const int textureWidth, const int textureHeight, bool reinit) {
+    if(reinit) {
+        init_image_plane(textureWidth, textureHeight);
+        return;
+    }
+
     generate_shader(&image_shader_object, ImageVertexShaderGlsl, ImageFragmentShaderGlsl);
     generate_shader(&gui_shader_object, GuiVertexShaderGlsl, GuiFragmentShaderGlsl);
     init_image_plane(textureWidth, textureHeight);
@@ -180,7 +185,7 @@ int draw_image_plane(const XrMatrix4x4f &vp, const Quad &quad, const CameraFrame
                        reinterpret_cast<const GLfloat *>(&mvp));
 
     glBindTexture(GL_TEXTURE_2D, texture2D);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, CAMERA_FRAME_HORIZONTAL_RESOLUTION, CAMERA_FRAME_VERTICAL_RESOLUTION, 0, GL_SRGB, GL_UNSIGNED_BYTE, cameraFrame->dataHandle);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, cameraFrame->frameWidth, cameraFrame->frameHeight, 0, GL_SRGB, GL_UNSIGNED_BYTE, cameraFrame->dataHandle);
 
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)),
                    GL_UNSIGNED_SHORT, nullptr);

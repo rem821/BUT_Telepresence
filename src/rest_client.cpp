@@ -41,9 +41,8 @@ int RestClient::StartStream() {
                            {"ip_address",       IpToString(config_.headset_ip)},
                            {"port_left",        config_.portLeft},
                            {"port_right",       config_.portRight},
-                           {"resolution",       {{"height", config_.verticalResolution}, {"width", config_.horizontalResolution}}},
-                           {"video_mode",       config_.videoMode == VideoMode::STEREO ? "stereo"
-                                                                                       : "mono"}}.dump();
+                           {"resolution",       {{"height", config_.resolution.getHeight()}, {"width", config_.resolution.getWidth()}}},
+                           {"video_mode",       config_.videoMode == VideoMode::STEREO ? "stereo": "mono"}}.dump();
 
     httpClient_->Post("/api/v1/stream/start", req, "application/json");
     return 0;
@@ -86,7 +85,7 @@ int RestClient::UpdateStreamingConfig(const StreamingConfig &config) {
                            {"ip_address",       IpToString(config_.headset_ip)},
                            {"port_left",        config.portLeft},
                            {"port_right",       config.portRight},
-                           {"resolution",       {{"height", config.verticalResolution}, {"width", config.horizontalResolution}}},
+                           {"resolution",       {{"height", config.resolution.getHeight()}, {"width", config.resolution.getWidth()}}},
                            {"video_mode",       config.videoMode == VideoMode::STEREO ? "stereo"
                                                                                       : "mono"}}.dump();
     httpClient_->Put("/api/v1/stream/update", req, "application/json");

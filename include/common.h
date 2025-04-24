@@ -10,18 +10,15 @@
 #include <unistd.h>
 #include <sstream>
 #include <vector>
+#include <unordered_map>
 
 // <!-- IP CONFIGURATION SECTION --!>
-constexpr uint8_t IP_CONFIG_JETSON_ADDR[4] = {192,168,1,188};
-constexpr uint8_t IP_CONFIG_HEADSET_ADDR[4] = {192,168,1,49};
+constexpr uint8_t IP_CONFIG_JETSON_ADDR[4] = {192,168,1,168};
+constexpr uint8_t IP_CONFIG_HEADSET_ADDR[4] = {192,168,1,210};
 constexpr int IP_CONFIG_REST_API_PORT = 32281;
 constexpr int IP_CONFIG_SERVO_PORT = 32115;
 constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
 constexpr int IP_CONFIG_RIGHT_CAMERA_PORT = 8556;
-
-constexpr int CAMERA_FRAME_HORIZONTAL_RESOLUTION = 1920;
-constexpr int CAMERA_FRAME_VERTICAL_RESOLUTION = 1080;
-constexpr float CAMERA_FRAME_ASPECT_RATIO = (float)CAMERA_FRAME_HORIZONTAL_RESOLUTION / (float)CAMERA_FRAME_VERTICAL_RESOLUTION;
 
 inline std::string resolveIPv4(const std::string& hostname) {
     return hostname;
@@ -169,6 +166,24 @@ inline std::string VideoModeToString(VideoMode mode) {
     }
 }
 
+enum AspectRatioMode {
+    FULLSCREEN, FULLFOV, CNT2
+};
+
+inline std::string AspectRatioModeToString(AspectRatioMode mode) {
+    switch(mode) {
+        case FULLSCREEN:
+            return "FULLSCREEN";
+            break;
+        case FULLFOV:
+            return "FULLFOV";
+            break;
+        default:
+            return "Unknown";
+            break;
+    }
+}
+
 inline std::string IpToString(const std::vector<uint8_t> ip) {
     std::ostringstream oss;
     oss << static_cast<int>(ip[0]) << "."
@@ -243,6 +258,81 @@ inline const char * const BoolToString(bool b)
     return b ? "true" : "false";
 }
 
+struct CameraResolution {
+    int width;
+    int height;
+    std::string label;
+
+    int getWidth() const { return width; }
+    int getHeight() const { return height; }
+    float getAspectRatio() const { return float(width) / float(height); }
+    std::string getLabel() const { return label; }
+
+    static const CameraResolution& fromLabel(const std::string& label) {
+        const auto& map = getMap();
+        auto it = map.find(label);
+        if (it != map.end()) {
+            return it->second;
+        }
+        throw std::invalid_argument("Invalid resolution label: " + label);
+    }
+
+    static const CameraResolution& fromIndex(std::size_t index) {
+        const auto& list = getList();
+        if (index >= list.size()) {
+            throw std::out_of_range("Resolution index out of range");
+        }
+        return list[index];
+    }
+
+    std::size_t getIndex() const {
+        const auto& list = getList();
+        for (std::size_t i = 0; i < list.size(); ++i) {
+            if (width == list[i].width && height == list[i].height && label == list[i].label) {
+                return i;
+            }
+        }
+        throw std::runtime_error("Resolution not found in predefined list");
+    }
+
+    static std::size_t count() {
+        return getList().size();
+    }
+
+private:
+    static const std::unordered_map<std::string, CameraResolution>& getMap() {
+        static const std::unordered_map<std::string, CameraResolution> map = {
+                {"nHD",     {  640,  360, "nHD" }},
+                {"qHD",     {  960,  540, "qHD" }},
+                {"WSVGA",   { 1024,  576, "WSVGA" }},
+                {"HD",      { 1280,  720, "HD" }},
+                {"HD+",     { 1600,  900, "HD+" }},
+                {"FHD",     { 1920, 1080, "FHD" }},
+                {"QWXGA",   { 2048, 1152, "QWXGA" }},
+                {"QHD",     { 2560, 1440, "QHD" }},
+                {"WQXGA+",  { 3200, 1800, "WQXGA+" }},
+                {"UHD",     { 3840, 2160, "UHD" }},
+        };
+        return map;
+    }
+
+    static const std::vector<CameraResolution>& getList() {
+        static const std::vector<CameraResolution> list = {
+                {  640,  360, "nHD" },
+                {  960,  540, "qHD" },
+                { 1024,  576, "WSVGA" },
+                { 1280,  720, "HD" },
+                { 1600,  900, "HD+" },
+                { 1920, 1080, "FHD" },
+                { 2048, 1152, "QWXGA" },
+                { 2560, 1440, "QHD" },
+                { 3200, 1800, "WQXGA+" },
+                { 3840, 2160, "UHD" },
+        };
+        return list;
+    }
+};
+
 struct CameraStats {
     double prevTimestamp, currTimestamp;
     double fps;
@@ -254,9 +344,9 @@ struct CameraStats {
 
 struct CameraFrame {
     CameraStats *stats;
-    int frameWidth = CAMERA_FRAME_HORIZONTAL_RESOLUTION;
-    int frameHeight = CAMERA_FRAME_VERTICAL_RESOLUTION;
-    unsigned long memorySize = CAMERA_FRAME_HORIZONTAL_RESOLUTION * CAMERA_FRAME_VERTICAL_RESOLUTION * 3; // Size of single Full HD RGB frame
+    int frameWidth = CameraResolution::fromLabel("FHD").getWidth();
+    int frameHeight = CameraResolution::fromLabel("FHD").getHeight();
+    unsigned long memorySize = frameWidth * frameHeight * 3; // Size of single Full HD RGB frame
     void *dataHandle;
 };
 
@@ -270,7 +360,7 @@ struct StreamingConfig {
     Codec codec{JPEG};
     int encodingQuality{60};
     int bitrate{4000};
-    int horizontalResolution{CAMERA_FRAME_HORIZONTAL_RESOLUTION}, verticalResolution{CAMERA_FRAME_VERTICAL_RESOLUTION};
+    CameraResolution resolution{CameraResolution::fromLabel("FHD")};
     VideoMode videoMode{STEREO};
     int fps{60};
 
@@ -302,6 +392,7 @@ struct GUIControl {
 struct AppState {
     CamPair cameraStreamingStates{};
     StreamingConfig streamingConfig{};
+    AspectRatioMode aspectRatioMode = FULLFOV;
     float appFrameRate{0.0f};
     long long appFrameTime{0};
     SystemInfo systemInfo;

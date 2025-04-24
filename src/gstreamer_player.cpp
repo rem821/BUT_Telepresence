@@ -5,20 +5,6 @@
 
 GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair_(camPair),
                                                                          ntpTimer_(ntpTimer) {
-
-    //Init the CameraFrame data structure
-    callbackObj_ = new GStreamerCallbackObj(camPair_, ntpTimer_);
-    camPair_->first.stats = new CameraStats();
-    camPair_->second.stats = new CameraStats();
-
-    auto *emptyFrameLeft = new unsigned char[camPair_->first.memorySize];
-    memset(emptyFrameLeft, 0, sizeof(emptyFrameLeft));
-    camPair_->first.dataHandle = (void *) emptyFrameLeft;
-
-    auto *emptyFrameRight = new unsigned char[camPair_->second.memorySize];
-    memset(emptyFrameRight, 0, sizeof(emptyFrameRight));
-    camPair_->second.dataHandle = (void *) emptyFrameRight;
-
     gst_init(nullptr, nullptr);
     guint major, minor, micro, nano;
     gst_version(&major, &minor, &micro, &nano);
@@ -41,7 +27,7 @@ static GstPadProbeReturn udpPacketProbeCallback(GstPad *pad, GstPadProbeInfo *in
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count();
     last_time = now;
 
-    LOG_INFO("[UDP Packet] Arrived. Interval: %lld ms", elapsed);
+    //LOG_INFO("[UDP Packet] Arrived. Interval: %lld ms", elapsed);
 
     return GST_PAD_PROBE_OK;
 }
@@ -52,20 +38,18 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
     GSource *bus_source;
     GError *error = nullptr;
 
-    // Optionally ensure the main loop is running in the thread pool
-    LOG_INFO("GStreamer entering the main loop");
-    LOG_INFO("Configuring GStreamer pipelines");
+    LOG_INFO("(Re)configuring GStreamer pipelines");
 
     // Stop and clean up existing pipelines if they exist
     if (pipelineLeft_) {
-        LOG_INFO("Stopping the left pipeline for reconfiguration");
+        LOG_INFO("Stopping the left pipeline before reconfiguration");
         gst_element_send_event(pipelineLeft_, gst_event_new_eos());
         gst_element_set_state(pipelineLeft_, GST_STATE_NULL);
         gst_object_unref(pipelineLeft_);
         pipelineLeft_ = nullptr;
     }
     if (pipelineRight_) {
-        LOG_INFO("Stopping the right pipeline for reconfiguration");
+        LOG_INFO("Stopping the right pipeline before reconfiguration");
         gst_element_send_event(pipelineRight_, gst_event_new_eos());
         gst_element_set_state(pipelineRight_, GST_STATE_NULL);
         gst_object_unref(pipelineRight_);
@@ -74,9 +58,29 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
     // Stop the main loop if running
 
     if (mainLoop_) {
-        LOG_INFO("Stopping GStreamer main loop");
+        LOG_INFO("Stopping GStreamer main loop before reconfiguration");
         g_main_loop_quit(mainLoop_);  // Signal the loop to stop
     }
+
+    //Init the CameraFrame data structure
+    callbackObj_ = new GStreamerCallbackObj(camPair_, ntpTimer_);
+    camPair_->first.stats = new CameraStats();
+    camPair_->second.stats = new CameraStats();
+
+    auto *emptyFrameLeft = new unsigned char[camPair_->first.memorySize];
+    memset(emptyFrameLeft, 0, sizeof(emptyFrameLeft));
+    camPair_->first.dataHandle = (void *) emptyFrameLeft;
+
+    auto *emptyFrameRight = new unsigned char[camPair_->second.memorySize];
+    memset(emptyFrameRight, 0, sizeof(emptyFrameRight));
+    camPair_->second.dataHandle = (void *) emptyFrameRight;
+
+    camPair_->first.frameWidth = config.resolution.getWidth();
+    camPair_->first.frameHeight = config.resolution.getHeight();
+    camPair_->second.frameWidth = config.resolution.getWidth();
+    camPair_->second.frameHeight = config.resolution.getHeight();
+    camPair_->first.memorySize = camPair_->first.frameWidth * camPair_->first.frameHeight * 3;
+    camPair_->second.memorySize = camPair_->second.frameWidth * camPair_->second.frameHeight * 3;
 
 
     // Create new pipelines based on the provided configuration
@@ -107,7 +111,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         throw std::runtime_error("Unable to build pipeline!");
     }
 
-    std::string xDimString = fmt::format("{},{}", config.horizontalResolution, config.verticalResolution);
+    std::string xDimString = fmt::format("{},{}", config.resolution.getWidth(), config.resolution.getHeight());
 
 
     GstElement *leftudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc_ident");
@@ -193,13 +197,6 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
     g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
     g_source_attach(bus_source, context_);
     g_source_unref(bus_source);
-
-    camPair_->first.frameWidth = config.horizontalResolution;
-    camPair_->first.frameHeight = config.verticalResolution;
-    camPair_->second.frameWidth = config.horizontalResolution;
-    camPair_->second.frameHeight = config.verticalResolution;
-    camPair_->first.memorySize = camPair_->first.frameWidth * camPair_->first.frameHeight * 3;
-    camPair_->second.memorySize = camPair_->second.frameWidth * camPair_->second.frameHeight * 3;
 
     g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineRight_);
     g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineRight_);
@@ -324,13 +321,13 @@ void GstreamerPlayer::onIdentityHandoff(GstElement *identity, GstBuffer *buffer,
         stats->queueTimestamp = ntpTimer->GetCurrentTimeUs();
         stats->queue = stats->queueTimestamp - stats->decTimestamp;
         stats->totalLatency = stats->vidConv + stats->enc + stats->rtpPay + stats->udpStream + stats->rtpDepay + stats->dec + stats->queue;
-        LOG_INFO(
+        /*LOG_INFO(
                 "Pipeline latencies: vidconv: %lu, enc: %lu, rtpPay: %lu, udpStream: %lu, rtpDepay: %lu, dec: %lu, queue: %lu, total: %lu",
                 (unsigned long) stats->vidConv, (unsigned long) stats->enc,
                 (unsigned long) stats->rtpPay, (unsigned long) stats->udpStream,
                 (unsigned long) stats->rtpDepay, (unsigned long) stats->dec,
                 (unsigned long) stats->queue,
-                (unsigned long) stats->totalLatency);
+                (unsigned long) stats->totalLatency);*/
     }
 }
 

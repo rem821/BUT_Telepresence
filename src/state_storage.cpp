@@ -41,8 +41,7 @@ void StateStorage::SaveStreamingConfig(const StreamingConfig &streamingConfig) {
         SaveKeyValuePair(editor, putString, "codec", streamingConfig.codec);
         SaveKeyValuePair(editor, putString, "encoding_quality", streamingConfig.encodingQuality);
         SaveKeyValuePair(editor, putString, "bitrate", streamingConfig.bitrate);
-        SaveKeyValuePair(editor, putString, "horizontal_resolution", CAMERA_FRAME_HORIZONTAL_RESOLUTION);
-        SaveKeyValuePair(editor, putString, "vertical_resolution", CAMERA_FRAME_VERTICAL_RESOLUTION);
+        SaveKeyValuePair(editor, putString, "resolution", streamingConfig.resolution.getLabel());
         SaveKeyValuePair(editor, putString, "video_mode", streamingConfig.videoMode);
         SaveKeyValuePair(editor, putString, "fps", streamingConfig.fps);
     }
@@ -101,8 +100,7 @@ StreamingConfig StateStorage::LoadStreamingConfig() {
         streamingConfig.codec = Codec(std::stoi(LoadValue(sharedPreferences, getString, "codec")));
         streamingConfig.encodingQuality = std::stoi(LoadValue(sharedPreferences, getString, "encoding_quality"));
         streamingConfig.bitrate = std::stoi(LoadValue(sharedPreferences, getString, "bitrate"));
-        streamingConfig.horizontalResolution = std::stoi(LoadValue(sharedPreferences, getString, "horizontal_resolution"));
-        streamingConfig.verticalResolution = std::stoi(LoadValue(sharedPreferences, getString, "vertical_resolution"));
+        streamingConfig.resolution = CameraResolution::fromLabel(LoadValue(sharedPreferences, getString, "resolution"));
         streamingConfig.videoMode = VideoMode(std::stoi(LoadValue(sharedPreferences, getString, "video_mode")));
         streamingConfig.fps = std::stoi(LoadValue(sharedPreferences, getString, "fps"));
 

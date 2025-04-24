@@ -11,7 +11,7 @@ struct Quad {
     XrVector3f Scale;
 };
 
-void init_scene(int textureWidth, int textureHeight);
+void init_scene(int textureWidth, int textureHeight, bool reinit = false);
 
 void generate_shader();
 

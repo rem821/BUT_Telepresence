@@ -20,8 +20,8 @@ static ImVec2 s_win_pos[10];
 static int s_win_num = 0;
 static ImVec2 s_mouse_pos;
 
-static int numberOfElements = 5;
-static int numberOfSegments = 4;
+static int numberOfElements = 8;
+static int numberOfSegments = 5;
 
 int
 init_imgui(int win_w, int win_h) {
@@ -114,51 +114,53 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
 //        s_win_num++;
 //    }
 //    ImGui::End();
+    if (appState->guiControl.changesEnqueued) {
+        if (appState->guiControl.focusMoveUp) {
+            appState->guiControl.focusedElement -= 1;
+            appState->guiControl.focusedSegment = 0;
+            if (appState->guiControl.focusedElement < 0) { appState->guiControl.focusedElement = numberOfElements - 1; }
+        }
+        if (appState->guiControl.focusMoveDown) {
+            appState->guiControl.focusedElement += 1;
+            appState->guiControl.focusedSegment = 0;
+            if (appState->guiControl.focusedElement >= numberOfElements) { appState->guiControl.focusedElement = 0; }
+        }
+        if (appState->guiControl.focusMoveLeft) {
+            appState->guiControl.focusedSegment -= 1;
+            if (appState->guiControl.focusedSegment < 0) { appState->guiControl.focusedSegment = numberOfSegments - 1; }
+        }
+        if (appState->guiControl.focusMoveRight) {
+            appState->guiControl.focusedSegment += 1;
+            if (appState->guiControl.focusedSegment >= numberOfSegments) { appState->guiControl.focusedSegment = 0; }
+        }
+        appState->guiControl.focusMoveUp = false;
+        appState->guiControl.focusMoveDown = false;
+        appState->guiControl.focusMoveLeft = false;
+        appState->guiControl.focusMoveRight = false;
+        appState->guiControl.cooldown = 20;
+        appState->guiControl.changesEnqueued = false;
+    }
 
     win_y += win_h;
-    win_h = 360;
+    win_h = 480;
     ImGui::SetNextWindowPos(ImVec2(_X(win_x), _Y(win_y)), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(_X(win_w), _Y(win_h)), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Streaming info");
+    ImGui::Begin("Settings");
     {
-
-        if (appState->guiControl.changesEnqueued) {
-            if (appState->guiControl.focusMoveUp) {
-                appState->guiControl.focusedElement -= 1;
-                appState->guiControl.focusedSegment = 0;
-                if (appState->guiControl.focusedElement < 0) { appState->guiControl.focusedElement = numberOfElements - 1; }
-            }
-            if (appState->guiControl.focusMoveDown) {
-                appState->guiControl.focusedElement += 1;
-                appState->guiControl.focusedSegment = 0;
-                if (appState->guiControl.focusedElement >= numberOfElements) { appState->guiControl.focusedElement = 0; }
-            }
-            if (appState->guiControl.focusMoveLeft) {
-                appState->guiControl.focusedSegment -= 1;
-                if (appState->guiControl.focusedSegment < 0) { appState->guiControl.focusedSegment = numberOfSegments - 1; }
-            }
-            if (appState->guiControl.focusMoveRight) {
-                appState->guiControl.focusedSegment += 1;
-                if (appState->guiControl.focusedSegment >= numberOfSegments) { appState->guiControl.focusedSegment = 0; }
-            }
-            appState->guiControl.focusMoveUp = false;
-            appState->guiControl.focusMoveDown = false;
-            appState->guiControl.focusMoveLeft = false;
-            appState->guiControl.focusMoveRight = false;
-            appState->guiControl.cooldown = 25 ;
-            appState->guiControl.changesEnqueued = false;
-        }
-
+        ImGui::SeparatorText("Network");
         focusable_text_ip(
                 fmt::format("Headset IP: {}", IpToString(appState->streamingConfig.headset_ip)),
                 appState->guiControl.focusedElement == 0,
                 appState->guiControl.focusedSegment
         );
         focusable_text_ip(
-                fmt::format("Camera stream IP: {}", IpToString(appState->streamingConfig.jetson_ip)),
+                fmt::format("Telepresence IP: {}", IpToString(appState->streamingConfig.jetson_ip)),
                 appState->guiControl.focusedElement == 1,
                 appState->guiControl.focusedSegment
         );
+
+        ImGui::SeparatorText("Streaming & Rendering");
+
         focusable_text(
                 fmt::format("Codec: {}", CodecToString(appState->streamingConfig.codec)),
                 appState->guiControl.focusedElement == 2
@@ -168,17 +170,25 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
                 appState->guiControl.focusedElement == 3
         );
         focusable_text(
-                fmt::format("{}",
-                            VideoModeToString(appState->streamingConfig.videoMode)),
+                fmt::format("{}", VideoModeToString(appState->streamingConfig.videoMode)),
                 appState->guiControl.focusedElement == 4
         );
         focusable_text(
-                fmt::format("Resolution: {}x{} @ {} FPS",
-                            CAMERA_FRAME_HORIZONTAL_RESOLUTION,
-                            CAMERA_FRAME_VERTICAL_RESOLUTION,
-                            appState->streamingConfig.fps),
-                appState->guiControl.focusedElement == -1 // Disabled focus
+                fmt::format("{}", AspectRatioModeToString(appState->aspectRatioMode)),
+                appState->guiControl.focusedElement == 5
         );
+        focusable_text(
+                fmt::format("FPS: {}", appState->streamingConfig.fps),
+                appState->guiControl.focusedElement == 6
+        );
+        focusable_text(
+                fmt::format("Resolution: {}x{}({})", appState->streamingConfig.resolution.getWidth(),
+                            appState->streamingConfig.resolution.getHeight(), appState->streamingConfig.resolution.getLabel()),
+                appState->guiControl.focusedElement == 7
+        );
+
+        ImGui::SeparatorText("Status Information");
+
 
         ImGui::Text("Robot control: %s", BoolToString(appState->robotControlEnabled));
         ImGui::Text("");
@@ -189,14 +199,18 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
                 s->vidConv / 1000, s->enc / 1000, s->rtpPay / 1000, s->udpStream / 1000,
                 s->rtpDepay / 1000, s->dec / 1000, s->queue / 1000);
 
+        ImGui::SeparatorText("Movement");
+
+
         s_win_pos[s_win_num] = ImGui::GetWindowPos();
         s_win_size[s_win_num] = ImGui::GetWindowSize();
         s_win_num++;
     }
+
     ImGui::End();
 }
 
-void focusable_text(const std::string& text, bool isFocused) {
+void focusable_text(const std::string &text, bool isFocused) {
     ImVec2 p = ImGui::GetCursorScreenPos(); // Top-left position of the current drawing cursor
     ImVec2 textSize = ImGui::CalcTextSize(text.c_str()); // Size of the text
 
@@ -214,7 +228,7 @@ void focusable_text(const std::string& text, bool isFocused) {
     ImGui::Text("%s", text.c_str());
 }
 
-void focusable_text_ip(const std::string& text, bool isFocused, int segment) {
+void focusable_text_ip(const std::string &text, bool isFocused, int segment) {
     ImVec2 p = ImGui::GetCursorScreenPos(); // Top-left position of the current drawing cursor
 
     // Split the text into 4 IP segments
@@ -226,7 +240,7 @@ void focusable_text_ip(const std::string& text, bool isFocused, int segment) {
 
     // Draw highlight if focused
     if (isFocused && start != std::string::npos) {
-        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImDrawList *drawList = ImGui::GetWindowDrawList();
         ImVec2 highlightStart = ImVec2(p.x + ImGui::CalcTextSize(text.substr(0, start).c_str()).x, p.y);
         ImVec2 highlightSize = ImGui::CalcTextSize(text.substr(start, end - start).c_str());
         drawList->AddRectFilled(highlightStart, ImVec2(highlightStart.x + highlightSize.x, highlightStart.y + highlightSize.y),

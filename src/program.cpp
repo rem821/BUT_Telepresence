@@ -29,7 +29,7 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
     appState_->streamingConfig = stateStorage_->LoadStreamingConfig();
     appState_->streamingConfig.headset_ip = GetLocalIPAddr();
 
-    init_scene(CAMERA_FRAME_HORIZONTAL_RESOLUTION, CAMERA_FRAME_VERTICAL_RESOLUTION);
+    init_scene(appState_->streamingConfig.resolution.getWidth(), appState_->streamingConfig.resolution.getHeight());
 
     openxr_create_session(&openxr_instance_, &openxr_system_id_, &openxr_session_);
     openxr_log_reference_spaces(&openxr_session_);
@@ -37,8 +37,8 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
     app_reference_space_ = reference_spaces_[0]; // "ViewFront"
 
     viewsurfaces_ = openxr_create_swapchains(&openxr_instance_, &openxr_system_id_, &openxr_session_);
-//    testFrame_ = new unsigned char[CAMERA_FRAME_HORIZONTAL_RESOLUTION * CAMERA_FRAME_VERTICAL_RESOLUTION * 3];
-//    for (int i = 0; i < CAMERA_FRAME_HORIZONTAL_RESOLUTION * CAMERA_FRAME_VERTICAL_RESOLUTION * 3; ++i) {
+//    testFrame_ = new unsigned char[appState_->streamingConfig.resolution.getWidth() * appState_->streamingConfig.resolution.getHeight() * 3];
+//    for (int i = 0; i < appState_->streamingConfig.resolution.getWidth() * appState_->streamingConfig.resolution.getHeight() * 3; ++i) {
 //        testFrame_[i] = rand() % 255;  // Generate a random number between 0 and 254
 //    }
 
@@ -127,11 +127,10 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
     Quad quad{};
     quad.Pose.position = {0.0f, 0.0f, 0.0f};
     quad.Pose.orientation = {0.0f, 0.0f, 0.0f, 1.0f};
-    bool fullscreen = true;
-    if(!fullscreen) {
-        quad.Scale = {3.56f, 3.56f / CAMERA_FRAME_ASPECT_RATIO, 0.0f};
+    if (appState_->aspectRatioMode == AspectRatioMode::FULLFOV) {
+        quad.Scale = {3.56f, 3.56f / appState_->streamingConfig.resolution.getAspectRatio(), 0.0f};
     } else {
-        quad.Scale = {3.56f * CAMERA_FRAME_ASPECT_RATIO , 3.56f, 0.0f};
+        quad.Scale = {3.56f * appState_->streamingConfig.resolution.getAspectRatio(), 3.56f, 0.0f};
     }
 
     for (uint32_t i = 0; i < viewCount; i++) {
@@ -146,7 +145,7 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
         layerViews[i].subImage = subImg;
 
         CameraFrame *imageHandle = i == 0 ? &appState_->cameraStreamingStates.second
-                                   : &appState_->cameraStreamingStates.first;
+                                          : &appState_->cameraStreamingStates.first;
 
         HandleControllers();
 
@@ -593,6 +592,7 @@ void TelepresenceProgram::HandleControllers() {
         renderGui_ = false;
         // Also triggers saving of the Streaming Config for now
         stateStorage_->SaveStreamingConfig(appState_->streamingConfig);
+        init_scene(appState_->streamingConfig.resolution.getWidth(), appState_->streamingConfig.resolution.getHeight(), true);
         gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig);
         //servoCommunicator_ = nullptr;
         restClient_->UpdateStreamingConfig(appState_->streamingConfig);
@@ -659,6 +659,24 @@ void TelepresenceProgram::HandleControllers() {
                              static_cast<int>(VideoMode::CNT)) % static_cast<int>(VideoMode::CNT));
                     appState_->guiControl.changesEnqueued = true;
                     break;
+                case 5: // FullScreen / FullFOV
+                    appState_->aspectRatioMode = static_cast<AspectRatioMode>((static_cast<int>(appState_->aspectRatioMode) + 1 +
+                                                                               static_cast<int>(AspectRatioMode::CNT2)) %
+                                                                              static_cast<int>(AspectRatioMode::CNT2));
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 6: // FPS
+                    if (appState_->streamingConfig.fps < 80) {
+                        appState_->streamingConfig.fps += 1;
+                        appState_->guiControl.changesEnqueued = true;
+                    }
+                    break;
+                case 7: // Resolution
+                    if (appState_->streamingConfig.resolution.getIndex() < CameraResolution::count() - 1) {
+                        appState_->streamingConfig.resolution = CameraResolution::fromIndex(appState_->streamingConfig.resolution.getIndex() + 1);
+                        appState_->guiControl.changesEnqueued = true;
+                    }
+                    break;
             }
         }
 
@@ -691,6 +709,24 @@ void TelepresenceProgram::HandleControllers() {
                              static_cast<int>(VideoMode::CNT)) % static_cast<int>(VideoMode::CNT));
                     appState_->guiControl.changesEnqueued = true;
                     mono_ = appState_->streamingConfig.videoMode == VideoMode::MONO;
+                    break;
+                case 5: // FullScreen / FullFOV
+                    appState_->aspectRatioMode = static_cast<AspectRatioMode>((static_cast<int>(appState_->aspectRatioMode) - 1 +
+                                                                               static_cast<int>(AspectRatioMode::CNT2)) %
+                                                                              static_cast<int>(AspectRatioMode::CNT2));
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 6: // FPS
+                    if (appState_->streamingConfig.fps > 1) {
+                        appState_->streamingConfig.fps -= 1;
+                        appState_->guiControl.changesEnqueued = true;
+                    }
+                    break;
+                case 7: // Resolution
+                    if (appState_->streamingConfig.resolution.getIndex() > 0) {
+                        appState_->streamingConfig.resolution = CameraResolution::fromIndex(appState_->streamingConfig.resolution.getIndex() - 1);
+                        appState_->guiControl.changesEnqueued = true;
+                    }
                     break;
             }
         }
