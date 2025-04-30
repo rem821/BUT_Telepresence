@@ -569,7 +569,7 @@ void TelepresenceProgram::InitializeStreaming() {
     restClient_->StopStream();
     restClient_->StartStream();
 
-    gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig);
+    gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig, appState_->streamingConfig.videoMode == VideoMode::STEREO);
 }
 
 void TelepresenceProgram::HandleControllers() {
@@ -593,7 +593,7 @@ void TelepresenceProgram::HandleControllers() {
         // Also triggers saving of the Streaming Config for now
         stateStorage_->SaveStreamingConfig(appState_->streamingConfig);
         init_scene(appState_->streamingConfig.resolution.getWidth(), appState_->streamingConfig.resolution.getHeight(), true);
-        gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig);
+        gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig, appState_->streamingConfig.videoMode == VideoMode::STEREO);
         //servoCommunicator_ = nullptr;
         restClient_->UpdateStreamingConfig(appState_->streamingConfig);
     }

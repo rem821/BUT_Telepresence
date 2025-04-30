@@ -19,6 +19,7 @@ constexpr int IP_CONFIG_REST_API_PORT = 32281;
 constexpr int IP_CONFIG_SERVO_PORT = 32115;
 constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
 constexpr int IP_CONFIG_RIGHT_CAMERA_PORT = 8556;
+constexpr int IP_CONFIG_COMBINED_CAMERA_PORT = 8554;
 
 inline std::string resolveIPv4(const std::string& hostname) {
     return hostname;
