@@ -16,7 +16,7 @@ public:
 
     ~GstreamerPlayer() = default;
 
-    void configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config);
+    void configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config, const bool combinedStreaming);
 
 private:
 
@@ -42,7 +42,7 @@ private:
 
     gboolean printGstreamerFeature(const GstPluginFeature *feature, gpointer user_data);
 
-    GstElement *pipelineLeft_{}, *pipelineRight_{};
+    GstElement *pipelineLeft_{}, *pipelineRight_{}, *pipelineCombined_{};
     GMainContext *context_{};
     GMainLoop *mainLoop_{};
 
@@ -54,5 +54,5 @@ private:
     const std::string jpegPipeline_ =   "udpsrc name=udpsrc ! capsfilter name=rtp_capsfilter caps=\"application/x-rtp, encoding-name=JPEG, payload=26\" ! identity name=udpsrc_ident ! rtpjpegdepay ! identity name=rtpdepay_ident ! jpegparse ! jpegdec ! videoconvert ! video/x-raw,format=RGB ! identity name=dec_ident ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
     //const std::string jpegPipeline_ = "udpsrc name=udpsrc ! capsfilter name=rtp_capsfilter caps=\"application/x-rtp, encoding-name=JPEG, payload=26\" ! identity name=udpsrc_ident ! rtpjpegdepay ! identity name=rtpdepay_ident ! jpegparse ! jpegdec ! videoconvert ! video/x-raw,format=RGB ! aspectratiocrop aspect-ratio=43/46 ! videoscale ! video/x-raw,width=2208,height=2064 ! identity name=dec_ident ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
     const std::string h264Pipeline_ =   "udpsrc name=udpsrc buffer-size=100000 ! capsfilter name=rtp_capsfilter caps=\"application/x-rtp, encoding-name=H264, media=video, clock-rate=90000, payload=96\" ! identity name=udpsrc_ident ! rtph264depay ! identity name=rtpdepay_ident ! decodebin3 ! videoconvert ! video/x-raw,format=RGB ! identity name=dec_ident ! queue ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
-
+    const std::string jpegPipelineCombined_ = "udpsrc name=udpsrc ! capsfilter name=rtp_capsfilter caps=\"application/x-rtp, encoding-name=JPEG, payload=26\" ! identity name=udpsrc_ident ! rtpjpegdepay ! identity name=rtpdepay_ident ! jpegparse ! jpegdec ! videoconvert ! video/x-raw,format=RGB ! identity name=dec_ident ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
 };

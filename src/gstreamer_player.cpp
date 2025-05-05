@@ -3,8 +3,7 @@
 #include <gst/rtp/rtp.h>
 #include <fmt/format.h>
 
-GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair_(camPair),
-                                                                         ntpTimer_(ntpTimer) {
+GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair_(camPair), ntpTimer_(ntpTimer) {
     gst_init(nullptr, nullptr);
     guint major, minor, micro, nano;
     gst_version(&major, &minor, &micro, &nano);
@@ -33,7 +32,7 @@ static GstPadProbeReturn udpPacketProbeCallback(GstPad *pad, GstPadProbeInfo *in
 }
 
 void
-GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config) {
+GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config, const bool combinedStreaming) {
     GstBus *bus;
     GSource *bus_source;
     GError *error = nullptr;
@@ -111,111 +110,167 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         throw std::runtime_error("Unable to build pipeline!");
     }
 
-    std::string xDimString = fmt::format("{},{}", config.resolution.getWidth(), config.resolution.getHeight());
+    if(combinedStreaming) {
+        std::string xDimString = fmt::format("{},{}", config.resolution.getWidth(), config.resolution.getHeight() * 2);
 
+        pipelineCombined_ = gst_parse_launch(jpegPipelineCombined_.c_str(), &error);
 
-    GstElement *leftudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc_ident");
-    GstElement *leftrtpdepay_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "rtpdepay_ident");
-    GstElement *leftdec_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "dec_ident");
-    GstElement *leftqueue_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "queue_ident");
+        GstElement *udpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "udpsrc_ident");
+        GstElement *rtpdepay_ident = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "rtpdepay_ident");
+        GstElement *dec_ident = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "dec_ident");
+        GstElement *queue_ident = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "queue_ident");
 
-    GstElement *leftudpsrc = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc");
-    GstPad *pad = gst_element_get_static_pad(leftudpsrc, "src");
-    if (pad) {
-        gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, udpPacketProbeCallback, nullptr, nullptr);
-        gst_object_unref(pad);
+        GstElement *udpsrc = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "udpsrc");
+        GstPad *pad = gst_element_get_static_pad(udpsrc, "src");
+        if (pad) {
+            gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, udpPacketProbeCallback, nullptr, nullptr);
+            gst_object_unref(pad);
+        }
+        g_object_set(udpsrc, "port", IP_CONFIG_COMBINED_CAMERA_PORT, NULL);
+
+        GstElement* rtp_capsfilter = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "rtp_capsfilter");
+        GstCaps *new_caps = gst_caps_new_simple("application/x-rtp",
+                                                     "encoding-name", G_TYPE_STRING, "JPEG",
+                                                     "payload", G_TYPE_INT, 26,
+                                                     "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
+                                                     NULL);
+        g_object_set(rtp_capsfilter, "caps", new_caps, NULL);
+        gst_caps_unref(new_caps);
+        gst_object_unref(rtp_capsfilter);
+
+        GstElement *appsink = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "appsink");
+        gst_element_set_name(pipelineCombined_, "pipeline_combined");
+        gst_element_set_state(pipelineCombined_, GST_STATE_READY);
+
+        bus = gst_element_get_bus(pipelineCombined_);
+        bus_source = gst_bus_create_watch(bus);
+        g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
+        g_source_attach(bus_source, context_);
+        g_source_unref(bus_source);
+
+        g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineCombined_);
+        g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineCombined_);
+        g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineCombined_);
+        g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineCombined_);
+        g_signal_connect(G_OBJECT(appsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
+        g_signal_connect(G_OBJECT(udpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
+        g_signal_connect(G_OBJECT(rtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+        g_signal_connect(G_OBJECT(dec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+        g_signal_connect(G_OBJECT(queue_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+        gst_object_unref(udpsrc_ident);
+        gst_object_unref(rtpdepay_ident);
+        gst_object_unref(dec_ident);
+        gst_object_unref(queue_ident);
+        gst_object_unref(appsink);
+        gst_object_unref(bus);
+
+        gst_element_set_state(pipelineCombined_, GST_STATE_PLAYING);
+    } else {
+        std::string xDimString = fmt::format("{},{}", config.resolution.getWidth(), config.resolution.getHeight());
+
+        GstElement *leftudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc_ident");
+        GstElement *leftrtpdepay_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "rtpdepay_ident");
+        GstElement *leftdec_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "dec_ident");
+        GstElement *leftqueue_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "queue_ident");
+
+        GstElement *leftudpsrc = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc");
+        GstPad *pad = gst_element_get_static_pad(leftudpsrc, "src");
+        if (pad) {
+            gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, udpPacketProbeCallback, nullptr, nullptr);
+            gst_object_unref(pad);
+        }
+        g_object_set(leftudpsrc, "port", IP_CONFIG_LEFT_CAMERA_PORT, NULL);
+
+        //TODO: Modify for different codecs
+        GstElement* rtp_capsfilter_left = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "rtp_capsfilter");
+        GstCaps *new_caps_left = gst_caps_new_simple("application/x-rtp",
+                                                     "encoding-name", G_TYPE_STRING, "JPEG",
+                                                     "payload", G_TYPE_INT, 26,
+                                                     "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
+                                                     NULL);
+        g_object_set(rtp_capsfilter_left, "caps", new_caps_left, NULL);
+        gst_caps_unref(new_caps_left);
+        gst_object_unref(rtp_capsfilter_left);
+
+        GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "appsink");
+        gst_element_set_name(pipelineLeft_, "pipeline_left");
+        gst_element_set_state(pipelineLeft_, GST_STATE_READY);
+
+        bus = gst_element_get_bus(pipelineLeft_);
+        bus_source = gst_bus_create_watch(bus);
+        g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
+        g_source_attach(bus_source, context_);
+        g_source_unref(bus_source);
+
+        g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineLeft_);
+        g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineLeft_);
+        g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineLeft_);
+        g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineLeft_);
+        g_signal_connect(G_OBJECT(leftappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
+        g_signal_connect(G_OBJECT(leftudpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
+        g_signal_connect(G_OBJECT(leftrtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+        g_signal_connect(G_OBJECT(leftdec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+        g_signal_connect(G_OBJECT(leftqueue_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+        gst_object_unref(leftudpsrc_ident);
+        gst_object_unref(leftrtpdepay_ident);
+        gst_object_unref(leftdec_ident);
+        gst_object_unref(leftqueue_ident);
+        gst_object_unref(leftappsink);
+        gst_object_unref(bus);
+
+        GstElement *rightudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc_ident");
+        GstElement *rightrtpdepay_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtpdepay_ident");
+        GstElement *rightdec_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "dec_ident");
+        GstElement *rightqueue_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "queue_ident");
+
+        GstElement *rightudpsrc = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc");
+        g_object_set(rightudpsrc, "port", IP_CONFIG_RIGHT_CAMERA_PORT, NULL);
+        pad = gst_element_get_static_pad(rightudpsrc, "src");
+        if (pad) {
+            gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, udpPacketProbeCallback, nullptr, nullptr);
+            gst_object_unref(pad);
+        }
+
+        //TODO: Modify for different codecs
+        GstElement* rtp_capsfilter_right = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtp_capsfilter");
+        GstCaps *new_caps_right = gst_caps_new_simple("application/x-rtp",
+                                                      "encoding-name", G_TYPE_STRING, "JPEG",
+                                                      "payload", G_TYPE_INT, 26,
+                                                      "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
+                                                      NULL);
+        g_object_set(rtp_capsfilter_right, "caps", new_caps_right, NULL);
+        gst_caps_unref(new_caps_right);
+        gst_object_unref(rtp_capsfilter_right);
+
+        GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "appsink");
+        gst_element_set_name(pipelineRight_, "pipeline_right");
+        gst_element_set_state(pipelineRight_, GST_STATE_READY);
+
+        bus = gst_element_get_bus(pipelineRight_);
+        bus_source = gst_bus_create_watch(bus);
+        g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
+        g_source_attach(bus_source, context_);
+        g_source_unref(bus_source);
+
+        g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineRight_);
+        g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineRight_);
+        g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineRight_);
+        g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineRight_);
+        g_signal_connect(G_OBJECT(rightappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
+        g_signal_connect(G_OBJECT(rightudpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
+        g_signal_connect(G_OBJECT(rightrtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+        g_signal_connect(G_OBJECT(rightdec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+        g_signal_connect(G_OBJECT(rightqueue_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+        gst_object_unref(rightudpsrc_ident);
+        gst_object_unref(rightrtpdepay_ident);
+        gst_object_unref(rightdec_ident);
+        gst_object_unref(rightqueue_ident);
+        gst_object_unref(rightappsink);
+        gst_object_unref(bus);
+
+        gst_element_set_state(pipelineLeft_, GST_STATE_PLAYING);
+        gst_element_set_state(pipelineRight_, GST_STATE_PLAYING);
     }
-    g_object_set(leftudpsrc, "port", IP_CONFIG_LEFT_CAMERA_PORT, NULL);
-
-    //TODO: Modify for different codecs
-    GstElement* rtp_capsfilter_left = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "rtp_capsfilter");
-    GstCaps *new_caps_left = gst_caps_new_simple("application/x-rtp",
-                                            "encoding-name", G_TYPE_STRING, "JPEG",
-                                            "payload", G_TYPE_INT, 26,
-                                            "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
-                                            NULL);
-    g_object_set(rtp_capsfilter_left, "caps", new_caps_left, NULL);
-    gst_caps_unref(new_caps_left);
-    gst_object_unref(rtp_capsfilter_left);
-
-    GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "appsink");
-    gst_element_set_name(pipelineLeft_, "pipeline_left");
-    gst_element_set_state(pipelineLeft_, GST_STATE_READY);
-
-    bus = gst_element_get_bus(pipelineLeft_);
-    bus_source = gst_bus_create_watch(bus);
-    g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
-    g_source_attach(bus_source, context_);
-    g_source_unref(bus_source);
-
-    g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineLeft_);
-    g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineLeft_);
-    g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineLeft_);
-    g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineLeft_);
-    g_signal_connect(G_OBJECT(leftappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
-    g_signal_connect(G_OBJECT(leftudpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
-    g_signal_connect(G_OBJECT(leftrtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-    g_signal_connect(G_OBJECT(leftdec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-    g_signal_connect(G_OBJECT(leftqueue_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-    gst_object_unref(leftudpsrc_ident);
-    gst_object_unref(leftrtpdepay_ident);
-    gst_object_unref(leftdec_ident);
-    gst_object_unref(leftqueue_ident);
-    gst_object_unref(leftappsink);
-    gst_object_unref(bus);
-
-    GstElement *rightudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc_ident");
-    GstElement *rightrtpdepay_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtpdepay_ident");
-    GstElement *rightdec_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "dec_ident");
-    GstElement *rightqueue_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "queue_ident");
-
-    GstElement *rightudpsrc = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc");
-    g_object_set(rightudpsrc, "port", IP_CONFIG_RIGHT_CAMERA_PORT, NULL);
-    pad = gst_element_get_static_pad(rightudpsrc, "src");
-    if (pad) {
-        gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, udpPacketProbeCallback, nullptr, nullptr);
-        gst_object_unref(pad);
-    }
-
-    //TODO: Modify for different codecs
-    GstElement* rtp_capsfilter_right = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtp_capsfilter");
-    GstCaps *new_caps_right = gst_caps_new_simple("application/x-rtp",
-                                            "encoding-name", G_TYPE_STRING, "JPEG",
-                                            "payload", G_TYPE_INT, 26,
-                                            "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
-                                            NULL);
-    g_object_set(rtp_capsfilter_right, "caps", new_caps_right, NULL);
-    gst_caps_unref(new_caps_right);
-    gst_object_unref(rtp_capsfilter_right);
-
-    GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "appsink");
-    gst_element_set_name(pipelineRight_, "pipeline_right");
-    gst_element_set_state(pipelineRight_, GST_STATE_READY);
-
-    bus = gst_element_get_bus(pipelineRight_);
-    bus_source = gst_bus_create_watch(bus);
-    g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
-    g_source_attach(bus_source, context_);
-    g_source_unref(bus_source);
-
-    g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineRight_);
-    g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineRight_);
-    g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineRight_);
-    g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineRight_);
-    g_signal_connect(G_OBJECT(rightappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
-    g_signal_connect(G_OBJECT(rightudpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
-    g_signal_connect(G_OBJECT(rightrtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-    g_signal_connect(G_OBJECT(rightdec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-    g_signal_connect(G_OBJECT(rightqueue_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-    gst_object_unref(rightudpsrc_ident);
-    gst_object_unref(rightrtpdepay_ident);
-    gst_object_unref(rightdec_ident);
-    gst_object_unref(rightqueue_ident);
-    gst_object_unref(rightappsink);
-    gst_object_unref(bus);
-
-    gst_element_set_state(pipelineLeft_, GST_STATE_PLAYING);
-    gst_element_set_state(pipelineRight_, GST_STATE_PLAYING);
 
     threadPool.detach_task([&]() {
         /* Create a GLib Main Loop and set it to run */
@@ -234,31 +289,49 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
     /* Retrieve the buffer */
     g_signal_emit_by_name(sink, "pull-sample", &sample);
     if (sample) {
-        bool isLeftCamera = std::string(sink->object.parent->name) == "pipeline_left";
-        if (isLeftCamera) {
-            LOG_INFO("New GStreamer frame received from left camera");
+        if(std::string(sink->object.parent->name) == "pipeline_combined") {
+            LOG_INFO("New GStreamer combined frame received");
+            auto pair = callbackObj->first;
+
+            GstBuffer *buffer;
+            GstMapInfo mapInfo{};
+
+            buffer = gst_sample_get_buffer(sample);
+            gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
+
+            memcpy(pair->first.dataHandle, mapInfo.data, pair->first.memorySize);
+            //LOG_INFO("frame size: %lu. Should be: %lu", mapInfo.size, pair->first.memorySize + pair->second.memorySize);
+            memcpy(pair->second.dataHandle, mapInfo.data + pair->first.memorySize - 3, pair->second.memorySize);
+
+            gst_sample_unref(sample);
+            gst_buffer_unmap(buffer, &mapInfo);
         } else {
-            LOG_INFO("New GStreamer frame received from right camera");
+            bool isLeftCamera = std::string(sink->object.parent->name) == "pipeline_left";
+            if (isLeftCamera) {
+                LOG_INFO("New GStreamer frame received from left camera");
+            } else {
+                LOG_INFO("New GStreamer frame received from right camera");
+            }
+
+            auto pair = callbackObj->first;
+            auto frame = isLeftCamera ? pair->first : pair->second;
+
+            frame.stats->prevTimestamp = frame.stats->currTimestamp;
+            frame.stats->currTimestamp = callbackObj->second->GetCurrentTimeUs();
+            double diff = frame.stats->currTimestamp - frame.stats->prevTimestamp;
+            frame.stats->fps = 1e6f / diff;
+
+            GstBuffer *buffer;
+            GstMapInfo mapInfo{};
+
+            buffer = gst_sample_get_buffer(sample);
+            gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
+
+            memcpy(frame.dataHandle, mapInfo.data, frame.memorySize);
+
+            gst_sample_unref(sample);
+            gst_buffer_unmap(buffer, &mapInfo);
         }
-
-        auto pair = callbackObj->first;
-        auto frame = isLeftCamera ? pair->first : pair->second;
-
-        frame.stats->prevTimestamp = frame.stats->currTimestamp;
-        frame.stats->currTimestamp = callbackObj->second->GetCurrentTimeUs();
-        double diff = frame.stats->currTimestamp - frame.stats->prevTimestamp;
-        frame.stats->fps = 1e6f / diff;
-
-        GstBuffer *buffer;
-        GstMapInfo mapInfo{};
-
-        buffer = gst_sample_get_buffer(sample);
-        gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
-
-        memcpy(frame.dataHandle, mapInfo.data, frame.memorySize);
-
-        gst_sample_unref(sample);
-        gst_buffer_unmap(buffer, &mapInfo);
         return GST_FLOW_OK;
     }
 

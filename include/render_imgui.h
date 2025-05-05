@@ -22,6 +22,8 @@ void imgui_mousemove(int x, int y);
 
 void focusable_text(const std::string& text, bool isFocused = false);
 void focusable_text_ip(const std::string& text, bool isFocused = false, int segment = 0);
+void focusable_button(const std::string &label, bool isFocused);
+
 int invoke_imgui(const std::shared_ptr<AppState>& appState);
 
 #endif /* UTIL_IMGUI_H_ */
