@@ -398,6 +398,7 @@ struct AppState {
     long long appFrameTime{0};
     SystemInfo systemInfo;
     GUIControl guiControl;
+    uint32_t headMovementMaxSpeed = 100000;
     bool robotControlEnabled = true;
     bool headsetMounted = false;
 };

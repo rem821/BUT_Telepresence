@@ -54,7 +54,6 @@ private:
 
     bool mono_ = false;
     bool renderGui_ = true;
-    int32_t speed_ = 200000;
 
     BS::thread_pool<BS::tp::none> gstreamerThreadPool_{1};
     BS::thread_pool<BS::tp::none> threadPool_{3};

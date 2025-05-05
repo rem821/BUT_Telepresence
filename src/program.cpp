@@ -535,13 +535,11 @@ void TelepresenceProgram::SendControllerDatagram() {
         servoCommunicator_->enableServos(true, threadPool_);
     }
     if (servoCommunicator_->isReady()) {
-        if (userState_.xPressed) { speed_ -= 10000; }
-        if (userState_.yPressed) { speed_ += 10000; }
         if (userState_.xPressed && userState_.yPressed) {
             servoCommunicator_->resetErrors(threadPool_);
         }
 
-        servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation, speed_, threadPool_);
+        servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation, appState_->headMovementMaxSpeed, threadPool_);
     }
     if (appState_->robotControlEnabled) {
         servoCommunicator_->sendOdinControlPacket(userState_.thumbstickPose[Side::LEFT].y,
@@ -569,7 +567,7 @@ void TelepresenceProgram::InitializeStreaming() {
     restClient_->StopStream();
     restClient_->StartStream();
 
-    gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig, appState_->streamingConfig.videoMode == VideoMode::STEREO);
+    gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig, false);
 }
 
 void TelepresenceProgram::HandleControllers() {
@@ -590,12 +588,8 @@ void TelepresenceProgram::HandleControllers() {
         renderGui_ = true;
     if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.xPressed && renderGui_) {
         renderGui_ = false;
-        // Also triggers saving of the Streaming Config for now
+
         stateStorage_->SaveStreamingConfig(appState_->streamingConfig);
-        init_scene(appState_->streamingConfig.resolution.getWidth(), appState_->streamingConfig.resolution.getHeight(), true);
-        gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig, appState_->streamingConfig.videoMode == VideoMode::STEREO);
-        //servoCommunicator_ = nullptr;
-        restClient_->UpdateStreamingConfig(appState_->streamingConfig);
     }
 
     // GUI interaction
@@ -603,8 +597,7 @@ void TelepresenceProgram::HandleControllers() {
         appState_->guiControl.cooldown -= 1;
     }
 
-    if (renderGui_ && userState_.triggerValue[Side::LEFT] < 0.1 &&
-        !appState_->guiControl.changesEnqueued && appState_->guiControl.cooldown == 0) {
+    if (renderGui_ && !appState_->guiControl.changesEnqueued && appState_->guiControl.cooldown == 0) {
 
         // Focus move UP
         if (userState_.thumbstickPose[Side::LEFT].y > 0.9f) {
@@ -677,6 +670,12 @@ void TelepresenceProgram::HandleControllers() {
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
+                case 9: // Camera head movement max speed
+                    if (appState_->headMovementMaxSpeed < 990000) {
+                        appState_->headMovementMaxSpeed += 10000;
+                        appState_->guiControl.changesEnqueued = true;
+                    }
+                    break;
             }
         }
 
@@ -728,7 +727,24 @@ void TelepresenceProgram::HandleControllers() {
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
+                case 9: // Camera head movement max speed
+                    if (appState_->headMovementMaxSpeed > 110000) {
+                        appState_->headMovementMaxSpeed -= 10000;
+                        appState_->guiControl.changesEnqueued = true;
+                    }
+                    break;
             }
+        }
+
+
+        // Apply streaming config button
+        else if (userState_.triggerValue[Side::LEFT] > 0.9f && appState_->guiControl.focusedElement == 8) {
+            stateStorage_->SaveStreamingConfig(appState_->streamingConfig);
+            init_scene(appState_->streamingConfig.resolution.getWidth(), appState_->streamingConfig.resolution.getHeight(), true);
+            gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig, false);
+            //servoCommunicator_ = nullptr;
+            restClient_->UpdateStreamingConfig(appState_->streamingConfig);
+            appState_->guiControl.changesEnqueued = true;
         }
     }
 }
