@@ -20,7 +20,7 @@ static ImVec2 s_win_pos[10];
 static int s_win_num = 0;
 static ImVec2 s_mouse_pos;
 
-static int numberOfElements = 10;
+static int numberOfElements = 11;
 static int numberOfSegments = 5;
 
 int
@@ -195,6 +195,10 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
                 fmt::format("Camera head movement speed: {}", appState->headMovementMaxSpeed),
                 appState->guiControl.focusedElement == 9
         );
+        focusable_text(
+                fmt::format("Headset movement prediction: {} ms", appState->headMovementPredictionMs),
+                appState->guiControl.focusedElement == 10
+        );
         ImGui::Text("Robot control: %s", BoolToString(appState->robotControlEnabled));
         ImGui::Text("");
         ImGui::Text("Latencies:");
@@ -262,6 +266,8 @@ void focusable_button(const std::string &label, bool isFocused) {
     } else {
         ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(100, 100, 255, 20));  // Transparent light blue
     }
+
+    ImGui::Button(label.c_str());
 
     ImGui::PopStyleColor(1);
 }

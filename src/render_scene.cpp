@@ -16,7 +16,7 @@
 static const std::array<float, 4> CLEAR_COLOR{0.05f, 0.05f, 0.05f, 1.0f};
 
 static int GUI_WIDTH = 300;
-static int GUI_HEIGHT = 340;
+static int GUI_HEIGHT = 420;
 
 static GLuint cubeVertexBuffer{0}, cubeIndexBuffer{0}, vertexArrayObject{0},
         vertexAttribCoords{0}, vertexAttribTexCoords{0}, texture2D{0};

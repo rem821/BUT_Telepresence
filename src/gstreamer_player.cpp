@@ -9,26 +9,18 @@ GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair
     gst_version(&major, &minor, &micro, &nano);
     LOG_INFO("Running GStreamer version: %d.%d.%d.%d", major, minor, micro, nano);
 
-//    listAvailableDecoders();
-//    dumpGstreamerFeatures();
+    gst_debug_add_log_function(gstCustomLog, nullptr, nullptr);
+    //gst_debug_set_default_threshold(GST_LEVEL_INFO);
+    gst_debug_set_threshold_for_name("decodebin3", GST_LEVEL_LOG);
+    gst_debug_set_threshold_for_name("omx", GST_LEVEL_LOG);
+    gst_debug_set_threshold_for_name("decode", GST_LEVEL_LOG);
+
+    listAvailableDecoders();
+    dumpGstreamerFeatures();
 
     /* Create our own GLib Main Context and make it the default one */
     context_ = g_main_context_new();
     g_main_context_push_thread_default(context_);
-}
-
-
-// Callback function to log packet arrivals
-static GstPadProbeReturn udpPacketProbeCallback(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
-    static auto last_time = std::chrono::steady_clock::now();
-
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count();
-    last_time = now;
-
-    //LOG_INFO("[UDP Packet] Arrived. Interval: %lld ms", elapsed);
-
-    return GST_PAD_PROBE_OK;
 }
 
 void
@@ -99,7 +91,8 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
             pipelineRight_ = gst_parse_launch(h264Pipeline_.c_str(), &error);
             break;
         case Codec::H265:
-            //TODO:
+            pipelineLeft_ = gst_parse_launch(h265Pipeline_.c_str(), &error);
+            pipelineRight_ = gst_parse_launch(h265Pipeline_.c_str(), &error);
             break;
         default:
             break;
@@ -128,10 +121,15 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         }
         g_object_set(udpsrc, "port", IP_CONFIG_COMBINED_CAMERA_PORT, NULL);
 
+        int payload = 26;
+        if(config.codec != Codec::JPEG) {
+            payload=96;
+        }
+
         GstElement* rtp_capsfilter = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "rtp_capsfilter");
         GstCaps *new_caps = gst_caps_new_simple("application/x-rtp",
-                                                     "encoding-name", G_TYPE_STRING, "JPEG",
-                                                     "payload", G_TYPE_INT, 26,
+                                                     "encoding-name", G_TYPE_STRING, CodecToString(config.codec).c_str(),
+                                                     "payload", G_TYPE_INT, payload,
                                                      "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
                                                      NULL);
         g_object_set(rtp_capsfilter, "caps", new_caps, NULL);
@@ -181,11 +179,15 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         }
         g_object_set(leftudpsrc, "port", IP_CONFIG_LEFT_CAMERA_PORT, NULL);
 
-        //TODO: Modify for different codecs
+        int payload = 26;
+        if(config.codec != Codec::JPEG) {
+            payload=96;
+        }
+
         GstElement* rtp_capsfilter_left = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "rtp_capsfilter");
         GstCaps *new_caps_left = gst_caps_new_simple("application/x-rtp",
-                                                     "encoding-name", G_TYPE_STRING, "JPEG",
-                                                     "payload", G_TYPE_INT, 26,
+                                                     "encoding-name", G_TYPE_STRING, CodecToString(config.codec).c_str(),
+                                                     "payload", G_TYPE_INT, payload,
                                                      "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
                                                      NULL);
         g_object_set(rtp_capsfilter_left, "caps", new_caps_left, NULL);
@@ -201,6 +203,18 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
         g_source_attach(bus_source, context_);
         g_source_unref(bus_source);
+
+        gst_bus_add_watch(bus, [](GstBus *, GstMessage *msg, gpointer) -> gboolean {
+            if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_ERROR) {
+                GError *err = nullptr;
+                gchar *dbg;
+                gst_message_parse_error(msg, &err, &dbg);
+                g_printerr("GSTREAMER ERROR: %s\n", err->message);
+                g_error_free(err);
+                g_free(dbg);
+            }
+            return TRUE;
+        }, nullptr);
 
         g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineLeft_);
         g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineLeft_);
@@ -231,11 +245,10 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
             gst_object_unref(pad);
         }
 
-        //TODO: Modify for different codecs
         GstElement* rtp_capsfilter_right = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtp_capsfilter");
         GstCaps *new_caps_right = gst_caps_new_simple("application/x-rtp",
-                                                      "encoding-name", G_TYPE_STRING, "JPEG",
-                                                      "payload", G_TYPE_INT, 26,
+                                                      "encoding-name", G_TYPE_STRING, CodecToString(config.codec).c_str(),
+                                                      "payload", G_TYPE_INT, payload,
                                                       "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
                                                       NULL);
         g_object_set(rtp_capsfilter_right, "caps", new_caps_right, NULL);
@@ -290,7 +303,7 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
     g_signal_emit_by_name(sink, "pull-sample", &sample);
     if (sample) {
         if(std::string(sink->object.parent->name) == "pipeline_combined") {
-            LOG_INFO("New GStreamer combined frame received");
+            //LOG_INFO("New GStreamer combined frame received");
             auto pair = callbackObj->first;
 
             GstBuffer *buffer;
@@ -308,9 +321,9 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
         } else {
             bool isLeftCamera = std::string(sink->object.parent->name) == "pipeline_left";
             if (isLeftCamera) {
-                LOG_INFO("New GStreamer frame received from left camera");
+                //LOG_INFO("New GStreamer frame received from left camera");
             } else {
-                LOG_INFO("New GStreamer frame received from right camera");
+                //LOG_INFO("New GStreamer frame received from right camera");
             }
 
             auto pair = callbackObj->first;
@@ -443,6 +456,32 @@ void GstreamerPlayer::errorCallback(GstBus *bus, GstMessage *msg, GstElement *pi
 
     gst_element_set_state(pipeline, GST_STATE_NULL);
 }
+
+// Callback function to log packet arrivals
+GstPadProbeReturn GstreamerPlayer::udpPacketProbeCallback(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
+    static auto last_time = std::chrono::steady_clock::now();
+
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count();
+    last_time = now;
+
+    //LOG_INFO("[UDP Packet] Arrived. Interval: %lld ms", elapsed);
+
+    return GST_PAD_PROBE_OK;
+}
+
+void GstreamerPlayer::gstCustomLog(GstDebugCategory *category, GstDebugLevel level, const gchar *file, const gchar *function, gint line,
+                                   GObject *object, GstDebugMessage *message, gpointer user_data) {
+    const gchar *msg = gst_debug_message_get(message);
+    const gchar *cat = gst_debug_category_get_name(category);
+
+    // Only print critical decoder-related logs (filter if needed)
+    LOG_INFO("[GSTLOG] [%s] %s\n", cat, msg);
+//    if (strstr(cat, "decodebin") || strstr(msg, "OMX") || strstr(msg, "decoder")) {
+//
+//    }
+}
+
 
 void GstreamerPlayer::listAvailableDecoders() {
     // Initialize GStreamer if not already done

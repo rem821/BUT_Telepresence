@@ -86,10 +86,10 @@ void NtpTimer::SyncWithServer() {
     int64_t prevTimeOffset = local_time - localTimeOffset_ - server_time_adj;
     localTimeOffset_ = local_time - server_time_adj;
 
-    LOG_INFO("NTPCLIENT: Local Time:                               %lu", local_time);
-    LOG_INFO("NTPCLIENT: Server Time (with latency correction):    %lu", server_time_adj);
-    LOG_INFO("NTPCLIENT: Time offset:                              %ld", prevTimeOffset);
-    LOG_INFO("NTPCLIENT: Server Time round trip delay (us):        %lu", roundTripDelay_);
+    //LOG_INFO("NTPCLIENT: Local Time:                               %lu", local_time);
+    //LOG_INFO("NTPCLIENT: Server Time (with latency correction):    %lu", server_time_adj);
+    //LOG_INFO("NTPCLIENT: Time offset:                              %ld", prevTimeOffset);
+    //LOG_INFO("NTPCLIENT: Server Time round trip delay (us):        %lu", roundTripDelay_);
 }
 
 uint64_t NtpTimer::GetCurrentTimeUs() const {

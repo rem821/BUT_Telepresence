@@ -325,14 +325,14 @@ ServoCommunicator::AzimuthElevation ServoCommunicator::quaternionToAzimuthElevat
     if (test > 0.499F) { // Singularity at north pole
         azimuth = 2 * std::atan2(q.x, q.w);
         elevation = 0;
-        LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
+        //LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
         return AzimuthElevation{azimuth, elevation};
     }
 
     if (test < -0.499F) { // Singularity at south pole
         azimuth = -2 * std::atan2(q.x, q.w);
         elevation = 0;
-        LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
+        //LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
         return AzimuthElevation{azimuth, elevation};
     }
 
@@ -354,6 +354,6 @@ ServoCommunicator::AzimuthElevation ServoCommunicator::quaternionToAzimuthElevat
 //
 
 
-    LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
+    //LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
     return AzimuthElevation{azimuth, elevation + 0.5f};
 }

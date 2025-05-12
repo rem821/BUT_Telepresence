@@ -100,7 +100,7 @@ void TelepresenceProgram::RenderFrame() {
 bool TelepresenceProgram::RenderLayer(XrTime displayTime,
                                       std::vector<XrCompositionLayerProjectionView> &layerViews,
                                       XrCompositionLayerProjection &layer) {
-    displayTime += 50e6; //Predict 50 ms into the future
+    displayTime += appState_->headMovementPredictionMs * 1e6;
     auto viewCount = viewsurfaces_.size();
     std::vector<XrView> views(viewCount, {XR_TYPE_VIEW});
     openxr_locate_views(&openxr_session_, &displayTime, app_reference_space_, viewCount,
@@ -676,6 +676,12 @@ void TelepresenceProgram::HandleControllers() {
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
+                case 10: // Headset movement prediction time in ms
+                    if (appState_->headMovementPredictionMs < 100) {
+                        appState_->headMovementPredictionMs += 1;
+                        appState_->guiControl.changesEnqueued = true;
+                    }
+                    break;
             }
         }
 
@@ -730,6 +736,12 @@ void TelepresenceProgram::HandleControllers() {
                 case 9: // Camera head movement max speed
                     if (appState_->headMovementMaxSpeed > 110000) {
                         appState_->headMovementMaxSpeed -= 10000;
+                        appState_->guiControl.changesEnqueued = true;
+                    }
+                    break;
+                case 10: // Headset movement prediction time in ms
+                    if (appState_->headMovementPredictionMs > 0) {
+                        appState_->headMovementPredictionMs -= 1;
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
