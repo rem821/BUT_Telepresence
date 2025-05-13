@@ -6,6 +6,7 @@
 #include <chrono>
 
 #include "program.h"
+#include "gstreamer_android.h"
 
 struct AndroidAppState {
     ANativeWindow *NativeWindow = nullptr;
@@ -108,7 +109,7 @@ void LogHardwareAcceleratedCodecs(JNIEnv *env) {
                 const char *codecTypeCStr = env->GetStringUTFChars(codecType, nullptr);
 
                 // Log only hardware-accelerated video codecs
-                if (strstr(codecNameCStr, "OMX") || strstr(codecNameCStr, "hardware")) {
+                if (strstr(codecNameCStr, "OMX") || strstr(codecNameCStr, "hardware") || strstr(codecNameCStr, "amc")) {
                     LOG_INFO("HW Codec: %s, Type: %s", codecNameCStr, codecTypeCStr);
                 }
 
@@ -143,8 +144,12 @@ void android_main(struct android_app *app) {
         // Log hardware-accelerated codecs
         LogHardwareAcceleratedCodecs(Env);
 
-        std::unique_ptr<TelepresenceProgram> telepresenceProgram = std::make_unique<TelepresenceProgram>(
-                app);
+        // Initialize GST
+        jobject activity = app->activity->clazz;
+        jclass activityClass = Env->GetObjectClass(activity);
+        gst_android_init(Env, activityClass, activity);
+
+        std::unique_ptr<TelepresenceProgram> telepresenceProgram = std::make_unique<TelepresenceProgram>(app);
 
         bool requestRestart = false;
         bool exitRenderLoop = false;

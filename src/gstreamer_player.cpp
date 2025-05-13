@@ -4,7 +4,21 @@
 #include <fmt/format.h>
 
 GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair_(camPair), ntpTimer_(ntpTimer) {
-    gst_init(nullptr, nullptr);
+//    GstPlugin *plugin = gst_registry_find_plugin(gst_registry_get(), "androidmedia");
+//    if (plugin) {
+//        LOG_INFO("androidmedia plugin found and loaded!");
+//        gst_object_unref(plugin);
+//    } else {
+//        LOG_INFO("androidmedia plugin NOT found.");
+//    }
+//
+//    GstElementFactory *f = gst_element_factory_find("amcviddec-265");
+//    if (!f) {
+//        LOG_ERROR("amcviddec-265 NOT registered!");
+//    } else {
+//        LOG_INFO("amcviddec-265 is registered!");
+//    }
+
     guint major, minor, micro, nano;
     gst_version(&major, &minor, &micro, &nano);
     LOG_INFO("Running GStreamer version: %d.%d.%d.%d", major, minor, micro, nano);
@@ -14,9 +28,10 @@ GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair
     gst_debug_set_threshold_for_name("decodebin3", GST_LEVEL_LOG);
     gst_debug_set_threshold_for_name("omx", GST_LEVEL_LOG);
     gst_debug_set_threshold_for_name("decode", GST_LEVEL_LOG);
+    gst_debug_set_threshold_for_name("amc", GST_LEVEL_LOG);
 
     listAvailableDecoders();
-    dumpGstreamerFeatures();
+    listGstreamerPlugins();
 
     /* Create our own GLib Main Context and make it the default one */
     context_ = g_main_context_new();
@@ -475,18 +490,11 @@ void GstreamerPlayer::gstCustomLog(GstDebugCategory *category, GstDebugLevel lev
     const gchar *msg = gst_debug_message_get(message);
     const gchar *cat = gst_debug_category_get_name(category);
 
-    // Only print critical decoder-related logs (filter if needed)
     LOG_INFO("[GSTLOG] [%s] %s\n", cat, msg);
-//    if (strstr(cat, "decodebin") || strstr(msg, "OMX") || strstr(msg, "decoder")) {
-//
-//    }
 }
 
 
 void GstreamerPlayer::listAvailableDecoders() {
-    // Initialize GStreamer if not already done
-    gst_init(nullptr, nullptr);
-
     // Get the list of decoders
     GList *decoders = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODABLE, GST_RANK_MARGINAL);
 
@@ -520,55 +528,18 @@ void GstreamerPlayer::listAvailableDecoders() {
     gst_plugin_feature_list_free(decoders);
 }
 
-void GstreamerPlayer::dumpGstreamerFeatures() {
+void GstreamerPlayer::listGstreamerPlugins() {
     GstRegistry *registry = gst_registry_get();
+    GList *features = gst_registry_get_feature_list(registry, GST_TYPE_ELEMENT_FACTORY);
 
-    if (!registry) {
-        LOG_ERROR("Failed to get gstreamer registry!");
-        throw std::runtime_error("Failed to get gstreamer registry!");
+    for (GList *iter = features; iter != nullptr; iter = iter->next) {
+        GstElementFactory *factory = GST_ELEMENT_FACTORY(iter->data);
+        const gchar *name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory));
+        const gchar *longname = gst_element_factory_get_longname(factory);
+        const gchar *klass = gst_element_factory_get_klass(factory);
+
+        LOG_INFO("Element: %s — %s (%s)\n", name, longname, klass);
     }
 
-    gchar *str = g_strdup("");
-    GList *features = gst_registry_feature_filter(registry, nullptr, FALSE, nullptr);
-    for (GList *iterator = features; iterator != nullptr; iterator = iterator->next) {
-        printGstreamerFeature((GstPluginFeature *) iterator->data, &str);
-    }
-
-    g_list_free(features);
-
-    gst_object_unref(registry);
-}
-
-gboolean
-GstreamerPlayer::printGstreamerFeature(const GstPluginFeature *feature, gpointer user_data) {
-    auto **str = (gchar **) user_data;
-    gchar *name = gst_plugin_feature_get_name(feature);
-    gchar *temp;
-
-    /* Get the plugin name if this is a plugin feature */
-    gchar *plugin_name = nullptr;
-    if (GST_IS_PLUGIN_FEATURE(feature)) {
-        GstPlugin *plugin = gst_plugin_feature_get_plugin((GstPluginFeature *) feature);
-        if (plugin != nullptr) {
-            plugin_name = g_strdup(gst_plugin_get_name(plugin));
-            gst_object_unref(plugin);
-        }
-    }
-
-    /* Append the feature name and plugin name (if any) to the string */
-    if (plugin_name != nullptr) {
-        LOG_INFO("GStreamer found feature from plugin: %s (%s)\n", name, plugin_name);
-        temp = g_strdup_printf("%s (%s)", name, plugin_name);
-    } else {
-        LOG_INFO("GStreamer found feature: %s \n", name);
-        temp = g_strdup_printf("%s\n", name);
-    }
-    *str = g_strdup_printf("%s%s", *str, temp);
-    g_free(temp);
-
-    /* Free resources */
-    g_free(name);
-    g_free(plugin_name);
-
-    return TRUE;
+    gst_plugin_feature_list_free(features);
 }

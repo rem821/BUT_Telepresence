@@ -43,9 +43,7 @@ private:
 
     void listAvailableDecoders();
 
-    void dumpGstreamerFeatures();
-
-    gboolean printGstreamerFeature(const GstPluginFeature *feature, gpointer user_data);
+    void listGstreamerPlugins();
 
     GstElement *pipelineLeft_{}, *pipelineRight_{}, *pipelineCombined_{};
     GMainContext *context_{};
