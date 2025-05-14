@@ -4,6 +4,7 @@
 #include <gst/gst.h>
 #include <gio/gio.h>
 #include <chrono>
+#include <dlfcn.h>
 
 #include "program.h"
 #include "gstreamer_android.h"
@@ -128,6 +129,15 @@ void LogHardwareAcceleratedCodecs(JNIEnv *env) {
     env->DeleteLocalRef(codecListClass);
 }
 
+void ensure_jni_symbols_visible() {
+    // Try to load ART's runtime with symbols in global scope
+    void* handle = dlopen("libart.so", RTLD_NOW | RTLD_GLOBAL);
+    if (!handle) {
+        // fallback: try android_runtime (sometimes needed)
+        handle = dlopen("libandroid_runtime.so", RTLD_NOW | RTLD_GLOBAL);
+    }
+}
+
 void android_main(struct android_app *app) {
     try {
         JNIEnv *Env;
@@ -137,12 +147,14 @@ void android_main(struct android_app *app) {
         app->userData = &appState;
         app->onAppCmd = ProcessAndroidCmd;
 
+        ensure_jni_symbols_visible();
+
         // Retrieve native library path
         std::string nativeLibraryPath = GetNativeLibraryPath(Env, app->activity->clazz);
         LOG_INFO("Native Library Path: %s", nativeLibraryPath.c_str());
 
         // Log hardware-accelerated codecs
-        LogHardwareAcceleratedCodecs(Env);
+        //LogHardwareAcceleratedCodecs(Env);
 
         // Initialize GST
         jobject activity = app->activity->clazz;

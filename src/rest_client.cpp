@@ -11,6 +11,7 @@ RestClient::RestClient(StreamingConfig &config) : config_(config) {
 
     httpClient_ = std::make_unique<httplib::Client>(IpToString(config.jetson_ip).c_str(),
                                                     IP_CONFIG_REST_API_PORT);
+    httpClient_->set_connection_timeout(5, 0);
 }
 
 int RestClient::StartStream() {

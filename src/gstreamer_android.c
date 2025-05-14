@@ -99,19 +99,19 @@ gst_android_register_static_plugins(void) {
     GST_PLUGIN_STATIC_REGISTER(vpx);
 
     GST_PLUGIN_STATIC_REGISTER(opensles);
-    //GST_PLUGIN_STATIC_REGISTER(androidmedia);
+    GST_PLUGIN_STATIC_REGISTER(androidmedia);
     GST_PLUGIN_STATIC_REGISTER(udp);
     GST_PLUGIN_STATIC_REGISTER(videoparsersbad);
     GST_PLUGIN_STATIC_REGISTER(app);
     GST_PLUGIN_STATIC_REGISTER(jpeg);
     GST_PLUGIN_STATIC_REGISTER(jpegformat);
     GST_PLUGIN_STATIC_REGISTER(libav);
-
 }
 
 /* Call this function to load GIO modules */
 void
 gst_android_load_gio_modules(void) {
+    GST_G_IO_MODULE_DECLARE(androidmedia);
 }
 
 void
@@ -571,13 +571,20 @@ gst_android_init(JNIEnv *env, jclass klass, jobject context) {
     gst_android_register_static_plugins();
     gst_android_load_gio_modules();
 
-    GstElementFactory *androidOpusFactory = gst_element_factory_find("amcauddec-omxgoogleopusdecoder");
-    if (androidOpusFactory == NULL) {
-        LOG_INFO("GStreamer: androidmedia plugin not found");
+    GstElementFactory *dummy = gst_element_factory_find("amcviddec-omxqcomvideodecoderhevc");
+    if (dummy) {
+        LOG_INFO("Gstreamer: amcviddec-omxqcomvideodecoderhevc found");
+        gst_object_unref(dummy);
     } else {
+        LOG_INFO("Gstreamer: amcviddec-omxqcomvideodecoderhevc not found");
+
+    }
+
+    GstPlugin *plugin = gst_registry_find_plugin(gst_registry_get(), "androidmedia");
+    if (plugin) {
         LOG_INFO("GStreamer: androidmedia plugin found");
-        gst_plugin_feature_set_rank(GST_PLUGIN_FEATURE(androidOpusFactory), GST_RANK_NONE);
-        LOG_INFO("GStreamer: set androidmedia rank to NONE");
+    } else {
+        LOG_INFO("GStreamer: androidmedia plugin not found");
     }
 
     LOG_INFO("GStreamer initialization complete");

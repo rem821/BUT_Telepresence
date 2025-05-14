@@ -85,9 +85,9 @@ add_library(
         $<TARGET_OBJECTS:android_native_app_glue>
 )
 
-target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
-        IMGUI_IMPL_OPENGL_ES3
-)
+target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_IMPL_OPENGL_ES3)
+
+set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,--export-dynamic")
 
 target_link_libraries(
         ${PROJECT_NAME}
@@ -99,6 +99,8 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstcoreelements.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgsttypefindfunctions.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideoconvertscale.a
+        #${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideoconvert.a
+        #${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideoscale.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideorate.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideofilter.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstautodetect.a
@@ -106,11 +108,10 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstplayback.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstx264.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideoparsersbad.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstandroidmedia.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrtp.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrtpmanager.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrtpmanagerbad.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrtponvif.a
+        #${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrtponvif.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstopengl.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstwebrtc.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstnice.a
@@ -147,7 +148,10 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstapp.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstjpeg.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstjpegformat.a
-
+        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstlibav.a
+        "-Wl,--whole-archive"
+        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstandroidmedia.a
+        "-Wl,--no-whole-archive"
 
         #plugin libs
         ${GSTREAMER_ROOT}/lib/liborc-0.4.a
@@ -159,8 +163,7 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/libgstvideo-1.0.a
         ${GSTREAMER_ROOT}/lib/libgstrtp-1.0.a
         ${GSTREAMER_ROOT}/lib/libgstsdp-1.0.a
-        #${GSTREAMER_ROOT}/lib/libgstwebrtc-1.0.a
-        #${GSTREAMER_ROOT}/lib/libgstwebrtcnice-1.0.a
+        ${GSTREAMER_ROOT}/lib/libwebrtc_audio_processing.a
         ${GSTREAMER_ROOT}/lib/libwebrtc_audio_processing.a
         ${GSTREAMER_ROOT}/lib/libopencore-amrnb.a
         ${GSTREAMER_ROOT}/lib/libgstriff-1.0.a
@@ -191,11 +194,9 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/libgio-2.0.a
         ${GSTREAMER_ROOT}/lib/libglib-2.0.a
         ${GSTREAMER_ROOT}/lib/libgobject-2.0.a
-        #${GSTREAMER_ROOT}/lib/libnice.a
         ${GSTREAMER_ROOT}/lib/libgstapp-1.0.a
         ${GSTREAMER_ROOT}/lib/libgstsctp-1.0.a
         ${GSTREAMER_ROOT}/lib/libgstnet-1.0.a
-
         #gstreamer libs
 
         ${GSTREAMER_ROOT}/lib/libgstbase-1.0.a
@@ -210,4 +211,5 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/libiconv.a
         ${GSTREAMER_ROOT}/lib/libintl.a
         ${GSTREAMER_ROOT}/lib/libz.a
+
 )

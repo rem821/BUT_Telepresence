@@ -30,8 +30,8 @@ GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair
     gst_debug_set_threshold_for_name("decode", GST_LEVEL_LOG);
     gst_debug_set_threshold_for_name("amc", GST_LEVEL_LOG);
 
-    listAvailableDecoders();
-    listGstreamerPlugins();
+    //listAvailableDecoders();
+    //listGstreamerPlugins();
 
     /* Create our own GLib Main Context and make it the default one */
     context_ = g_main_context_new();
@@ -43,7 +43,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
     GstBus *bus;
     GSource *bus_source;
     GError *error = nullptr;
-
+    return;
     LOG_INFO("(Re)configuring GStreamer pipelines");
 
     // Stop and clean up existing pipelines if they exist
@@ -496,7 +496,7 @@ void GstreamerPlayer::gstCustomLog(GstDebugCategory *category, GstDebugLevel lev
 
 void GstreamerPlayer::listAvailableDecoders() {
     // Get the list of decoders
-    GList *decoders = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODABLE, GST_RANK_MARGINAL);
+    GList *decoders = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODER, GST_RANK_NONE);
 
     if (!decoders) {
         LOG_INFO("No decoders found in the GStreamer registry.");
