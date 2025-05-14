@@ -203,10 +203,13 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
         ImGui::Text("");
         ImGui::Text("Latencies:");
         auto s = appState->cameraStreamingStates.first.stats;
-        ImGui::Text(
-                "vidConv: %lu, enc: %lu, rtpPay: %lu\nudpStream: %lu\nrtpDepay: %lu, dec: %lu, queue: %lu",
-                s->vidConv / 1000, s->enc / 1000, s->rtpPay / 1000, s->udpStream / 1000,
-                s->rtpDepay / 1000, s->dec / 1000, s->queue / 1000);
+        if(s) {
+            ImGui::Text(
+                    "vidConv: %lu, enc: %lu, rtpPay: %lu\nudpStream: %lu\nrtpDepay: %lu, dec: %lu, queue: %lu",
+                    s->vidConv / 1000, s->enc / 1000, s->rtpPay / 1000, s->udpStream / 1000,
+                    s->rtpDepay / 1000, s->dec / 1000, s->queue / 1000);
+        }
+
 
         ImGui::SeparatorText("Movement");
 

@@ -52,6 +52,7 @@ android {
         main {
             manifest.srcFile 'AndroidManifest.xml'
             res.srcDir 'android_resources'
+            java.srcDirs = ['java']
         }
         OpenGLES {
             res.srcDir 'android_resources/opengles'

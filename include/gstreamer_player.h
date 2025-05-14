@@ -38,9 +38,6 @@ private:
 
     static GstPadProbeReturn udpPacketProbeCallback(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
 
-    static void gstCustomLog(GstDebugCategory *category, GstDebugLevel level, const gchar *file, const gchar *function, gint line,
-                                       GObject *object, GstDebugMessage *message, gpointer user_data);
-
     void listAvailableDecoders();
 
     void listGstreamerPlugins();

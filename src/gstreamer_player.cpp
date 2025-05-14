@@ -4,31 +4,9 @@
 #include <fmt/format.h>
 
 GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair_(camPair), ntpTimer_(ntpTimer) {
-//    GstPlugin *plugin = gst_registry_find_plugin(gst_registry_get(), "androidmedia");
-//    if (plugin) {
-//        LOG_INFO("androidmedia plugin found and loaded!");
-//        gst_object_unref(plugin);
-//    } else {
-//        LOG_INFO("androidmedia plugin NOT found.");
-//    }
-//
-//    GstElementFactory *f = gst_element_factory_find("amcviddec-265");
-//    if (!f) {
-//        LOG_ERROR("amcviddec-265 NOT registered!");
-//    } else {
-//        LOG_INFO("amcviddec-265 is registered!");
-//    }
-
     guint major, minor, micro, nano;
     gst_version(&major, &minor, &micro, &nano);
     LOG_INFO("Running GStreamer version: %d.%d.%d.%d", major, minor, micro, nano);
-
-    gst_debug_add_log_function(gstCustomLog, nullptr, nullptr);
-    //gst_debug_set_default_threshold(GST_LEVEL_INFO);
-    gst_debug_set_threshold_for_name("decodebin3", GST_LEVEL_LOG);
-    gst_debug_set_threshold_for_name("omx", GST_LEVEL_LOG);
-    gst_debug_set_threshold_for_name("decode", GST_LEVEL_LOG);
-    gst_debug_set_threshold_for_name("amc", GST_LEVEL_LOG);
 
     //listAvailableDecoders();
     //listGstreamerPlugins();
@@ -43,7 +21,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
     GstBus *bus;
     GSource *bus_source;
     GError *error = nullptr;
-    return;
+
     LOG_INFO("(Re)configuring GStreamer pipelines");
 
     // Stop and clean up existing pipelines if they exist
@@ -484,15 +462,6 @@ GstPadProbeReturn GstreamerPlayer::udpPacketProbeCallback(GstPad *pad, GstPadPro
 
     return GST_PAD_PROBE_OK;
 }
-
-void GstreamerPlayer::gstCustomLog(GstDebugCategory *category, GstDebugLevel level, const gchar *file, const gchar *function, gint line,
-                                   GObject *object, GstDebugMessage *message, gpointer user_data) {
-    const gchar *msg = gst_debug_message_get(message);
-    const gchar *cat = gst_debug_category_get_name(category);
-
-    LOG_INFO("[GSTLOG] [%s] %s\n", cat, msg);
-}
-
 
 void GstreamerPlayer::listAvailableDecoders() {
     // Get the list of decoders

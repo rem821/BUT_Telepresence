@@ -4,7 +4,6 @@
 #include <gst/gst.h>
 #include <gio/gio.h>
 #include <chrono>
-#include <dlfcn.h>
 
 #include "program.h"
 #include "gstreamer_android.h"
@@ -13,6 +12,9 @@ struct AndroidAppState {
     ANativeWindow *NativeWindow = nullptr;
     bool Resumed = false;
 };
+
+extern "C" void gst_amc_jni_set_java_vm(JavaVM *vm);
+
 
 static void
 ProcessAndroidCmd(struct android_app *app, int32_t cmd) {
@@ -129,15 +131,6 @@ void LogHardwareAcceleratedCodecs(JNIEnv *env) {
     env->DeleteLocalRef(codecListClass);
 }
 
-void ensure_jni_symbols_visible() {
-    // Try to load ART's runtime with symbols in global scope
-    void* handle = dlopen("libart.so", RTLD_NOW | RTLD_GLOBAL);
-    if (!handle) {
-        // fallback: try android_runtime (sometimes needed)
-        handle = dlopen("libandroid_runtime.so", RTLD_NOW | RTLD_GLOBAL);
-    }
-}
-
 void android_main(struct android_app *app) {
     try {
         JNIEnv *Env;
@@ -146,8 +139,6 @@ void android_main(struct android_app *app) {
         AndroidAppState appState = {};
         app->userData = &appState;
         app->onAppCmd = ProcessAndroidCmd;
-
-        ensure_jni_symbols_visible();
 
         // Retrieve native library path
         std::string nativeLibraryPath = GetNativeLibraryPath(Env, app->activity->clazz);
@@ -159,6 +150,7 @@ void android_main(struct android_app *app) {
         // Initialize GST
         jobject activity = app->activity->clazz;
         jclass activityClass = Env->GetObjectClass(activity);
+        gst_amc_jni_set_java_vm(app->activity->vm);
         gst_android_init(Env, activityClass, activity);
 
         std::unique_ptr<TelepresenceProgram> telepresenceProgram = std::make_unique<TelepresenceProgram>(app);
