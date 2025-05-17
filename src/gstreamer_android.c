@@ -21,17 +21,7 @@ GST_PLUGIN_STATIC_DECLARE(coreelements);
 
 GST_PLUGIN_STATIC_DECLARE(typefindfunctions);
 
-GST_PLUGIN_STATIC_DECLARE(audioconvert);
-
-GST_PLUGIN_STATIC_DECLARE(audioresample);
-
 GST_PLUGIN_STATIC_DECLARE(autodetect);
-
-//GST_PLUGIN_STATIC_DECLARE(dtls);
-
-//GST_PLUGIN_STATIC_DECLARE(nice);
-
-GST_PLUGIN_STATIC_DECLARE(opus);
 
 GST_PLUGIN_STATIC_DECLARE(playback);
 
@@ -39,15 +29,7 @@ GST_PLUGIN_STATIC_DECLARE(rtpmanager);
 
 GST_PLUGIN_STATIC_DECLARE(srtp);
 
-GST_PLUGIN_STATIC_DECLARE(volume);
-
-//GST_PLUGIN_STATIC_DECLARE(webrtc);
-
 GST_PLUGIN_STATIC_DECLARE(compositor);
-
-GST_PLUGIN_STATIC_DECLARE(opengl);
-
-GST_PLUGIN_STATIC_DECLARE(qmlgl);
 
 GST_PLUGIN_STATIC_DECLARE(rtp);
 
@@ -56,8 +38,6 @@ GST_PLUGIN_STATIC_DECLARE(videoconvertscale);
 GST_PLUGIN_STATIC_DECLARE(videofilter);
 
 GST_PLUGIN_STATIC_DECLARE(vpx);
-
-GST_PLUGIN_STATIC_DECLARE(opensles);          // Android Audio devices
 
 GST_PLUGIN_STATIC_DECLARE(androidmedia);
 
@@ -73,6 +53,8 @@ GST_PLUGIN_STATIC_DECLARE(jpegformat);
 
 GST_PLUGIN_STATIC_DECLARE(libav);
 
+GST_PLUGIN_STATIC_DECLARE(opengl);
+
 
 /* Declaration of static gio modules */
 /* GST_G_IO_MODULE_DECLARE(name) */
@@ -83,22 +65,15 @@ gst_android_register_static_plugins(void) {
     GST_PLUGIN_STATIC_REGISTER(coreelements);
     GST_PLUGIN_STATIC_REGISTER(typefindfunctions);
 
-    GST_PLUGIN_STATIC_REGISTER(audioconvert);
-    GST_PLUGIN_STATIC_REGISTER(audioresample);
     GST_PLUGIN_STATIC_REGISTER(autodetect);
-    GST_PLUGIN_STATIC_REGISTER(opus);
     GST_PLUGIN_STATIC_REGISTER(playback);
     GST_PLUGIN_STATIC_REGISTER(rtpmanager);
     GST_PLUGIN_STATIC_REGISTER(srtp);
-    GST_PLUGIN_STATIC_REGISTER(volume);
     GST_PLUGIN_STATIC_REGISTER(compositor);
-    GST_PLUGIN_STATIC_REGISTER(opengl);
     GST_PLUGIN_STATIC_REGISTER(rtp);
     GST_PLUGIN_STATIC_REGISTER(videoconvertscale);
     GST_PLUGIN_STATIC_REGISTER(videofilter);
     GST_PLUGIN_STATIC_REGISTER(vpx);
-
-    GST_PLUGIN_STATIC_REGISTER(opensles);
     GST_PLUGIN_STATIC_REGISTER(androidmedia);
     GST_PLUGIN_STATIC_REGISTER(udp);
     GST_PLUGIN_STATIC_REGISTER(videoparsersbad);
@@ -106,6 +81,8 @@ gst_android_register_static_plugins(void) {
     GST_PLUGIN_STATIC_REGISTER(jpeg);
     GST_PLUGIN_STATIC_REGISTER(jpegformat);
     GST_PLUGIN_STATIC_REGISTER(libav);
+    GST_PLUGIN_STATIC_REGISTER(opengl);
+
 }
 
 /* Call this function to load GIO modules */
@@ -542,8 +519,8 @@ gst_android_init(JNIEnv *env, jclass klass, jobject context) {
 
     /* Disable this for releases if performance is important
      * or increase the threshold to get more information */
-    gst_debug_set_active(TRUE);
-    gst_debug_set_default_threshold(GST_LEVEL_FIXME);
+    gst_debug_set_active(FALSE);
+    gst_debug_set_default_threshold(GST_LEVEL_WARNING);
     gst_debug_remove_log_function (gst_debug_log_default);
     gst_debug_add_log_function ((GstLogFunction) gst_debug_logcat, NULL, NULL);
 

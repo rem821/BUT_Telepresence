@@ -85,10 +85,6 @@ add_library(
         $<TARGET_OBJECTS:android_native_app_glue>
 )
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_IMPL_OPENGL_ES3)
-
-set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-Wl,--export-dynamic")
-
 target_link_libraries(
         ${PROJECT_NAME}
         openxr_loader
@@ -99,8 +95,6 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstcoreelements.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgsttypefindfunctions.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideoconvertscale.a
-        #${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideoconvert.a
-        #${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideoscale.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideorate.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideofilter.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstautodetect.a
@@ -111,37 +105,14 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrtp.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrtpmanager.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrtpmanagerbad.a
-        #${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrtponvif.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstopengl.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstwebrtc.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstnice.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstsdpelem.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstxingmux.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrealmedia.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstlibav.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgsta52dec.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstamrnb.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstasf.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstaudioconvert.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstaudioresample.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstasf.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstavi.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstisomp4.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstmatroska.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstogg.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstwavparse.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstbz2.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstdtls.a
+        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstopengl.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstsrtp.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstopus.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvolume.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstcompositor.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvpx.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrtsp.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstrtspclientsink.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstaudiotestsrc.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstopenh264.a
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstopensles.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstencoding.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstudp.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstvideoparsersbad.a
@@ -149,9 +120,7 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstjpeg.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstjpegformat.a
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstlibav.a
-        "-Wl,--whole-archive"
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/libgstandroidmedia.a
-        "-Wl,--no-whole-archive"
 
         #plugin libs
         ${GSTREAMER_ROOT}/lib/liborc-0.4.a
@@ -163,7 +132,6 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/libgstvideo-1.0.a
         ${GSTREAMER_ROOT}/lib/libgstrtp-1.0.a
         ${GSTREAMER_ROOT}/lib/libgstsdp-1.0.a
-        ${GSTREAMER_ROOT}/lib/libwebrtc_audio_processing.a
         ${GSTREAMER_ROOT}/lib/libwebrtc_audio_processing.a
         ${GSTREAMER_ROOT}/lib/libopencore-amrnb.a
         ${GSTREAMER_ROOT}/lib/libgstriff-1.0.a
@@ -189,7 +157,6 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/libgstphotography-1.0.a
         ${GSTREAMER_ROOT}/lib/libgstcontroller-1.0.a
         ${GSTREAMER_ROOT}/lib/libgstcodecparsers-1.0.a
-        EGL GLESv2 OpenSLES
 
         ${GSTREAMER_ROOT}/lib/libgio-2.0.a
         ${GSTREAMER_ROOT}/lib/libglib-2.0.a
@@ -205,7 +172,6 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/libgobject-2.0.a
         ${GSTREAMER_ROOT}/lib/libglib-2.0.a
         ${GSTREAMER_ROOT}/lib/libffi.a
-        #LIBS += $${GSTREAMER_ROOT}/lib/libpcre.a
         ${GSTREAMER_ROOT}/lib/libsrtp2.a
         ${GSTREAMER_ROOT}/lib/libpcre2-8.a
         ${GSTREAMER_ROOT}/lib/libiconv.a

@@ -1,4 +1,5 @@
 #include "gstreamer_player.h"
+#include "util_egl.h"
 #include <ctime>
 #include <gst/rtp/rtp.h>
 #include <fmt/format.h>
@@ -11,10 +12,35 @@ GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair
     //listAvailableDecoders();
     //listGstreamerPlugins();
 
+    GstElementFactory *factory = gst_element_factory_find("amcviddec-omxqcomvideodecoderhevc");
+    if (factory) {
+        const GList *pads = gst_element_factory_get_static_pad_templates(factory);
+        for (const GList *pad = pads; pad != nullptr; pad = pad->next) {
+            GstPadTemplate *template_ = static_cast<GstPadTemplate *>(pad->data);
+
+            const gchar *pad_name = template_->name_template;
+            const gchar *direction = (template_->direction == GST_PAD_SRC) ? "SRC" : "SINK";
+
+            LOG_INFO("Pad: %s | Direction: %s", pad_name, direction);
+        }
+
+        gst_object_unref(factory);
+    } else {
+        LOG_ERROR("Element factory not found for amcviddec-omxqcomvideodecoderhevc");
+    }
+
     /* Create our own GLib Main Context and make it the default one */
     context_ = g_main_context_new();
     g_main_context_push_thread_default(context_);
-}
+
+    GstGLDisplay *gl_display = GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(egl_get_display()));
+    glContext_ = gst_gl_context_new(gl_display);
+    GError *error = nullptr;
+    if (!gst_gl_context_create(glContext_, nullptr, &error)) {
+        LOG_ERROR("Failed to create GstGLContext: %s", error ? error->message : "unknown error");
+        if (error) g_error_free(error);
+        return;
+    }}
 
 void
 GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config, const bool combinedStreaming) {
@@ -157,6 +183,11 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
 
         gst_element_set_state(pipelineCombined_, GST_STATE_PLAYING);
     } else {
+        GstContext *gst_context_left = gst_context_new("gst.gl.app_context", TRUE);
+        gst_structure_set(gst_context_writable_structure(gst_context_left), "context", GST_TYPE_GL_CONTEXT, glContext_, NULL);
+        gst_element_set_context(pipelineLeft_, gst_context_left);
+        gst_context_unref(gst_context_left);
+
         std::string xDimString = fmt::format("{},{}", config.resolution.getWidth(), config.resolution.getHeight());
 
         GstElement *leftudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc_ident");
@@ -224,6 +255,11 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(leftqueue_ident);
         gst_object_unref(leftappsink);
         gst_object_unref(bus);
+
+        GstContext *gst_context_right = gst_context_new("gst.gl.app_context", TRUE);
+        gst_structure_set(gst_context_writable_structure(gst_context_right), "context", GST_TYPE_GL_CONTEXT, glContext_, NULL);
+        gst_element_set_context(pipelineRight_, gst_context_right);
+        gst_context_unref(gst_context_right);
 
         GstElement *rightudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc_ident");
         GstElement *rightrtpdepay_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtpdepay_ident");
