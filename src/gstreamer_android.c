@@ -519,8 +519,8 @@ gst_android_init(JNIEnv *env, jclass klass, jobject context) {
 
     /* Disable this for releases if performance is important
      * or increase the threshold to get more information */
-    gst_debug_set_active(FALSE);
-    gst_debug_set_default_threshold(GST_LEVEL_WARNING);
+    gst_debug_set_active(TRUE);
+    gst_debug_set_default_threshold(GST_LEVEL_ERROR);
     gst_debug_remove_log_function (gst_debug_log_default);
     gst_debug_add_log_function ((GstLogFunction) gst_debug_logcat, NULL, NULL);
 
@@ -537,18 +537,11 @@ gst_android_init(JNIEnv *env, jclass klass, jobject context) {
     }
     gst_debug_set_threshold_for_name("amc*", GST_LEVEL_TRACE);
     gst_debug_set_threshold_for_name("decodebin*", GST_LEVEL_TRACE);
+    gst_debug_set_threshold_for_name("gl*", GST_LEVEL_TRACE);
+    gst_debug_set_threshold_for_name("appsink*", GST_LEVEL_TRACE);
 
     gst_android_register_static_plugins();
     gst_android_load_gio_modules();
-
-    GstElementFactory *dummy = gst_element_factory_find("amcviddec-omxqcomvideodecoderhevc");
-    if (dummy) {
-        LOG_INFO("Gstreamer: amcviddec-omxqcomvideodecoderhevc found");
-        gst_object_unref(dummy);
-    } else {
-        LOG_INFO("Gstreamer: amcviddec-omxqcomvideodecoderhevc not found");
-
-    }
 
     GstPlugin *plugin = gst_registry_find_plugin(gst_registry_get(), "androidmedia");
     if (plugin) {
