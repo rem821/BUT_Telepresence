@@ -144,8 +144,7 @@ void render_scene(const XrCompositionLayerProjectionView &layerView,
     glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
 
-    glFramebufferTexture2D(
-            GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rtarget.texc_id, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rtarget.texc_id, 0);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, rtarget.texz_id, 0);
 
     glClearColor(CLEAR_COLOR[0], CLEAR_COLOR[1], CLEAR_COLOR[2], CLEAR_COLOR[3]);
@@ -181,8 +180,7 @@ int draw_image_plane(const XrMatrix4x4f &vp, const Quad &quad, const CameraFrame
     XrMatrix4x4f_CreateTranslationRotationScale(&model, &pos, &quad.Pose.orientation, &quad.Scale);
     XrMatrix4x4f mvp;
     XrMatrix4x4f_Multiply(&mvp, &vp, &model);
-    glUniformMatrix4fv(static_cast<GLint>(image_shader_object.loc_mvp), 1, GL_FALSE,
-                       reinterpret_cast<const GLfloat *>(&mvp));
+    glUniformMatrix4fv(static_cast<GLint>(image_shader_object.loc_mvp), 1, GL_FALSE, reinterpret_cast<const GLfloat *>(&mvp));
 
     glBindTexture(GL_TEXTURE_2D, texture2D);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, cameraFrame->frameWidth, cameraFrame->frameHeight, 0, GL_SRGB, GL_UNSIGNED_BYTE, cameraFrame->dataHandle);

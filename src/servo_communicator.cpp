@@ -12,11 +12,23 @@ constexpr int RESPONSE_MIN_BYTES = 6;
 constexpr unsigned char IDENTIFIER_1 = 0x47;
 constexpr unsigned char IDENTIFIER_2 = 0x54;
 
+#define SPOT
+
+#ifdef ODIN
 constexpr int32_t AZIMUTH_MAX_VALUE = 1'500'000'000;
 constexpr int32_t AZIMUTH_MIN_VALUE = -700'000'000;
 
 constexpr int32_t ELEVATION_MAX_VALUE = 1'400'000'000;
 constexpr int32_t ELEVATION_MIN_VALUE = 100'000;
+#endif
+
+#ifdef SPOT
+constexpr int32_t AZIMUTH_MAX_VALUE = 200'000'000;
+constexpr int32_t AZIMUTH_MIN_VALUE = -2'000'000'000;
+
+constexpr int32_t ELEVATION_MAX_VALUE = 1'000'000'000;
+constexpr int32_t ELEVATION_MIN_VALUE = -1'000'000'000;
+#endif
 
 ServoCommunicator::ServoCommunicator(BS::thread_pool<BS::tp::none> &threadPool, StreamingConfig &config) : socket_(socket(AF_INET, SOCK_DGRAM, 0)) {
 
