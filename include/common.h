@@ -13,8 +13,8 @@
 #include <unordered_map>
 
 // <!-- IP CONFIGURATION SECTION --!>
-constexpr uint8_t IP_CONFIG_JETSON_ADDR[4] = {192,168,1,168};
-constexpr uint8_t IP_CONFIG_HEADSET_ADDR[4] = {192,168,1,210};
+constexpr uint8_t IP_CONFIG_JETSON_ADDR[4] = {10,10,0,100};
+constexpr uint8_t IP_CONFIG_HEADSET_ADDR[4] = {10,0,24,42};
 constexpr int IP_CONFIG_REST_API_PORT = 32281;
 constexpr int IP_CONFIG_SERVO_PORT = 32115;
 constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
@@ -259,6 +259,61 @@ inline const char * const BoolToString(bool b)
     return b ? "true" : "false";
 }
 
+enum RobotType {
+    ODIN, SPOT, CNT3
+};
+
+inline std::string RobotTypeToString(RobotType type) {
+    switch(type) {
+        case ODIN:
+            return "ODIN";
+            break;
+        case SPOT:
+            return "SPOT";
+            break;
+        default:
+            throw std::invalid_argument("Invalid robot type");
+            break;
+    }
+}
+
+inline RobotType StringToRobotType(const std::string type) {
+    if(type == "ODIN") {
+        return ODIN;
+    } else if(type == "SPOT") {
+        return SPOT;
+    } else {
+        throw std::invalid_argument("Invalid robot type: " + type);
+    }
+}
+
+
+struct RobotMovementRange {
+    RobotType type {ODIN};
+    int32_t azimuthMax = 1'500'000'000;
+    int32_t azimuthMin = -700'000'000;
+    int32_t elevationMax = 1'400'000'000;
+    int32_t elevationMin = 100'000;
+    float speedMultiplier = 1.5f;
+
+    void setRobotType(RobotType newType) {
+        if(type == newType) return;
+
+        type = newType;
+        if(type == ODIN) {
+            azimuthMax = 1'500'000'000;
+            azimuthMin = -700'000'000;
+            elevationMax = 1'400'000'000;
+            elevationMin = 100'000;
+        } else if (type == SPOT) {
+            azimuthMax = 200'000'000;
+            azimuthMin = -2'000'000'000;
+            elevationMax = 1'100'000'000;
+            elevationMin = -600'000'000;
+        }
+    }
+};
+
 struct CameraResolution {
     int width;
     int height;
@@ -400,6 +455,7 @@ struct AppState {
     GUIControl guiControl;
     uint32_t headMovementMaxSpeed = 990000;
     uint32_t headMovementPredictionMs = 50;
+    RobotMovementRange robotMovementRange{};
     bool robotControlEnabled = true;
     bool headsetMounted = false;
 };

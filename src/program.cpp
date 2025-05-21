@@ -25,8 +25,7 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
 
     stateStorage_ = std::make_unique<StateStorage>(app);
 
-    appState_ = std::make_shared<AppState>();
-    appState_->streamingConfig = stateStorage_->LoadStreamingConfig();
+    appState_ = std::make_shared<AppState>(stateStorage_->LoadAppState());
     appState_->streamingConfig.headset_ip = GetLocalIPAddr();
 
     init_scene(appState_->streamingConfig.resolution.getWidth(), appState_->streamingConfig.resolution.getHeight());
@@ -528,8 +527,7 @@ void TelepresenceProgram::SendControllerDatagram() {
     }
 
     if (servoCommunicator_ == nullptr) {
-        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_,
-                                                                 appState_->streamingConfig);
+        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_, appState_->streamingConfig);
     }
     if (!servoCommunicator_->servosEnabled()) {
         servoCommunicator_->enableServos(true, threadPool_);
@@ -539,12 +537,12 @@ void TelepresenceProgram::SendControllerDatagram() {
             servoCommunicator_->resetErrors(threadPool_);
         }
 
-        servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation, appState_->headMovementMaxSpeed, threadPool_);
+        servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation, appState_->headMovementMaxSpeed, appState_->robotMovementRange, threadPool_);
     }
-    if (appState_->robotControlEnabled) {
-        servoCommunicator_->sendOdinControlPacket(userState_.thumbstickPose[Side::LEFT].y,
-                                                  userState_.thumbstickPose[Side::LEFT].x,
+    if (appState_->robotControlEnabled && !renderGui_) {
+        servoCommunicator_->sendOdinControlPacket(userState_.thumbstickPose[Side::RIGHT].y,
                                                   userState_.thumbstickPose[Side::RIGHT].x,
+                                                  userState_.thumbstickPose[Side::LEFT].x,
                                                   threadPool_);
     }
 
@@ -571,25 +569,29 @@ void TelepresenceProgram::InitializeStreaming() {
 }
 
 void TelepresenceProgram::HandleControllers() {
-    static bool controlLock = false;
-    if (userState_.thumbstickPressed[Side::LEFT] && !controlLock) {
+    static bool controlLockMovement = false;
+    static bool controlLockGui = false;
+    if (userState_.thumbstickPressed[Side::RIGHT] && !controlLockMovement) {
         appState_->robotControlEnabled = !appState_->robotControlEnabled;
         if (!appState_->robotControlEnabled) {
             servoCommunicator_->sendOdinControlPacket(0.0f, 0.0f, 0.0f, threadPool_);
         }
-        controlLock = true;
+        controlLockMovement = true;
     }
-    if (!userState_.thumbstickPressed[Side::LEFT] && controlLock) {
-        controlLock = false;
+    if (!userState_.thumbstickPressed[Side::RIGHT] && controlLockMovement) {
+        controlLockMovement = false;
     }
 
     // Toggling GUI rendering
-    if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.yPressed && !renderGui_)
-        renderGui_ = true;
-    if (userState_.triggerValue[Side::LEFT] > 0.9 && userState_.xPressed && renderGui_) {
-        renderGui_ = false;
-
-        stateStorage_->SaveStreamingConfig(appState_->streamingConfig);
+    if(userState_.thumbstickPressed[Side::LEFT] && !controlLockGui) {
+        renderGui_ = !renderGui_;
+        if(!renderGui_) {
+            stateStorage_->SaveAppState(*appState_);
+        }
+        controlLockGui = true;
+    }
+    if (!userState_.thumbstickPressed[Side::LEFT] && controlLockGui) {
+        controlLockGui = false;
     }
 
     // GUI interaction
@@ -627,6 +629,7 @@ void TelepresenceProgram::HandleControllers() {
         else if (userState_.yPressed) {
             switch (appState_->guiControl.focusedElement) {
                 case 0: // Headset IP
+                    break; // Block changing headset IP for now
                     appState_->streamingConfig.headset_ip[appState_->guiControl.focusedSegment] += 1;
                     appState_->guiControl.changesEnqueued = true;
                     break;
@@ -638,6 +641,9 @@ void TelepresenceProgram::HandleControllers() {
                     appState_->streamingConfig.codec = static_cast<Codec>(
                             (static_cast<int>(appState_->streamingConfig.codec) + 1 +
                              static_cast<int>(Codec::Count)) % static_cast<int>(Codec::Count));
+                    if(appState_->streamingConfig.codec == Codec::VP8 || appState_->streamingConfig.codec == Codec::VP9) {
+                        appState_->streamingConfig.codec = Codec::H264; // Skip VP8 & VP9 for now
+                    }
                     appState_->guiControl.changesEnqueued = true;
                     break;
                 case 3: // Encoding quality
@@ -676,11 +682,24 @@ void TelepresenceProgram::HandleControllers() {
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
-                case 10: // Headset movement prediction time in ms
+                case 10: // Camera head movement speed multiplier
+                    if (appState_->robotMovementRange.speedMultiplier < 2.0f) {
+                        appState_->robotMovementRange.speedMultiplier += 0.1f;
+                        appState_->guiControl.changesEnqueued = true;
+                    }
+                    break;
+                case 11: // Headset movement prediction time in ms
                     if (appState_->headMovementPredictionMs < 100) {
                         appState_->headMovementPredictionMs += 1;
                         appState_->guiControl.changesEnqueued = true;
                     }
+                    break;
+
+                case 12:
+                    appState_->robotMovementRange.setRobotType(static_cast<RobotType>((static_cast<int>(appState_->robotMovementRange.type) + 1 +
+                                                                                       static_cast<int>(RobotType::CNT3)) %
+                                                                                      static_cast<int>(RobotType::CNT3)));
+                    appState_->guiControl.changesEnqueued = true;
                     break;
             }
         }
@@ -689,6 +708,7 @@ void TelepresenceProgram::HandleControllers() {
         else if (userState_.xPressed) {
             switch (appState_->guiControl.focusedElement) {
                 case 0: // Headset IP
+                    break; // Block changing headset IP for now
                     appState_->streamingConfig.headset_ip[appState_->guiControl.focusedSegment] -= 1;
                     appState_->guiControl.changesEnqueued = true;
                     break;
@@ -700,6 +720,9 @@ void TelepresenceProgram::HandleControllers() {
                     appState_->streamingConfig.codec = static_cast<Codec>(
                             (static_cast<int>(appState_->streamingConfig.codec) - 1 +
                              static_cast<int>(Codec::Count)) % static_cast<int>(Codec::Count));
+                    if(appState_->streamingConfig.codec == Codec::VP8 || appState_->streamingConfig.codec == Codec::VP9) {
+                        appState_->streamingConfig.codec = Codec::JPEG; // Skip VP8 & VP9 for now
+                    }
                     appState_->guiControl.changesEnqueued = true;
                     break;
                 case 3: // Encoding quality
@@ -739,11 +762,23 @@ void TelepresenceProgram::HandleControllers() {
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
-                case 10: // Headset movement prediction time in ms
+                case 10: // Camera head movement speed multiplier
+                    if (appState_->robotMovementRange.speedMultiplier > 0.5f) {
+                        appState_->robotMovementRange.speedMultiplier -= 0.1f;
+                        appState_->guiControl.changesEnqueued = true;
+                    }
+                    break;
+                case 11: // Headset movement prediction time in ms
                     if (appState_->headMovementPredictionMs > 0) {
                         appState_->headMovementPredictionMs -= 1;
                         appState_->guiControl.changesEnqueued = true;
                     }
+                    break;
+                case 12:
+                    appState_->robotMovementRange.setRobotType(static_cast<RobotType>((static_cast<int>(appState_->robotMovementRange.type) - 1 +
+                                                                               static_cast<int>(RobotType::CNT3)) %
+                                                                              static_cast<int>(RobotType::CNT3)));
+                    appState_->guiControl.changesEnqueued = true;
                     break;
             }
         }
@@ -751,7 +786,7 @@ void TelepresenceProgram::HandleControllers() {
 
         // Apply streaming config button
         else if (userState_.triggerValue[Side::LEFT] > 0.9f && appState_->guiControl.focusedElement == 8) {
-            stateStorage_->SaveStreamingConfig(appState_->streamingConfig);
+            stateStorage_->SaveAppState(*appState_);
             init_scene(appState_->streamingConfig.resolution.getWidth(), appState_->streamingConfig.resolution.getHeight(), true);
             gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig, false);
             //servoCommunicator_ = nullptr;

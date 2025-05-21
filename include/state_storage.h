@@ -12,10 +12,10 @@ public:
 
     explicit StateStorage(android_app *app);
 
-    void SaveStreamingConfig(const StreamingConfig &streamingConfig);
+    void SaveAppState(const AppState &appState);
 
 
-    StreamingConfig LoadStreamingConfig();
+    AppState LoadAppState();
 
 private:
 

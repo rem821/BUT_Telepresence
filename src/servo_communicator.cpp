@@ -12,24 +12,6 @@ constexpr int RESPONSE_MIN_BYTES = 6;
 constexpr unsigned char IDENTIFIER_1 = 0x47;
 constexpr unsigned char IDENTIFIER_2 = 0x54;
 
-#define SPOT
-
-#ifdef ODIN
-constexpr int32_t AZIMUTH_MAX_VALUE = 1'500'000'000;
-constexpr int32_t AZIMUTH_MIN_VALUE = -700'000'000;
-
-constexpr int32_t ELEVATION_MAX_VALUE = 1'400'000'000;
-constexpr int32_t ELEVATION_MIN_VALUE = 100'000;
-#endif
-
-#ifdef SPOT
-constexpr int32_t AZIMUTH_MAX_VALUE = 200'000'000;
-constexpr int32_t AZIMUTH_MIN_VALUE = -2'000'000'000;
-
-constexpr int32_t ELEVATION_MAX_VALUE = 1'000'000'000;
-constexpr int32_t ELEVATION_MIN_VALUE = -1'000'000'000;
-#endif
-
 ServoCommunicator::ServoCommunicator(BS::thread_pool<BS::tp::none> &threadPool, StreamingConfig &config) : socket_(socket(AF_INET, SOCK_DGRAM, 0)) {
 
     if (socket_ < 0) {
@@ -121,38 +103,38 @@ void ServoCommunicator::enableServos(bool enable, BS::thread_pool<BS::tp::none> 
     threadFuture_.wait();
 }
 
-void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, BS::thread_pool<BS::tp::none> &threadPool) {
+void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, RobotMovementRange movementRange, BS::thread_pool<BS::tp::none> &threadPool) {
     if (!checkReadiness()) {
         return;
     }
 
     //auto beginning = std::chrono::high_resolution_clock::now();
-    threadPool.detach_task([this, quatPose, speed]() {
+    threadPool.detach_task([this, quatPose, speed, movementRange]() {
         auto azimuthElevation = quaternionToAzimuthElevation(quatPose);
 
-        auto azimuth_max_side = int32_t((int64_t(AZIMUTH_MAX_VALUE) - AZIMUTH_MIN_VALUE) / 2);
-        auto azimuth_center = AZIMUTH_MAX_VALUE - azimuth_max_side;
+        auto azimuth_max_side = int32_t((int64_t(movementRange.azimuthMax) - movementRange.azimuthMin) / 2);
+        auto azimuth_center = movementRange.azimuthMax - azimuth_max_side;
 
-        auto elevation_max_side = int32_t((int64_t(ELEVATION_MAX_VALUE) - ELEVATION_MIN_VALUE) / 2);
-        auto elevation_center = ELEVATION_MAX_VALUE - elevation_max_side;
+        auto elevation_max_side = int32_t((int64_t(movementRange.elevationMax) - movementRange.elevationMin) / 2);
+        auto elevation_center = movementRange.elevationMax - elevation_max_side;
 
         auto azimuth = int32_t(((azimuthElevation.azimuth * 2.0F) / M_PI) * azimuth_max_side + azimuth_center);
         auto elevation = int32_t(((-azimuthElevation.elevation * 2.0F) / M_PI) * elevation_max_side + elevation_center);
 
-        azimuth *= 1.5f;
-        elevation *= 1.5f;
+        azimuth += (azimuth - azimuth_center) * movementRange.speedMultiplier;
+        elevation += (elevation - elevation_center) * movementRange.speedMultiplier;
 
-        if (azimuth < AZIMUTH_MIN_VALUE) {
-            azimuth = AZIMUTH_MIN_VALUE;
+        if (azimuth < movementRange.azimuthMin) {
+            azimuth = movementRange.azimuthMin;
         }
-        if (azimuth > AZIMUTH_MAX_VALUE) {
-            azimuth = AZIMUTH_MAX_VALUE;
+        if (azimuth > movementRange.azimuthMax) {
+            azimuth = movementRange.azimuthMax;
         }
-        if (elevation < ELEVATION_MIN_VALUE) {
-            elevation = ELEVATION_MIN_VALUE;
+        if (elevation < movementRange.elevationMin) {
+            elevation = movementRange.elevationMin;
         }
-        if (elevation > ELEVATION_MAX_VALUE) {
-            elevation = ELEVATION_MAX_VALUE;
+        if (elevation > movementRange.elevationMax) {
+            elevation = movementRange.elevationMax;
         }
 
         int32_t azRevol = 0;
@@ -164,6 +146,7 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
             elRevol = -1;
         }
 
+        //LOG_INFO("Sending - Azimuth: %d, Elevation: %d", azimuth, elevation);
         auto azAngleBytes = serializeLEInt(azimuth);
         auto azRevolBytes = serializeLEInt(azRevol);
         auto elAngleBytes = serializeLEInt(elevation);
@@ -202,8 +185,8 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
 
         while (true) {
             sendMessage(buffer);
-            break;
             isReady_ = true;
+            break;
 //            if (waitForResponse({5, 10})) {
 //                auto newStamp = std::chrono::high_resolution_clock::now();
 //                LOG_ERROR("ServoCommunication FPS: %f ",
@@ -366,6 +349,6 @@ ServoCommunicator::AzimuthElevation ServoCommunicator::quaternionToAzimuthElevat
 //
 
 
-    //LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
+    //LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation + 0.5f);
     return AzimuthElevation{azimuth, elevation + 0.5f};
 }
