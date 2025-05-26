@@ -537,7 +537,11 @@ void TelepresenceProgram::SendControllerDatagram() {
             servoCommunicator_->resetErrors(threadPool_);
         }
 
-        servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation, appState_->headMovementMaxSpeed, appState_->robotMovementRange, threadPool_);
+        servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation,
+                                            appState_->headMovementMaxSpeed,
+                                            appState_->robotMovementRange,
+                                            appState_->robotMovementRange.type == SPOT,
+                                            threadPool_);
     }
     if (appState_->robotControlEnabled && !renderGui_) {
         servoCommunicator_->sendOdinControlPacket(userState_.thumbstickPose[Side::RIGHT].y,
@@ -583,9 +587,9 @@ void TelepresenceProgram::HandleControllers() {
     }
 
     // Toggling GUI rendering
-    if(userState_.thumbstickPressed[Side::LEFT] && !controlLockGui) {
+    if (userState_.thumbstickPressed[Side::LEFT] && !controlLockGui) {
         renderGui_ = !renderGui_;
-        if(!renderGui_) {
+        if (!renderGui_) {
             stateStorage_->SaveAppState(*appState_);
         }
         controlLockGui = true;
@@ -641,7 +645,7 @@ void TelepresenceProgram::HandleControllers() {
                     appState_->streamingConfig.codec = static_cast<Codec>(
                             (static_cast<int>(appState_->streamingConfig.codec) + 1 +
                              static_cast<int>(Codec::Count)) % static_cast<int>(Codec::Count));
-                    if(appState_->streamingConfig.codec == Codec::VP8 || appState_->streamingConfig.codec == Codec::VP9) {
+                    if (appState_->streamingConfig.codec == Codec::VP8 || appState_->streamingConfig.codec == Codec::VP9) {
                         appState_->streamingConfig.codec = Codec::H264; // Skip VP8 & VP9 for now
                     }
                     appState_->guiControl.changesEnqueued = true;
@@ -720,7 +724,7 @@ void TelepresenceProgram::HandleControllers() {
                     appState_->streamingConfig.codec = static_cast<Codec>(
                             (static_cast<int>(appState_->streamingConfig.codec) - 1 +
                              static_cast<int>(Codec::Count)) % static_cast<int>(Codec::Count));
-                    if(appState_->streamingConfig.codec == Codec::VP8 || appState_->streamingConfig.codec == Codec::VP9) {
+                    if (appState_->streamingConfig.codec == Codec::VP8 || appState_->streamingConfig.codec == Codec::VP9) {
                         appState_->streamingConfig.codec = Codec::JPEG; // Skip VP8 & VP9 for now
                     }
                     appState_->guiControl.changesEnqueued = true;
@@ -776,15 +780,15 @@ void TelepresenceProgram::HandleControllers() {
                     break;
                 case 12:
                     appState_->robotMovementRange.setRobotType(static_cast<RobotType>((static_cast<int>(appState_->robotMovementRange.type) - 1 +
-                                                                               static_cast<int>(RobotType::CNT3)) %
-                                                                              static_cast<int>(RobotType::CNT3)));
+                                                                                       static_cast<int>(RobotType::CNT3)) %
+                                                                                      static_cast<int>(RobotType::CNT3)));
                     appState_->guiControl.changesEnqueued = true;
                     break;
             }
         }
 
 
-        // Apply streaming config button
+            // Apply streaming config button
         else if (userState_.triggerValue[Side::LEFT] > 0.9f && appState_->guiControl.focusedElement == 8) {
             stateStorage_->SaveAppState(*appState_);
             init_scene(appState_->streamingConfig.resolution.getWidth(), appState_->streamingConfig.resolution.getHeight(), true);

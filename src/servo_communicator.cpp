@@ -51,12 +51,12 @@ void ServoCommunicator::resetErrors(BS::thread_pool<BS::tp::none> &threadPool) {
 
     threadPool.detach_task([this]() {
         std::vector<unsigned char> const buffer = {IDENTIFIER_1, IDENTIFIER_2,
-                                                         Operation::WRITE,
-                                                         MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
-                                                         0x08, 0x00, 0x00, 0x00,
-                                                         Operation::WRITE,
-                                                         MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
-                                                         0x08, 0x00, 0x00, 0x00};
+                                                   Operation::WRITE,
+                                                   MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
+                                                   0x08, 0x00, 0x00, 0x00,
+                                                   Operation::WRITE,
+                                                   MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
+                                                   0x08, 0x00, 0x00, 0x00};
 
         while (true) {
             sendMessage(buffer);
@@ -103,13 +103,14 @@ void ServoCommunicator::enableServos(bool enable, BS::thread_pool<BS::tp::none> 
     threadFuture_.wait();
 }
 
-void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, RobotMovementRange movementRange, BS::thread_pool<BS::tp::none> &threadPool) {
+void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, RobotMovementRange movementRange, bool azimuthElevationReversed,
+                                        BS::thread_pool<BS::tp::none> &threadPool) {
     if (!checkReadiness()) {
         return;
     }
 
     //auto beginning = std::chrono::high_resolution_clock::now();
-    threadPool.detach_task([this, quatPose, speed, movementRange]() {
+    threadPool.detach_task([this, quatPose, speed, movementRange, azimuthElevationReversed]() {
         auto azimuthElevation = quaternionToAzimuthElevation(quatPose);
 
         auto azimuth_max_side = int32_t((int64_t(movementRange.azimuthMax) - movementRange.azimuthMin) / 2);
@@ -151,6 +152,12 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, R
         auto azRevolBytes = serializeLEInt(azRevol);
         auto elAngleBytes = serializeLEInt(elevation);
         auto elRevolBytes = serializeLEInt(elRevol);
+        if (azimuthElevationReversed) {
+            azAngleBytes = serializeLEInt(elevation);
+            azRevolBytes = serializeLEInt(elRevol);
+            elAngleBytes = serializeLEInt(azimuth);
+            elRevolBytes = serializeLEInt(azRevol);
+        }
 
         auto speedBytes = serializeLEInt(speed);
 
@@ -158,29 +165,30 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, R
         frameId_++;
 
         std::vector<unsigned char> const buffer = {IDENTIFIER_1, IDENTIFIER_2,
-                                                        Operation::WRITE_CONTINUOUS,
-                                                        MessageGroup::AZIMUTH, MessageElement::ANGLE,
-                                                        0x02,
-                                                        azAngleBytes[0], azAngleBytes[1], azAngleBytes[2], azAngleBytes[3],
-                                                        azRevolBytes[0], azRevolBytes[1], azRevolBytes[2], azRevolBytes[3],
-                                                        Operation::WRITE_CONTINUOUS,
-                                                        MessageGroup::ELEVATION, MessageElement::ANGLE,
-                                                        0x02,
-                                                        elAngleBytes[0], elAngleBytes[1], elAngleBytes[2], elAngleBytes[3],
-                                                        elRevolBytes[0], elRevolBytes[1], elRevolBytes[2], elRevolBytes[3],
-                                                        Operation::WRITE,
-                                                        MessageGroup::AZIMUTH, MessageElement::SPEED,
-                                                        speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
-                                                        Operation::WRITE,
-                                                        MessageGroup::ELEVATION, MessageElement::SPEED,
-                                                        speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
-                                                        Operation::WRITE,
-                                                        MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
-                                                        0x01, 0x00, 0x00, 0x00,
-                                                        Operation::WRITE,
-                                                        MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
-                                                        0x01, 0x00, 0x00, 0x00,
-                                                        frameIdBytes[0], frameIdBytes[1], frameIdBytes[2], frameIdBytes[3], // Additional info only for the TGDrivesRelayScript
+                                                   Operation::WRITE_CONTINUOUS,
+                                                   MessageGroup::AZIMUTH, MessageElement::ANGLE,
+                                                   0x02,
+                                                   azAngleBytes[0], azAngleBytes[1], azAngleBytes[2], azAngleBytes[3],
+                                                   azRevolBytes[0], azRevolBytes[1], azRevolBytes[2], azRevolBytes[3],
+                                                   Operation::WRITE_CONTINUOUS,
+                                                   MessageGroup::ELEVATION, MessageElement::ANGLE,
+                                                   0x02,
+                                                   elAngleBytes[0], elAngleBytes[1], elAngleBytes[2], elAngleBytes[3],
+                                                   elRevolBytes[0], elRevolBytes[1], elRevolBytes[2], elRevolBytes[3],
+                                                   Operation::WRITE,
+                                                   MessageGroup::AZIMUTH, MessageElement::SPEED,
+                                                   speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
+                                                   Operation::WRITE,
+                                                   MessageGroup::ELEVATION, MessageElement::SPEED,
+                                                   speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
+                                                   Operation::WRITE,
+                                                   MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
+                                                   0x01, 0x00, 0x00, 0x00,
+                                                   Operation::WRITE,
+                                                   MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
+                                                   0x01, 0x00, 0x00, 0x00,
+                                                   frameIdBytes[0], frameIdBytes[1], frameIdBytes[2],
+                                                   frameIdBytes[3], // Additional info only for the TGDrivesRelayScript
         };
 
         while (true) {
@@ -204,9 +212,9 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, R
 
 void ServoCommunicator::sendOdinControlPacket(float linSpeedX, float linSpeedY, float angSpeed, BS::thread_pool<BS::tp::none> &threadPool) {
     threadPool.detach_task([this, linSpeedX, linSpeedY, angSpeed]() {
-        float x = linSpeedX * 0.25f;
-        float y = -linSpeedY * 0.25f;
-        float a = -angSpeed * 0.25f;
+        float x = linSpeedX * 0.5f;
+        float y = -linSpeedY * 0.5f;
+        float a = -angSpeed * 0.5f;
 
         auto linSpeedXBytes = serializeLEFloat(x);
         auto linSpeedYBytes = serializeLEFloat(y);
