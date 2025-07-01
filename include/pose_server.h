@@ -58,7 +58,7 @@ class PoseServer {
     enum Operation {
         READ = 0x01,
         WRITE = 0x02,
-        WRITE_CONTINUOS = 0x04,
+        WRITE_CONTINUOUS = 0x04,
     };
 
     enum MessageGroup {
@@ -90,7 +90,7 @@ public:
 
     void resetErrors();
     void enableServos(bool enable);
-    void setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed);
+    void setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, RobotMovementRange movementRange, bool azimuthElevationReversed);
     void setMode();
 
 private:
@@ -121,6 +121,8 @@ private:
     std::atomic<bool> trigger_;
     std::mutex queueMutex_;
     std::condition_variable cv_;
+
+    int32_t frameId_ = 0;
 
     MessagePriorityQueue<std::function<void()>> taskQueue_;
 

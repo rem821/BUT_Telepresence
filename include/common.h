@@ -12,6 +12,8 @@
 #include <vector>
 #include <unordered_map>
 
+#define POSE_SERVER_MODE
+
 // <!-- IP CONFIGURATION SECTION --!>
 constexpr uint8_t IP_CONFIG_JETSON_ADDR[4] = {10,10,0,100};
 constexpr uint8_t IP_CONFIG_HEADSET_ADDR[4] = {10,0,24,42};

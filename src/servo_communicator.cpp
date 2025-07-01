@@ -356,7 +356,6 @@ ServoCommunicator::AzimuthElevation ServoCommunicator::quaternionToAzimuthElevat
 //    if (azimuth > M_PI / 2) azimuth = M_PI / 2;
 //
 
-
     //LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation + 0.5f);
     return AzimuthElevation{azimuth, elevation + 0.5f};
 }

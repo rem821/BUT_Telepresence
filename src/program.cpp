@@ -526,6 +526,7 @@ void TelepresenceProgram::SendControllerDatagram() {
         return;
     }
 
+#ifndef POSE_SERVER_MODE
     if (servoCommunicator_ == nullptr) {
         servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_, appState_->streamingConfig);
     }
@@ -549,19 +550,19 @@ void TelepresenceProgram::SendControllerDatagram() {
                                                   userState_.thumbstickPose[Side::LEFT].x,
                                                   threadPool_);
     }
+#else
+    if (poseServer_ == nullptr) {
+        poseServer_ = std::make_unique<PoseServer>(ntpTimer_.get());
+        poseServer_->enableServos(true);
+    }
 
-//    if (poseServer_ == nullptr) {
-//        poseServer_ = std::make_unique<PoseServer>();
-//        poseServer_->enableServos(true);
-//    }
-//
-//    if (userState_.xPressed) { speed_ -= 10000; }
-//    if (userState_.yPressed) { speed_ += 10000; }
-//    if (userState_.xPressed && userState_.yPressed) {
-//        poseServer_->resetErrors();
-//    }
-//
-//    poseServer_->setPoseAndSpeed(userState_.hmdPose.orientation, speed_);
+    if (userState_.xPressed && userState_.yPressed) {
+        poseServer_->resetErrors();
+    }
+
+    poseServer_->setPoseAndSpeed(userState_.hmdPose.orientation, appState_->headMovementMaxSpeed, appState_->robotMovementRange,
+                                 appState_->robotMovementRange.type == SPOT);
+#endif
 }
 
 void TelepresenceProgram::InitializeStreaming() {
@@ -578,7 +579,9 @@ void TelepresenceProgram::HandleControllers() {
     if (userState_.thumbstickPressed[Side::RIGHT] && !controlLockMovement) {
         appState_->robotControlEnabled = !appState_->robotControlEnabled;
         if (!appState_->robotControlEnabled) {
+#ifndef POSE_SERVER_MODE
             servoCommunicator_->sendOdinControlPacket(0.0f, 0.0f, 0.0f, threadPool_);
+#endif
         }
         controlLockMovement = true;
     }
