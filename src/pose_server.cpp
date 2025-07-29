@@ -9,6 +9,9 @@
 constexpr int RESPONSE_TIMEOUT_US = 50000;
 constexpr int RESPONSE_MIN_BYTES = 6;
 
+constexpr unsigned char SERVO_COMMAND_MESSAGE_TYPE = 0x01;
+constexpr unsigned char LOG_MESSAGE_TYPE = 0x02;
+constexpr unsigned char EMPTY_MESSAGE_TYPE = 0x03;
 constexpr unsigned char IDENTIFIER_1 = 0x47;
 constexpr unsigned char IDENTIFIER_2 = 0x54;
 
@@ -59,12 +62,22 @@ void PoseServer::listenForTrigger() {
 void PoseServer::processQueue() {
     while (true) {
         std::unique_lock<std::mutex> lock(queueMutex_);
-        cv_.wait(lock, [this]() { return trigger_ && !taskQueue_.empty(); });
+        cv_.wait(lock, [this]() { return trigger_.load(); });
+
+        trigger_ = false;
+        if (taskQueue_.empty()) {
+            lock.unlock();
+
+            std::vector<unsigned char> emptyMsg = {EMPTY_MESSAGE_TYPE};
+            sendMessage(emptyMsg);
+            LOG_ERROR("Pose server: sensing empty message");
+
+            continue;
+        }
 
         if (!taskQueue_.empty()) {
             auto task = taskQueue_.top();
             taskQueue_.pop();
-            trigger_ = false;  // Reset trigger for next "now" command
             lock.unlock();
 
             // Execute the highest priority task
@@ -90,7 +103,8 @@ void PoseServer::sendMessage(const std::vector<unsigned char> &message) {
 void PoseServer::resetErrors() {
     std::lock_guard<std::mutex> lock(queueMutex_);
     taskQueue_.emplace(RESET_ERRORS, [this]() {
-        std::vector<unsigned char> buffer = {IDENTIFIER_1, IDENTIFIER_2, Operation::WRITE,
+        std::vector<unsigned char> buffer = {SERVO_COMMAND_MESSAGE_TYPE,
+                                             IDENTIFIER_1, IDENTIFIER_2, Operation::WRITE,
                                              MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
                                              0x08, 0x00, 0x00, 0x00,
                                              Operation::WRITE, MessageGroup::ENABLE_ELEVATION,
@@ -103,7 +117,8 @@ void PoseServer::enableServos(bool enable) {
     std::lock_guard<std::mutex> lock(queueMutex_);
     taskQueue_.emplace(ENABLE_SERVOS, [this, enable]() {
         unsigned char en = enable ? 0x01 : 0x00;
-        std::vector<unsigned char> enableBuffer = {IDENTIFIER_1, IDENTIFIER_2, Operation::WRITE,
+        std::vector<unsigned char> enableBuffer = {SERVO_COMMAND_MESSAGE_TYPE,
+                                                   IDENTIFIER_1, IDENTIFIER_2, Operation::WRITE,
                                                    MessageGroup::ENABLE_AZIMUTH,
                                                    MessageElement::ENABLE,
                                                    en, 0x00, 0x00, 0x00,
@@ -169,7 +184,8 @@ void PoseServer::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, RobotMov
         auto frameIdBytes = serializeLEInt(frameId_);
         frameId_++;
 
-        std::vector<unsigned char> const buffer = {IDENTIFIER_1, IDENTIFIER_2,
+        std::vector<unsigned char> const buffer = {SERVO_COMMAND_MESSAGE_TYPE,
+                                                   IDENTIFIER_1, IDENTIFIER_2,
                                                    Operation::WRITE_CONTINUOUS,
                                                    MessageGroup::AZIMUTH, MessageElement::ANGLE,
                                                    0x02,
@@ -200,7 +216,8 @@ void PoseServer::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, RobotMov
 void PoseServer::setMode() {
     std::lock_guard<std::mutex> lock(queueMutex_);
     taskQueue_.emplace(SET_MODE, [this]() {
-        std::vector<unsigned char> modeBuffer = {IDENTIFIER_1, IDENTIFIER_2, Operation::WRITE,
+        std::vector<unsigned char> modeBuffer = {SERVO_COMMAND_MESSAGE_TYPE,
+                                                 IDENTIFIER_1, IDENTIFIER_2, Operation::WRITE,
                                                  MessageGroup::AZIMUTH, MessageElement::MODE,
                                                  0x01, 0x00, 0x00, 0x00,
                                                  Operation::WRITE,
@@ -209,6 +226,29 @@ void PoseServer::setMode() {
         sendMessage(modeBuffer);
     });
 }
+
+void PoseServer::setFrameLatencyMessage(const CameraStats cameraStats) {
+    std::lock_guard<std::mutex> lock(queueMutex_);
+
+    taskQueue_.emplace(FRAME_LATENCY, [this, cameraStats]() {
+        auto vidconv = serializeLEInt(int32_t(cameraStats.vidConv));
+        auto enc = serializeLEInt(int32_t(cameraStats.enc));
+        auto rtppay = serializeLEInt(int32_t(cameraStats.rtpPay));
+        auto udpStream = serializeLEInt(int32_t(cameraStats.udpStream));
+        auto rtpdepay = serializeLEInt(int32_t(cameraStats.rtpDepay));
+        auto dec = serializeLEInt(int32_t(cameraStats.dec));
+
+        std::vector<unsigned char> logBuffer = {LOG_MESSAGE_TYPE,
+                                             vidconv[0], vidconv[1], vidconv[2], vidconv[3],
+                                             enc[0], enc[1], enc[2], enc[3],
+                                             rtppay[0], rtppay[1], rtppay[2], rtppay[3],
+                                             udpStream[0], udpStream[1], udpStream[2], udpStream[3],
+                                             rtpdepay[0], rtpdepay[1], rtpdepay[2], rtpdepay[3],
+                                             dec[0], dec[1], dec[2], dec[3]};
+        sendMessage(logBuffer);
+    });
+}
+
 
 PoseServer::AzimuthElevation PoseServer::quaternionToAzimuthElevation(XrQuaternionf q) {
     double azimuth = 0;

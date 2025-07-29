@@ -22,7 +22,7 @@
 
 class PoseServer {
     // Define priority levels
-    enum Priority { SET_MODE = 0, RESET_ERRORS = 1, ENABLE_SERVOS = 2, SET_POSE_AND_SPEED = 3 };
+    enum Priority {FRAME_LATENCY = 0, SET_MODE = 1, RESET_ERRORS = 2, ENABLE_SERVOS = 3, SET_POSE_AND_SPEED = 4};
 
     template<typename T>
     class MessagePriorityQueue {
@@ -92,6 +92,9 @@ public:
     void enableServos(bool enable);
     void setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, RobotMovementRange movementRange, bool azimuthElevationReversed);
     void setMode();
+
+    //Set an additional debugging message to be sent to the client containing latency info
+    void setFrameLatencyMessage(const CameraStats cameraStats);
 
 private:
 

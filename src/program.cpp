@@ -42,6 +42,7 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
 //    }
 
     ntpTimer_ = std::make_unique<NtpTimer>(IpToString(appState_->streamingConfig.jetson_ip));
+    ntpTimer_->StartAutoSync();
     gstreamerPlayer_ = std::make_unique<GstreamerPlayer>(&appState_->cameraStreamingStates, ntpTimer_.get());
 
     appState_->systemInfo.openXrRuntime = openxr_get_runtime_name(&openxr_instance_);
@@ -145,6 +146,9 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
 
         CameraFrame *imageHandle = i == 0 ? &appState_->cameraStreamingStates.second
                                           : &appState_->cameraStreamingStates.first;
+
+        //Send out a debugging message for logging
+        poseServer_->setFrameLatencyMessage(*imageHandle->stats);
 
         HandleControllers();
 
@@ -521,7 +525,6 @@ void TelepresenceProgram::PollActions() {
 void TelepresenceProgram::SendControllerDatagram() {
 //    if (udpSocket_ == -1) udpSocket_ = createSocket();
 //    sendUDPPacket(udpSocket_, userState_);
-    ntpTimer_->SyncWithServer();
     if (!appState_->headsetMounted) {
         return;
     }
