@@ -19,7 +19,7 @@ void NtpTimer::StartAutoSync() {
     auto syncLoop = std::make_shared<std::function<void()>>();
     *syncLoop = [this, syncLoop]() {
         SyncWithServer(io_);
-        timer_->expires_after(std::chrono::seconds(5));
+        timer_->expires_after(std::chrono::seconds(2));
         auto handler = [this, syncLoop](const boost::system::error_code &ec) {
             try {
                 if (!ec) {

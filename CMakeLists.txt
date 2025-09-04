@@ -90,8 +90,6 @@ add_library(
         $<TARGET_OBJECTS:android_native_app_glue>
 )
 
-set(BOOST_LIBRARIES "${BOOST_ROOT}/libboost_system.so")
-
 target_link_libraries(
         ${PROJECT_NAME}
         openxr_loader
@@ -184,6 +182,9 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/libiconv.a
         ${GSTREAMER_ROOT}/lib/libintl.a
         ${GSTREAMER_ROOT}/lib/libz.a
-        ${BOOST_LIBRARIES}
+
+        ${BOOST_ROOT}/libboost_system.a
+        ${BOOST_ROOT}/libboost_thread.a
+
         -pthread
 )
