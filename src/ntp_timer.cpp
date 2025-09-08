@@ -14,7 +14,7 @@ using boost::asio::ip::udp;
 NtpTimer::NtpTimer(const std::string &ntpServerAddress) : ntpServerAddress_(ntpServerAddress) {};
 
 void NtpTimer::StartAutoSync() {
-    LOG_INFO("NTPCLIENT: Starting auto sync with %s every 5 seconds...", ntpServerAddress_.c_str());
+    //LOG_INFO("NTPCLIENT: Starting auto sync with %s every 5 seconds...", ntpServerAddress_.c_str());
     timer_ = std::make_unique<boost::asio::steady_timer>(io_);
     auto syncLoop = std::make_shared<std::function<void()>>();
     *syncLoop = [this, syncLoop]() {
@@ -23,13 +23,13 @@ void NtpTimer::StartAutoSync() {
         auto handler = [this, syncLoop](const boost::system::error_code &ec) {
             try {
                 if (!ec) {
-                    LOG_INFO("NTPCLIENT: Timer triggered, scheduling next sync...");
+                    //LOG_INFO("NTPCLIENT: Timer triggered, scheduling next sync...");
                     (*syncLoop)();  // safe if alive
                 } else {
-                    LOG_ERROR("NTPCLIENT: Timer error: %s", ec.message().c_str());
+                    //LOG_ERROR("NTPCLIENT: Timer error: %s", ec.message().c_str());
                 }
             } catch (const std::exception &e) {
-                LOG_ERROR("NTPCLIENT: Exception in timer callback: %s", e.what());
+                //LOG_ERROR("NTPCLIENT: Exception in timer callback: %s", e.what());
             }
         };
         timer_->async_wait(handler);
@@ -43,7 +43,7 @@ void NtpTimer::StartAutoSync() {
 }
 
 void NtpTimer::SyncWithServer(boost::asio::io_context &io) {
-    LOG_INFO("NTPCLIENT: Sync underway...");
+    //LOG_INFO("NTPCLIENT: Sync underway...");
     std::vector<Sample> goodSamples;
 
     for (int i = 0; i < 3; ++i) {
@@ -69,14 +69,14 @@ void NtpTimer::SyncWithServer(boost::asio::io_context &io) {
     localTimeOffset_ = static_cast<int64_t>(smoothedOffsetUs_);
     lastSyncedTimestampLocal_ = GetCurrentTimeUsNonAdjusted();
 
-    LOG_INFO("NTPCLIENT: Current offset after filtering: %ld us", localTimeOffset_);
+    //LOG_INFO("NTPCLIENT: Current offset after filtering: %ld us", localTimeOffset_);
 }
 
 std::optional<std::pair<int64_t, uint64_t>> NtpTimer::GetOneNtpSample(boost::asio::io_context &io) {
     try {
-        LOG_INFO("NTPCLIENT: Fetching NTP sample...");
+        //LOG_INFO("NTPCLIENT: Fetching NTP sample...");
         udp::resolver resolver(io);
-        udp::endpoint serverEndpoint = *resolver.resolve(udp::v4(), ntpServerAddress_, "123").begin();
+        udp::endpoint serverEndpoint = *resolver.resolve(udp::v4(), "195.113.144.201", "123").begin();
 
         udp::socket socket(io);
         socket.open(udp::v4());
@@ -94,16 +94,16 @@ std::optional<std::pair<int64_t, uint64_t>> NtpTimer::GetOneNtpSample(boost::asi
 
         size_t len = socket.receive_from(boost::asio::buffer(response), senderEndpoint, 0, ec);
         auto timeReceived = std::chrono::high_resolution_clock::now();
-        LOG_INFO("NTPCLIENT: Received a response from the NTP server...");
+        //LOG_INFO("NTPCLIENT: Received a response from the NTP server...");
 
         if (ec || len < 48) {
-            LOG_ERROR("NTPCLIENT: Failed to receive NTP response!");
+            //LOG_ERROR("NTPCLIENT: Failed to receive NTP response!");
             return std::nullopt;
         }
 
         uint64_t roundTripDelay = std::chrono::duration_cast<std::chrono::microseconds>(timeReceived - timeSent).count();
         if (roundTripDelay > 20000) {
-            LOG_ERROR("NTPCLIENT: High RTT: %lu us — discarding sample", roundTripDelay);
+            //LOG_ERROR("NTPCLIENT: High RTT: %lu us — discarding sample", roundTripDelay);
             return std::nullopt;
         }
 
@@ -113,7 +113,7 @@ std::optional<std::pair<int64_t, uint64_t>> NtpTimer::GetOneNtpSample(boost::asi
         double fractionInSeconds = static_cast<double>(tx_fraction) / (1LL << 32);
         auto microseconds = static_cast<uint32_t>(fractionInSeconds * 1e6);
         uint64_t serverTime = static_cast<uint64_t>(tx_seconds - NTP_TIMESTAMP_DELTA) * 1'000'000 + microseconds;
-        LOG_ERROR("NTPCLIENT: Server time: %lu vs Client time: %lu", serverTime, GetCurrentTimeUsNonAdjusted());
+        //LOG_ERROR("NTPCLIENT: Server time: %lu vs Client time: %lu", serverTime, GetCurrentTimeUsNonAdjusted());
 
         // latency-compensated server time
         uint64_t serverTimeAdj = serverTime + roundTripDelay / 2;
@@ -122,10 +122,10 @@ std::optional<std::pair<int64_t, uint64_t>> NtpTimer::GetOneNtpSample(boost::asi
         const uint64_t now = GetCurrentTimeUsNonAdjusted();
         int64_t newOffset = now - serverTimeAdj;
 
-        LOG_INFO("NTPCLIENT: Received NTP sample: Offset: %ld us | RTT: %lu us", newOffset, roundTripDelay);
+        //LOG_INFO("NTPCLIENT: Received NTP sample: Offset: %ld us | RTT: %lu us", newOffset, roundTripDelay);
         return std::make_pair(newOffset, roundTripDelay);
     } catch (const std::exception &e) {
-        LOG_ERROR("NTPCLIENT: Exception during sync: %s", e.what());
+        //LOG_ERROR("NTPCLIENT: Exception during sync: %s", e.what());
         return std::nullopt;
     }
 }

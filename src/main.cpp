@@ -151,6 +151,7 @@ void android_main(struct android_app *app) {
         jobject activity = app->activity->clazz;
         jclass activityClass = Env->GetObjectClass(activity);
         gst_amc_jni_set_java_vm(app->activity->vm);
+        gst_android_set_java_vm(app->activity->vm);
         gst_android_init(Env, activityClass, activity);
 
         std::unique_ptr<TelepresenceProgram> telepresenceProgram = std::make_unique<TelepresenceProgram>(app);
