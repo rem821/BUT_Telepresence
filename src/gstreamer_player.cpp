@@ -3,42 +3,6 @@
 #include <ctime>
 #include <gst/rtp/rtp.h>
 #include <fmt/format.h>
-#include <gst/gl/gstglmemory.h>
-#include <GLES3/gl3.h>
-
-
-GstPadProbeReturn printCapsProbe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
-    if (GST_PAD_PROBE_INFO_TYPE(info) & GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM) {
-        GstEvent *event = gst_pad_probe_info_get_event(info);
-        if (GST_EVENT_TYPE(event) == GST_EVENT_CAPS) {
-            GstCaps *caps;
-            gst_event_parse_caps(event, &caps);
-            gchar *caps_str = gst_caps_to_string(caps);
-            g_print("Caps after h265parse: %s\n", caps_str);
-            g_free(caps_str);
-        }
-    }
-    return GST_PAD_PROBE_OK;
-}
-
-void printElementCaps(std::string element) {
-    GstElementFactory *factory = gst_element_factory_find(element.c_str());
-    if (factory) {
-        const GList *pads = gst_element_factory_get_static_pad_templates(factory);
-        for (const GList *pad = pads; pad != nullptr; pad = pad->next) {
-            GstPadTemplate *template_ = static_cast<GstPadTemplate *>(pad->data);
-
-            const gchar *pad_name = template_->name_template;
-            const gchar *direction = (template_->direction == GST_PAD_SRC) ? "SRC" : "SINK";
-
-            LOG_INFO("%s - Pad: %s | Direction: %s", element.c_str(), pad_name, direction);
-        }
-
-        gst_object_unref(factory);
-    } else {
-        LOG_ERROR("Element factory not found for %s", element.c_str());
-    }
-}
 
 GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair_(camPair), ntpTimer_(ntpTimer) {
     guint major, minor, micro, nano;
@@ -48,14 +12,22 @@ GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair
     //listAvailableDecoders();
     //listGstreamerPlugins();
 
-//    printElementCaps("amcviddec-omxqcomvideodecoderhevc");
-//    printElementCaps("amcviddec-omxqcomvideodecoderavc");
-//    printElementCaps("amcviddec-omxqcomvideodecodervp8");
-//    printElementCaps("amcviddec-omxqcomvideodecodervp9");
-//    printElementCaps("amcviddec-c2qtiavcdecoder");
-//    printElementCaps("amcviddec-c2qtihevcdecoder");
-//    printElementCaps("amcviddec-c2qtivp8decoder");
-//    printElementCaps("amcviddec-c2qtivp9decoder");
+//    GstElementFactory *factory = gst_element_factory_find("amcviddec-omxqcomvideodecoderavc");
+//    if (factory) {
+//        const GList *pads = gst_element_factory_get_static_pad_templates(factory);
+//        for (const GList *pad = pads; pad != nullptr; pad = pad->next) {
+//            GstPadTemplate *template_ = static_cast<GstPadTemplate *>(pad->data);
+//
+//            const gchar *pad_name = template_->name_template;
+//            const gchar *direction = (template_->direction == GST_PAD_SRC) ? "SRC" : "SINK";
+//
+//            LOG_INFO("Pad: %s | Direction: %s", pad_name, direction);
+//        }
+//
+//        gst_object_unref(factory);
+//    } else {
+//        LOG_ERROR("Element factory not found for amcviddec-omxqcomvideodecoderhevc");
+//    }
 
     /* Create our own GLib Main Context and make it the default one */
     context_ = g_main_context_new();
@@ -184,16 +156,6 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(rtp_capsfilter);
 
         GstElement *appsink = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "appsink");
-//        GstCaps *gl_caps = gst_caps_new_simple(
-//                "video/x-raw",
-//                "format", G_TYPE_STRING, "RGBA",
-//                "memory", G_TYPE_STRING, "GLMemory",
-//                "texture-target", G_TYPE_STRING, "external-oes",
-//                NULL
-//        );
-//        g_object_set(G_OBJECT(appsink), "caps", gl_caps, NULL);
-//        gst_caps_unref(gl_caps);
-
         gst_element_set_name(pipelineCombined_, "pipeline_combined");
         gst_element_set_state(pipelineCombined_, GST_STATE_READY);
 
@@ -257,17 +219,6 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(rtp_capsfilter_left);
 
         GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "appsink");
-//        if (config.codec != Codec::JPEG) {
-//            GstCaps *gl_caps = gst_caps_new_simple(
-//                    "video/x-raw",
-//                    "format", G_TYPE_STRING, "RGBA",
-//                    "memory", G_TYPE_STRING, "GLMemory",
-//                    "texture-target", G_TYPE_STRING, "external-oes",
-//                    NULL
-//            );
-//            g_object_set(leftappsink, "caps", gl_caps, NULL);
-//            gst_caps_unref(gl_caps);
-//        }
         gst_element_set_name(pipelineLeft_, "pipeline_left");
         gst_element_set_state(pipelineLeft_, GST_STATE_READY);
 
@@ -321,22 +272,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_caps_unref(new_caps_right);
         gst_object_unref(rtp_capsfilter_right);
 
-        GstElement *h265parse = gst_bin_get_by_name(GST_BIN(pipelineRight_), "h265parse");
-        GstPad *padparse = gst_element_get_static_pad(h265parse, "src");
-        gst_pad_add_probe(padparse, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, printCapsProbe, NULL, NULL);
-
         GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "appsink");
-//        if (config.codec != Codec::JPEG) {
-//            GstCaps *gl_caps2 = gst_caps_new_simple(
-//                    "video/x-raw",
-//                    "format", G_TYPE_STRING, "RGBA",
-//                    "memory", G_TYPE_STRING, "GLMemory",
-//                    "texture-target", G_TYPE_STRING, "external-oes",
-//                    NULL
-//            );
-//            g_object_set(rightappsink, "caps", gl_caps2, NULL);
-//            gst_caps_unref(gl_caps2);
-//        }
         gst_element_set_name(pipelineRight_, "pipeline_right");
         gst_element_set_state(pipelineRight_, GST_STATE_READY);
 
@@ -420,17 +356,6 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
             GstMapInfo mapInfo{};
 
             buffer = gst_sample_get_buffer(sample);
-            GstMemory *memory = gst_buffer_peek_memory(buffer, 0);
-
-            if (gst_is_gl_memory(memory)) {
-                GstGLMemory *gl_mem = GST_GL_MEMORY_CAST(memory);
-                GLuint tex_id = gst_gl_memory_get_texture_id(gl_mem);
-                GLenum tex_target = gst_gl_memory_get_texture_target(gl_mem);
-                //LOG_INFO("NEW_SAMPLE - it is an gl memory sample");
-                return GST_FLOW_OK;
-            }
-            //LOG_INFO("NEW_SAMPLE - it is not an gl memory sample");
-
             gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
 
             memcpy(frame.dataHandle, mapInfo.data, frame.memorySize);
