@@ -597,6 +597,7 @@ gst_android_init(JNIEnv *env, jclass klass, jobject context) {
     /* Debug */
     gst_debug_set_active(FALSE);
     gst_debug_set_default_threshold(GST_LEVEL_WARNING);
+
     gst_debug_remove_log_function (gst_debug_log_default);
     gst_debug_add_log_function ((GstLogFunction) gst_debug_logcat, NULL, NULL);
 
