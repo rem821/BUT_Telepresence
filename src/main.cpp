@@ -6,11 +6,15 @@
 #include <chrono>
 
 #include "program.h"
+#include "gstreamer_android.h"
 
 struct AndroidAppState {
     ANativeWindow *NativeWindow = nullptr;
     bool Resumed = false;
 };
+
+extern "C" void gst_amc_jni_set_java_vm(JavaVM *vm);
+
 
 static void
 ProcessAndroidCmd(struct android_app *app, int32_t cmd) {
@@ -108,7 +112,7 @@ void LogHardwareAcceleratedCodecs(JNIEnv *env) {
                 const char *codecTypeCStr = env->GetStringUTFChars(codecType, nullptr);
 
                 // Log only hardware-accelerated video codecs
-                if (strstr(codecNameCStr, "OMX") || strstr(codecNameCStr, "hardware")) {
+                if (strstr(codecNameCStr, "OMX") || strstr(codecNameCStr, "hardware") || strstr(codecNameCStr, "amc")) {
                     LOG_INFO("HW Codec: %s, Type: %s", codecNameCStr, codecTypeCStr);
                 }
 
@@ -141,10 +145,16 @@ void android_main(struct android_app *app) {
         LOG_INFO("Native Library Path: %s", nativeLibraryPath.c_str());
 
         // Log hardware-accelerated codecs
-        LogHardwareAcceleratedCodecs(Env);
+        //LogHardwareAcceleratedCodecs(Env);
 
-        std::unique_ptr<TelepresenceProgram> telepresenceProgram = std::make_unique<TelepresenceProgram>(
-                app);
+        // Initialize GST
+        jobject activity = app->activity->clazz;
+        jclass activityClass = Env->GetObjectClass(activity);
+        gst_amc_jni_set_java_vm(app->activity->vm);
+        gst_android_set_java_vm(app->activity->vm);
+        gst_android_init(Env, activityClass, activity);
+
+        std::unique_ptr<TelepresenceProgram> telepresenceProgram = std::make_unique<TelepresenceProgram>(app);
 
         bool requestRestart = false;
         bool exitRenderLoop = false;

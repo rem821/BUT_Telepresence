@@ -15,12 +15,12 @@ StateStorage::StateStorage(android_app *app) {
     context_ = app->activity->clazz;
 };
 
-void StateStorage::SaveStreamingConfig(const StreamingConfig &streamingConfig) {
+void StateStorage::SaveAppState(const AppState &appState) {
     jclass contextClass = env_->GetObjectClass(context_);
     jmethodID getSharedPreferences = env_->GetMethodID(contextClass, "getSharedPreferences",
                                                       "(Ljava/lang/String;I)Landroid/content/SharedPreferences;");
 
-    jstring prefsName = env_->NewStringUTF("StreamingConfigPrefs");
+    jstring prefsName = env_->NewStringUTF("AppStatePrefs");
     jobject sharedPreferences = env_->CallObjectMethod(context_, getSharedPreferences, prefsName, 0);
     env_->DeleteLocalRef(prefsName);
 
@@ -34,16 +34,23 @@ void StateStorage::SaveStreamingConfig(const StreamingConfig &streamingConfig) {
                                            "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;");
 
     {
-        SaveKeyValuePair(editor, putString, "headset_ip", IpToString(streamingConfig.headset_ip));
-        SaveKeyValuePair(editor, putString, "jetson_ip", IpToString(streamingConfig.jetson_ip));
-        SaveKeyValuePair(editor, putString, "port_left", streamingConfig.portLeft);
-        SaveKeyValuePair(editor, putString, "port_right", streamingConfig.portRight);
-        SaveKeyValuePair(editor, putString, "codec", streamingConfig.codec);
-        SaveKeyValuePair(editor, putString, "encoding_quality", streamingConfig.encodingQuality);
-        SaveKeyValuePair(editor, putString, "bitrate", streamingConfig.bitrate);
-        SaveKeyValuePair(editor, putString, "resolution", streamingConfig.resolution.getLabel());
-        SaveKeyValuePair(editor, putString, "video_mode", streamingConfig.videoMode);
-        SaveKeyValuePair(editor, putString, "fps", streamingConfig.fps);
+        SaveKeyValuePair(editor, putString, "headset_ip", IpToString(appState.streamingConfig.headset_ip));
+        SaveKeyValuePair(editor, putString, "jetson_ip", IpToString(appState.streamingConfig.jetson_ip));
+        SaveKeyValuePair(editor, putString, "port_left", appState.streamingConfig.portLeft);
+        SaveKeyValuePair(editor, putString, "port_right", appState.streamingConfig.portRight);
+        SaveKeyValuePair(editor, putString, "codec", appState.streamingConfig.codec);
+        SaveKeyValuePair(editor, putString, "encoding_quality", appState.streamingConfig.encodingQuality);
+        SaveKeyValuePair(editor, putString, "bitrate", appState.streamingConfig.bitrate);
+        SaveKeyValuePair(editor, putString, "resolution", appState.streamingConfig.resolution.getLabel());
+        SaveKeyValuePair(editor, putString, "video_mode", appState.streamingConfig.videoMode);
+        SaveKeyValuePair(editor, putString, "fps", appState.streamingConfig.fps);
+
+        SaveKeyValuePair(editor, putString, "aspect_ratio_mode", static_cast<int>(appState.aspectRatioMode));
+        SaveKeyValuePair(editor, putString, "head_movement_max_speed", appState.headMovementMaxSpeed);
+        SaveKeyValuePair(editor, putString, "head_movement_prediction_ms", appState.headMovementPredictionMs);
+        SaveKeyValuePair(editor, putString, "head_movement_speed_multiplier", appState.robotMovementRange.speedMultiplier * 10); // To build around integer formatting
+        SaveKeyValuePair(editor, putString, "robot_type", RobotTypeToString(appState.robotMovementRange.type));
+        SaveKeyValuePair(editor, putString, "robot_control_enabled", appState.robotControlEnabled);
     }
 
 
@@ -78,38 +85,43 @@ bool StateStorage::SaveKeyValuePair(jobject editor, jmethodID putString, const s
 }
 
 
-StreamingConfig StateStorage::LoadStreamingConfig() {
-
+AppState StateStorage::LoadAppState() {
     jclass contextClass = env_->GetObjectClass(context_);
     jmethodID getSharedPreferences = env_->GetMethodID(contextClass, "getSharedPreferences", "(Ljava/lang/String;I)Landroid/content/SharedPreferences;");
 
-    jstring prefsName = env_->NewStringUTF("StreamingConfigPrefs");
+    jstring prefsName = env_->NewStringUTF("AppStatePrefs");
     jobject sharedPreferences = env_->CallObjectMethod(context_, getSharedPreferences, prefsName, 0);
     env_->DeleteLocalRef(prefsName);
 
     jclass prefsClass = env_->GetObjectClass(sharedPreferences);
     jmethodID getString = env_->GetMethodID(prefsClass, "getString", "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
 
-    StreamingConfig streamingConfig;
+    AppState appState;
     try {
+        appState.streamingConfig.headset_ip = StringToIp(LoadValue(sharedPreferences, getString, "headset_ip"));
+        appState.streamingConfig.jetson_ip = StringToIp(LoadValue(sharedPreferences, getString, "jetson_ip"));
+        appState.streamingConfig.portLeft = std::stoi(LoadValue(sharedPreferences, getString, "port_left"));
+        appState.streamingConfig.portRight = std::stoi(LoadValue(sharedPreferences, getString, "port_right"));
+        appState.streamingConfig.codec = Codec(std::stoi(LoadValue(sharedPreferences, getString, "codec")));
+        appState.streamingConfig.encodingQuality = std::stoi(LoadValue(sharedPreferences, getString, "encoding_quality"));
+        appState.streamingConfig.bitrate = std::stoi(LoadValue(sharedPreferences, getString, "bitrate"));
+        appState.streamingConfig.resolution = CameraResolution::fromLabel(LoadValue(sharedPreferences, getString, "resolution"));
+        appState.streamingConfig.videoMode = VideoMode(std::stoi(LoadValue(sharedPreferences, getString, "video_mode")));
+        appState.streamingConfig.fps = std::stoi(LoadValue(sharedPreferences, getString, "fps"));
 
-        streamingConfig.headset_ip = StringToIp(LoadValue(sharedPreferences, getString, "headset_ip"));
-        streamingConfig.jetson_ip = StringToIp(LoadValue(sharedPreferences, getString, "jetson_ip"));
-        streamingConfig.portLeft = std::stoi(LoadValue(sharedPreferences, getString, "port_left"));
-        streamingConfig.portRight = std::stoi(LoadValue(sharedPreferences, getString, "port_right"));
-        streamingConfig.codec = Codec(std::stoi(LoadValue(sharedPreferences, getString, "codec")));
-        streamingConfig.encodingQuality = std::stoi(LoadValue(sharedPreferences, getString, "encoding_quality"));
-        streamingConfig.bitrate = std::stoi(LoadValue(sharedPreferences, getString, "bitrate"));
-        streamingConfig.resolution = CameraResolution::fromLabel(LoadValue(sharedPreferences, getString, "resolution"));
-        streamingConfig.videoMode = VideoMode(std::stoi(LoadValue(sharedPreferences, getString, "video_mode")));
-        streamingConfig.fps = std::stoi(LoadValue(sharedPreferences, getString, "fps"));
+        appState.aspectRatioMode = static_cast<AspectRatioMode>(std::stoi(LoadValue(sharedPreferences, getString, "aspect_ratio_mode")));
+        appState.headMovementMaxSpeed = std::stoi(LoadValue(sharedPreferences, getString, "head_movement_max_speed"));
+        appState.headMovementPredictionMs = std::stoi(LoadValue(sharedPreferences, getString, "head_movement_prediction_ms"));
+        appState.robotMovementRange.speedMultiplier = std::stof(LoadValue(sharedPreferences, getString, "head_movement_speed_multiplier") ) / 10.0f; // To build around integer formatting
+        appState.robotMovementRange.setRobotType(StringToRobotType(LoadValue(sharedPreferences, getString, "robot_type")));
+        appState.robotControlEnabled = std::stoi(LoadValue(sharedPreferences, getString, "robot_control_enabled"));
 
-    } catch(std::exception) {
+    } catch(std::exception e) {
         env_->DeleteLocalRef(sharedPreferences);
         env_->DeleteLocalRef(prefsClass);
         env_->DeleteLocalRef(contextClass);
 
-        return StreamingConfig();
+        return AppState();
         //throw std::runtime_error("Couldn't load from the shared preferences");
     }
 
@@ -117,7 +129,7 @@ StreamingConfig StateStorage::LoadStreamingConfig() {
     env_->DeleteLocalRef(prefsClass);
     env_->DeleteLocalRef(contextClass);
 
-    return streamingConfig;
+    return appState;
 }
 
 std::string StateStorage::LoadValue(jobject& sharedPreferences, jmethodID& getString, const std::string& key) {

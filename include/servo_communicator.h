@@ -55,7 +55,7 @@ public:
 
     void enableServos(bool enable, BS::thread_pool<BS::tp::none> &threadPool);
 
-    void setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, BS::thread_pool<BS::tp::none> &threadPool);
+    void setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, RobotMovementRange movementRange, bool azimuthElevationReversed, BS::thread_pool<BS::tp::none> &threadPool);
 
     void sendOdinControlPacket(float linSpeedX, float linSpeedY, float angSpeed, BS::thread_pool<BS::tp::none> &threadPool);
 

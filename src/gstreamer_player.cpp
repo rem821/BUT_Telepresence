@@ -1,27 +1,74 @@
 #include "gstreamer_player.h"
+#include "util_egl.h"
 #include <ctime>
 #include <gst/rtp/rtp.h>
 #include <fmt/format.h>
+#include <gst/gl/gstglmemory.h>
+#include <GLES3/gl3.h>
+
+
+GstPadProbeReturn printCapsProbe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
+    if (GST_PAD_PROBE_INFO_TYPE(info) & GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM) {
+        GstEvent *event = gst_pad_probe_info_get_event(info);
+        if (GST_EVENT_TYPE(event) == GST_EVENT_CAPS) {
+            GstCaps *caps;
+            gst_event_parse_caps(event, &caps);
+            gchar *caps_str = gst_caps_to_string(caps);
+            g_print("Caps after h265parse: %s\n", caps_str);
+            g_free(caps_str);
+        }
+    }
+    return GST_PAD_PROBE_OK;
+}
+
+void printElementCaps(std::string element) {
+    GstElementFactory *factory = gst_element_factory_find(element.c_str());
+    if (factory) {
+        const GList *pads = gst_element_factory_get_static_pad_templates(factory);
+        for (const GList *pad = pads; pad != nullptr; pad = pad->next) {
+            GstPadTemplate *template_ = static_cast<GstPadTemplate *>(pad->data);
+
+            const gchar *pad_name = template_->name_template;
+            const gchar *direction = (template_->direction == GST_PAD_SRC) ? "SRC" : "SINK";
+
+            LOG_INFO("%s - Pad: %s | Direction: %s", element.c_str(), pad_name, direction);
+        }
+
+        gst_object_unref(factory);
+    } else {
+        LOG_ERROR("Element factory not found for %s", element.c_str());
+    }
+}
 
 GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair_(camPair), ntpTimer_(ntpTimer) {
-    gst_init(nullptr, nullptr);
     guint major, minor, micro, nano;
     gst_version(&major, &minor, &micro, &nano);
     LOG_INFO("Running GStreamer version: %d.%d.%d.%d", major, minor, micro, nano);
 
-    gst_debug_add_log_function(gstCustomLog, nullptr, nullptr);
-    //gst_debug_set_default_threshold(GST_LEVEL_INFO);
-    gst_debug_set_threshold_for_name("decodebin3", GST_LEVEL_LOG);
-    gst_debug_set_threshold_for_name("omx", GST_LEVEL_LOG);
-    gst_debug_set_threshold_for_name("decode", GST_LEVEL_LOG);
+    //listAvailableDecoders();
+    //listGstreamerPlugins();
 
-    listAvailableDecoders();
-    dumpGstreamerFeatures();
+//    printElementCaps("amcviddec-omxqcomvideodecoderhevc");
+//    printElementCaps("amcviddec-omxqcomvideodecoderavc");
+//    printElementCaps("amcviddec-omxqcomvideodecodervp8");
+//    printElementCaps("amcviddec-omxqcomvideodecodervp9");
+//    printElementCaps("amcviddec-c2qtiavcdecoder");
+//    printElementCaps("amcviddec-c2qtihevcdecoder");
+//    printElementCaps("amcviddec-c2qtivp8decoder");
+//    printElementCaps("amcviddec-c2qtivp9decoder");
 
     /* Create our own GLib Main Context and make it the default one */
     context_ = g_main_context_new();
     g_main_context_push_thread_default(context_);
-}
+
+    GstGLDisplay *gl_display = GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(egl_get_display()));
+    glContext_ = gst_gl_context_new(gl_display);
+    GError *error = nullptr;
+    if (!gst_gl_context_create(glContext_, nullptr, &error)) {
+        LOG_ERROR("Failed to create GstGLContext: %s", error ? error->message : "unknown error");
+        if (error) g_error_free(error);
+        return;
+    }}
 
 void
 GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config, const bool combinedStreaming) {
@@ -103,7 +150,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         throw std::runtime_error("Unable to build pipeline!");
     }
 
-    if(combinedStreaming) {
+    if (combinedStreaming) {
         std::string xDimString = fmt::format("{},{}", config.resolution.getWidth(), config.resolution.getHeight() * 2);
 
         pipelineCombined_ = gst_parse_launch(jpegPipelineCombined_.c_str(), &error);
@@ -126,17 +173,27 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
             payload=96;
         }
 
-        GstElement* rtp_capsfilter = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "rtp_capsfilter");
+        GstElement *rtp_capsfilter = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "rtp_capsfilter");
         GstCaps *new_caps = gst_caps_new_simple("application/x-rtp",
-                                                     "encoding-name", G_TYPE_STRING, CodecToString(config.codec).c_str(),
-                                                     "payload", G_TYPE_INT, payload,
-                                                     "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
-                                                     NULL);
+                                                "encoding-name", G_TYPE_STRING, CodecToString(config.codec).c_str(),
+                                                "payload", G_TYPE_INT, payload,
+                                                "x-dimensions", G_TYPE_STRING, xDimString.c_str(),
+                                                NULL);
         g_object_set(rtp_capsfilter, "caps", new_caps, NULL);
         gst_caps_unref(new_caps);
         gst_object_unref(rtp_capsfilter);
 
         GstElement *appsink = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "appsink");
+//        GstCaps *gl_caps = gst_caps_new_simple(
+//                "video/x-raw",
+//                "format", G_TYPE_STRING, "RGBA",
+//                "memory", G_TYPE_STRING, "GLMemory",
+//                "texture-target", G_TYPE_STRING, "external-oes",
+//                NULL
+//        );
+//        g_object_set(G_OBJECT(appsink), "caps", gl_caps, NULL);
+//        gst_caps_unref(gl_caps);
+
         gst_element_set_name(pipelineCombined_, "pipeline_combined");
         gst_element_set_state(pipelineCombined_, GST_STATE_READY);
 
@@ -164,6 +221,11 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
 
         gst_element_set_state(pipelineCombined_, GST_STATE_PLAYING);
     } else {
+        GstContext *gst_context_left = gst_context_new("gst.gl.app_context", TRUE);
+        gst_structure_set(gst_context_writable_structure(gst_context_left), "context", GST_TYPE_GL_CONTEXT, glContext_, NULL);
+        gst_element_set_context(pipelineLeft_, gst_context_left);
+        gst_context_unref(gst_context_left);
+
         std::string xDimString = fmt::format("{},{}", config.resolution.getWidth(), config.resolution.getHeight());
 
         GstElement *leftudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc_ident");
@@ -184,7 +246,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
             payload=96;
         }
 
-        GstElement* rtp_capsfilter_left = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "rtp_capsfilter");
+        GstElement *rtp_capsfilter_left = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "rtp_capsfilter");
         GstCaps *new_caps_left = gst_caps_new_simple("application/x-rtp",
                                                      "encoding-name", G_TYPE_STRING, CodecToString(config.codec).c_str(),
                                                      "payload", G_TYPE_INT, payload,
@@ -195,6 +257,17 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(rtp_capsfilter_left);
 
         GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "appsink");
+//        if (config.codec != Codec::JPEG) {
+//            GstCaps *gl_caps = gst_caps_new_simple(
+//                    "video/x-raw",
+//                    "format", G_TYPE_STRING, "RGBA",
+//                    "memory", G_TYPE_STRING, "GLMemory",
+//                    "texture-target", G_TYPE_STRING, "external-oes",
+//                    NULL
+//            );
+//            g_object_set(leftappsink, "caps", gl_caps, NULL);
+//            gst_caps_unref(gl_caps);
+//        }
         gst_element_set_name(pipelineLeft_, "pipeline_left");
         gst_element_set_state(pipelineLeft_, GST_STATE_READY);
 
@@ -203,18 +276,6 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
         g_source_attach(bus_source, context_);
         g_source_unref(bus_source);
-
-        gst_bus_add_watch(bus, [](GstBus *, GstMessage *msg, gpointer) -> gboolean {
-            if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_ERROR) {
-                GError *err = nullptr;
-                gchar *dbg;
-                gst_message_parse_error(msg, &err, &dbg);
-                g_printerr("GSTREAMER ERROR: %s\n", err->message);
-                g_error_free(err);
-                g_free(dbg);
-            }
-            return TRUE;
-        }, nullptr);
 
         g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineLeft_);
         g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineLeft_);
@@ -232,6 +293,11 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(leftappsink);
         gst_object_unref(bus);
 
+        GstContext *gst_context_right = gst_context_new("gst.gl.app_context", TRUE);
+        gst_structure_set(gst_context_writable_structure(gst_context_right), "context", GST_TYPE_GL_CONTEXT, glContext_, NULL);
+        gst_element_set_context(pipelineRight_, gst_context_right);
+        gst_context_unref(gst_context_right);
+
         GstElement *rightudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc_ident");
         GstElement *rightrtpdepay_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtpdepay_ident");
         GstElement *rightdec_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "dec_ident");
@@ -245,7 +311,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
             gst_object_unref(pad);
         }
 
-        GstElement* rtp_capsfilter_right = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtp_capsfilter");
+        GstElement *rtp_capsfilter_right = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtp_capsfilter");
         GstCaps *new_caps_right = gst_caps_new_simple("application/x-rtp",
                                                       "encoding-name", G_TYPE_STRING, CodecToString(config.codec).c_str(),
                                                       "payload", G_TYPE_INT, payload,
@@ -255,7 +321,22 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_caps_unref(new_caps_right);
         gst_object_unref(rtp_capsfilter_right);
 
+        GstElement *h265parse = gst_bin_get_by_name(GST_BIN(pipelineRight_), "h265parse");
+        GstPad *padparse = gst_element_get_static_pad(h265parse, "src");
+        gst_pad_add_probe(padparse, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, printCapsProbe, NULL, NULL);
+
         GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "appsink");
+//        if (config.codec != Codec::JPEG) {
+//            GstCaps *gl_caps2 = gst_caps_new_simple(
+//                    "video/x-raw",
+//                    "format", G_TYPE_STRING, "RGBA",
+//                    "memory", G_TYPE_STRING, "GLMemory",
+//                    "texture-target", G_TYPE_STRING, "external-oes",
+//                    NULL
+//            );
+//            g_object_set(rightappsink, "caps", gl_caps2, NULL);
+//            gst_caps_unref(gl_caps2);
+//        }
         gst_element_set_name(pipelineRight_, "pipeline_right");
         gst_element_set_state(pipelineRight_, GST_STATE_READY);
 
@@ -301,8 +382,9 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
     GstSample *sample;
     /* Retrieve the buffer */
     g_signal_emit_by_name(sink, "pull-sample", &sample);
+    LOG_INFO("NEW_SAMPLE - sample arrived");
     if (sample) {
-        if(std::string(sink->object.parent->name) == "pipeline_combined") {
+        if (std::string(sink->object.parent->name) == "pipeline_combined") {
             //LOG_INFO("New GStreamer combined frame received");
             auto pair = callbackObj->first;
 
@@ -321,9 +403,9 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
         } else {
             bool isLeftCamera = std::string(sink->object.parent->name) == "pipeline_left";
             if (isLeftCamera) {
-                //LOG_INFO("New GStreamer frame received from left camera");
+                LOG_INFO("NEW_SAMPLE - New GStreamer frame received from left camera");
             } else {
-                //LOG_INFO("New GStreamer frame received from right camera");
+                LOG_INFO("NEW_SAMPLE - New GStreamer frame received from right camera");
             }
 
             auto pair = callbackObj->first;
@@ -338,6 +420,17 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
             GstMapInfo mapInfo{};
 
             buffer = gst_sample_get_buffer(sample);
+            GstMemory *memory = gst_buffer_peek_memory(buffer, 0);
+
+            if (gst_is_gl_memory(memory)) {
+                GstGLMemory *gl_mem = GST_GL_MEMORY_CAST(memory);
+                GLuint tex_id = gst_gl_memory_get_texture_id(gl_mem);
+                GLenum tex_target = gst_gl_memory_get_texture_target(gl_mem);
+                LOG_INFO("NEW_SAMPLE - it is an gl memory sample");
+                return GST_FLOW_OK;
+            }
+            LOG_INFO("NEW_SAMPLE - it is not an gl memory sample");
+
             gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
 
             memcpy(frame.dataHandle, mapInfo.data, frame.memorySize);
@@ -470,25 +563,9 @@ GstPadProbeReturn GstreamerPlayer::udpPacketProbeCallback(GstPad *pad, GstPadPro
     return GST_PAD_PROBE_OK;
 }
 
-void GstreamerPlayer::gstCustomLog(GstDebugCategory *category, GstDebugLevel level, const gchar *file, const gchar *function, gint line,
-                                   GObject *object, GstDebugMessage *message, gpointer user_data) {
-    const gchar *msg = gst_debug_message_get(message);
-    const gchar *cat = gst_debug_category_get_name(category);
-
-    // Only print critical decoder-related logs (filter if needed)
-    LOG_INFO("[GSTLOG] [%s] %s\n", cat, msg);
-//    if (strstr(cat, "decodebin") || strstr(msg, "OMX") || strstr(msg, "decoder")) {
-//
-//    }
-}
-
-
 void GstreamerPlayer::listAvailableDecoders() {
-    // Initialize GStreamer if not already done
-    gst_init(nullptr, nullptr);
-
     // Get the list of decoders
-    GList *decoders = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODABLE, GST_RANK_MARGINAL);
+    GList *decoders = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODER, GST_RANK_NONE);
 
     if (!decoders) {
         LOG_INFO("No decoders found in the GStreamer registry.");
@@ -520,55 +597,18 @@ void GstreamerPlayer::listAvailableDecoders() {
     gst_plugin_feature_list_free(decoders);
 }
 
-void GstreamerPlayer::dumpGstreamerFeatures() {
+void GstreamerPlayer::listGstreamerPlugins() {
     GstRegistry *registry = gst_registry_get();
+    GList *features = gst_registry_get_feature_list(registry, GST_TYPE_ELEMENT_FACTORY);
 
-    if (!registry) {
-        LOG_ERROR("Failed to get gstreamer registry!");
-        throw std::runtime_error("Failed to get gstreamer registry!");
+    for (GList *iter = features; iter != nullptr; iter = iter->next) {
+        GstElementFactory *factory = GST_ELEMENT_FACTORY(iter->data);
+        const gchar *name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory));
+        const gchar *longname = gst_element_factory_get_longname(factory);
+        const gchar *klass = gst_element_factory_get_klass(factory);
+
+        LOG_INFO("Element: %s — %s (%s)\n", name, longname, klass);
     }
 
-    gchar *str = g_strdup("");
-    GList *features = gst_registry_feature_filter(registry, nullptr, FALSE, nullptr);
-    for (GList *iterator = features; iterator != nullptr; iterator = iterator->next) {
-        printGstreamerFeature((GstPluginFeature *) iterator->data, &str);
-    }
-
-    g_list_free(features);
-
-    gst_object_unref(registry);
-}
-
-gboolean
-GstreamerPlayer::printGstreamerFeature(const GstPluginFeature *feature, gpointer user_data) {
-    auto **str = (gchar **) user_data;
-    gchar *name = gst_plugin_feature_get_name(feature);
-    gchar *temp;
-
-    /* Get the plugin name if this is a plugin feature */
-    gchar *plugin_name = nullptr;
-    if (GST_IS_PLUGIN_FEATURE(feature)) {
-        GstPlugin *plugin = gst_plugin_feature_get_plugin((GstPluginFeature *) feature);
-        if (plugin != nullptr) {
-            plugin_name = g_strdup(gst_plugin_get_name(plugin));
-            gst_object_unref(plugin);
-        }
-    }
-
-    /* Append the feature name and plugin name (if any) to the string */
-    if (plugin_name != nullptr) {
-        LOG_INFO("GStreamer found feature from plugin: %s (%s)\n", name, plugin_name);
-        temp = g_strdup_printf("%s (%s)", name, plugin_name);
-    } else {
-        LOG_INFO("GStreamer found feature: %s \n", name);
-        temp = g_strdup_printf("%s\n", name);
-    }
-    *str = g_strdup_printf("%s%s", *str, temp);
-    g_free(temp);
-
-    /* Free resources */
-    g_free(name);
-    g_free(plugin_name);
-
-    return TRUE;
+    gst_plugin_feature_list_free(features);
 }
