@@ -12,24 +12,6 @@ constexpr int RESPONSE_MIN_BYTES = 6;
 constexpr unsigned char IDENTIFIER_1 = 0x47;
 constexpr unsigned char IDENTIFIER_2 = 0x54;
 
-#define SPOT
-
-#ifdef ODIN
-constexpr int32_t AZIMUTH_MAX_VALUE = 1'500'000'000;
-constexpr int32_t AZIMUTH_MIN_VALUE = -700'000'000;
-
-constexpr int32_t ELEVATION_MAX_VALUE = 1'400'000'000;
-constexpr int32_t ELEVATION_MIN_VALUE = 100'000;
-#endif
-
-#ifdef SPOT
-constexpr int32_t AZIMUTH_MAX_VALUE = 200'000'000;
-constexpr int32_t AZIMUTH_MIN_VALUE = -2'000'000'000;
-
-constexpr int32_t ELEVATION_MAX_VALUE = 1'000'000'000;
-constexpr int32_t ELEVATION_MIN_VALUE = -1'000'000'000;
-#endif
-
 ServoCommunicator::ServoCommunicator(BS::thread_pool<BS::tp::none> &threadPool, StreamingConfig &config) : socket_(socket(AF_INET, SOCK_DGRAM, 0)) {
 
     if (socket_ < 0) {
@@ -69,12 +51,12 @@ void ServoCommunicator::resetErrors(BS::thread_pool<BS::tp::none> &threadPool) {
 
     threadPool.detach_task([this]() {
         std::vector<unsigned char> const buffer = {IDENTIFIER_1, IDENTIFIER_2,
-                                                         Operation::WRITE,
-                                                         MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
-                                                         0x08, 0x00, 0x00, 0x00,
-                                                         Operation::WRITE,
-                                                         MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
-                                                         0x08, 0x00, 0x00, 0x00};
+                                                   Operation::WRITE,
+                                                   MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
+                                                   0x08, 0x00, 0x00, 0x00,
+                                                   Operation::WRITE,
+                                                   MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
+                                                   0x08, 0x00, 0x00, 0x00};
 
         while (true) {
             sendMessage(buffer);
@@ -121,38 +103,39 @@ void ServoCommunicator::enableServos(bool enable, BS::thread_pool<BS::tp::none> 
     threadFuture_.wait();
 }
 
-void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, BS::thread_pool<BS::tp::none> &threadPool) {
+void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, RobotMovementRange movementRange, bool azimuthElevationReversed,
+                                        BS::thread_pool<BS::tp::none> &threadPool) {
     if (!checkReadiness()) {
         return;
     }
 
     //auto beginning = std::chrono::high_resolution_clock::now();
-    threadPool.detach_task([this, quatPose, speed]() {
+    threadPool.detach_task([this, quatPose, speed, movementRange, azimuthElevationReversed]() {
         auto azimuthElevation = quaternionToAzimuthElevation(quatPose);
 
-        auto azimuth_max_side = int32_t((int64_t(AZIMUTH_MAX_VALUE) - AZIMUTH_MIN_VALUE) / 2);
-        auto azimuth_center = AZIMUTH_MAX_VALUE - azimuth_max_side;
+        auto azimuth_max_side = int32_t((int64_t(movementRange.azimuthMax) - movementRange.azimuthMin) / 2);
+        auto azimuth_center = movementRange.azimuthMax - azimuth_max_side;
 
-        auto elevation_max_side = int32_t((int64_t(ELEVATION_MAX_VALUE) - ELEVATION_MIN_VALUE) / 2);
-        auto elevation_center = ELEVATION_MAX_VALUE - elevation_max_side;
+        auto elevation_max_side = int32_t((int64_t(movementRange.elevationMax) - movementRange.elevationMin) / 2);
+        auto elevation_center = movementRange.elevationMax - elevation_max_side;
 
         auto azimuth = int32_t(((azimuthElevation.azimuth * 2.0F) / M_PI) * azimuth_max_side + azimuth_center);
         auto elevation = int32_t(((-azimuthElevation.elevation * 2.0F) / M_PI) * elevation_max_side + elevation_center);
 
-        azimuth *= 1.5f;
-        elevation *= 1.5f;
+        azimuth += (azimuth - azimuth_center) * movementRange.speedMultiplier;
+        elevation += (elevation - elevation_center) * movementRange.speedMultiplier;
 
-        if (azimuth < AZIMUTH_MIN_VALUE) {
-            azimuth = AZIMUTH_MIN_VALUE;
+        if (azimuth < movementRange.azimuthMin) {
+            azimuth = movementRange.azimuthMin;
         }
-        if (azimuth > AZIMUTH_MAX_VALUE) {
-            azimuth = AZIMUTH_MAX_VALUE;
+        if (azimuth > movementRange.azimuthMax) {
+            azimuth = movementRange.azimuthMax;
         }
-        if (elevation < ELEVATION_MIN_VALUE) {
-            elevation = ELEVATION_MIN_VALUE;
+        if (elevation < movementRange.elevationMin) {
+            elevation = movementRange.elevationMin;
         }
-        if (elevation > ELEVATION_MAX_VALUE) {
-            elevation = ELEVATION_MAX_VALUE;
+        if (elevation > movementRange.elevationMax) {
+            elevation = movementRange.elevationMax;
         }
 
         int32_t azRevol = 0;
@@ -164,10 +147,17 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
             elRevol = -1;
         }
 
+        //LOG_INFO("Sending - Azimuth: %d, Elevation: %d", azimuth, elevation);
         auto azAngleBytes = serializeLEInt(azimuth);
         auto azRevolBytes = serializeLEInt(azRevol);
         auto elAngleBytes = serializeLEInt(elevation);
         auto elRevolBytes = serializeLEInt(elRevol);
+        if (azimuthElevationReversed) {
+            azAngleBytes = serializeLEInt(elevation);
+            azRevolBytes = serializeLEInt(elRevol);
+            elAngleBytes = serializeLEInt(azimuth);
+            elRevolBytes = serializeLEInt(azRevol);
+        }
 
         auto speedBytes = serializeLEInt(speed);
 
@@ -175,35 +165,36 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
         frameId_++;
 
         std::vector<unsigned char> const buffer = {IDENTIFIER_1, IDENTIFIER_2,
-                                                        Operation::WRITE_CONTINUOUS,
-                                                        MessageGroup::AZIMUTH, MessageElement::ANGLE,
-                                                        0x02,
-                                                        azAngleBytes[0], azAngleBytes[1], azAngleBytes[2], azAngleBytes[3],
-                                                        azRevolBytes[0], azRevolBytes[1], azRevolBytes[2], azRevolBytes[3],
-                                                        Operation::WRITE_CONTINUOUS,
-                                                        MessageGroup::ELEVATION, MessageElement::ANGLE,
-                                                        0x02,
-                                                        elAngleBytes[0], elAngleBytes[1], elAngleBytes[2], elAngleBytes[3],
-                                                        elRevolBytes[0], elRevolBytes[1], elRevolBytes[2], elRevolBytes[3],
-                                                        Operation::WRITE,
-                                                        MessageGroup::AZIMUTH, MessageElement::SPEED,
-                                                        speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
-                                                        Operation::WRITE,
-                                                        MessageGroup::ELEVATION, MessageElement::SPEED,
-                                                        speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
-                                                        Operation::WRITE,
-                                                        MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
-                                                        0x01, 0x00, 0x00, 0x00,
-                                                        Operation::WRITE,
-                                                        MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
-                                                        0x01, 0x00, 0x00, 0x00,
-                                                        frameIdBytes[0], frameIdBytes[1], frameIdBytes[2], frameIdBytes[3], // Additional info only for the TGDrivesRelayScript
+                                                   Operation::WRITE_CONTINUOUS,
+                                                   MessageGroup::AZIMUTH, MessageElement::ANGLE,
+                                                   0x02,
+                                                   azAngleBytes[0], azAngleBytes[1], azAngleBytes[2], azAngleBytes[3],
+                                                   azRevolBytes[0], azRevolBytes[1], azRevolBytes[2], azRevolBytes[3],
+                                                   Operation::WRITE_CONTINUOUS,
+                                                   MessageGroup::ELEVATION, MessageElement::ANGLE,
+                                                   0x02,
+                                                   elAngleBytes[0], elAngleBytes[1], elAngleBytes[2], elAngleBytes[3],
+                                                   elRevolBytes[0], elRevolBytes[1], elRevolBytes[2], elRevolBytes[3],
+                                                   Operation::WRITE,
+                                                   MessageGroup::AZIMUTH, MessageElement::SPEED,
+                                                   speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
+                                                   Operation::WRITE,
+                                                   MessageGroup::ELEVATION, MessageElement::SPEED,
+                                                   speedBytes[0], speedBytes[1], speedBytes[2], speedBytes[3],
+                                                   Operation::WRITE,
+                                                   MessageGroup::ENABLE_AZIMUTH, MessageElement::ENABLE,
+                                                   0x01, 0x00, 0x00, 0x00,
+                                                   Operation::WRITE,
+                                                   MessageGroup::ENABLE_ELEVATION, MessageElement::ENABLE,
+                                                   0x01, 0x00, 0x00, 0x00,
+                                                   frameIdBytes[0], frameIdBytes[1], frameIdBytes[2],
+                                                   frameIdBytes[3], // Additional info only for the TGDrivesRelayScript
         };
 
         while (true) {
             sendMessage(buffer);
-            break;
             isReady_ = true;
+            break;
 //            if (waitForResponse({5, 10})) {
 //                auto newStamp = std::chrono::high_resolution_clock::now();
 //                LOG_ERROR("ServoCommunication FPS: %f ",
@@ -221,9 +212,9 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, B
 
 void ServoCommunicator::sendOdinControlPacket(float linSpeedX, float linSpeedY, float angSpeed, BS::thread_pool<BS::tp::none> &threadPool) {
     threadPool.detach_task([this, linSpeedX, linSpeedY, angSpeed]() {
-        float x = linSpeedX * 0.25f;
-        float y = -linSpeedY * 0.25f;
-        float a = -angSpeed * 0.25f;
+        float x = linSpeedX * 0.5f;
+        float y = -linSpeedY * 0.5f;
+        float a = -angSpeed * 0.5f;
 
         auto linSpeedXBytes = serializeLEFloat(x);
         auto linSpeedYBytes = serializeLEFloat(y);
@@ -365,7 +356,6 @@ ServoCommunicator::AzimuthElevation ServoCommunicator::quaternionToAzimuthElevat
 //    if (azimuth > M_PI / 2) azimuth = M_PI / 2;
 //
 
-
-    //LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation);
+    //LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation + 0.5f);
     return AzimuthElevation{azimuth, elevation + 0.5f};
 }

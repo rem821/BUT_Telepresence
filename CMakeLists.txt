@@ -6,9 +6,12 @@ add_definitions(-DXR_USE_PLATFORM_ANDROID)
 add_definitions(-DXR_USE_GRAPHICS_API_OPENGL_ES)
 add_definitions(-Werror)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 set(GSTREAMER_ROOT ${GSTREAMER_SDK_DIR}/${ANDROID_ABI})
 set(ENV{GST_PLUGIN_PATH} "${GSTREAMER_ROOT}/lib/gstreamer-1.0")
 set(ENV{GST_REGISTRY} "${GSTREAMER_ROOT}/registry.bin")
+set(BOOST_ROOT ${BOOST_DIR}/libs/${ANDROID_ABI})
+set(BOOST_INCLUDE ${BOOST_DIR}/include)
 
 find_library(ANDROID_LIBRARY NAMES android)
 find_library(ANDROID_LOG_LIBRARY NAMES log)
@@ -40,6 +43,7 @@ include_directories(
         ${GSTREAMER_ROOT}/include/glib-2.0
         ${GSTREAMER_ROOT}/lib/glib-2.0/include
         ${GSTREAMER_ROOT}/lib/gstreamer-1.0/include
+        ${BOOST_INCLUDE}
         ${OVR_OPENXR_MOBILE_SDK_DIR}/SampleCommon/Src
         external
         external/imgui
@@ -52,7 +56,8 @@ include_directories(
 
 link_directories(
         ${GSTREAMER_ROOT}/lib
-        ${GSTREAMER_ROOT}/lib/gstreamer-1.0)
+        ${GSTREAMER_ROOT}/lib/gstreamer-1.0
+)
 
 add_library(
         ${PROJECT_NAME} SHARED
@@ -178,4 +183,8 @@ target_link_libraries(
         ${GSTREAMER_ROOT}/lib/libintl.a
         ${GSTREAMER_ROOT}/lib/libz.a
 
+        ${BOOST_ROOT}/libboost_system.a
+        ${BOOST_ROOT}/libboost_thread.a
+
+        -pthread
 )

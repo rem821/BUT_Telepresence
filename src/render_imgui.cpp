@@ -20,7 +20,7 @@ static ImVec2 s_win_pos[10];
 static int s_win_num = 0;
 static ImVec2 s_mouse_pos;
 
-static int numberOfElements = 11;
+static int numberOfElements = 13;
 static int numberOfSegments = 5;
 
 int
@@ -187,27 +187,47 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
                 appState->guiControl.focusedElement == 7
         );
 
+        if (appState->streamingConfig.codec == JPEG) {
+            double bandwidth =
+                    double(appState->streamingConfig.resolution.getHeight()) *
+                    double(appState->streamingConfig.resolution.getWidth()) *
+                    double(appState->streamingConfig.fps) *
+                    double(appState->streamingConfig.encodingQuality) *
+                    0.0075f / 1000000.0f;
+            if (appState->streamingConfig.videoMode == STEREO) { bandwidth *= 2; }
+
+            ImGui::Text("Approx. bandwidth: %.2f Mbps", bandwidth);
+        }
         focusable_button("Apply", appState->guiControl.focusedElement == 8);
 
         ImGui::SeparatorText("Status Information");
 
         focusable_text(
-                fmt::format("Camera head movement speed: {}", appState->headMovementMaxSpeed),
+                fmt::format("Camera head movement max speed: {}", appState->headMovementMaxSpeed),
                 appState->guiControl.focusedElement == 9
         );
         focusable_text(
-                fmt::format("Headset movement prediction: {} ms", appState->headMovementPredictionMs),
+                fmt::format("Head movement speed multiplier: {:.2}", appState->robotMovementRange.speedMultiplier),
                 appState->guiControl.focusedElement == 10
         );
+        focusable_text(
+                fmt::format("Headset movement prediction: {} ms", appState->headMovementPredictionMs),
+                appState->guiControl.focusedElement == 11
+        );
+        focusable_text(
+                fmt::format("Robot: {}", RobotTypeToString(appState->robotMovementRange.type)),
+                appState->guiControl.focusedElement == 12
+        );
+
         ImGui::Text("Robot control: %s", BoolToString(appState->robotControlEnabled));
         ImGui::Text("");
         ImGui::Text("Latencies:");
         auto s = appState->cameraStreamingStates.first.stats;
-        if(s) {
+        if (s) {
             ImGui::Text(
-                    "vidConv: %lu, enc: %lu, rtpPay: %lu\nudpStream: %lu\nrtpDepay: %lu, dec: %lu, queue: %lu",
+                    "vidConv: %lu, enc: %lu, rtpPay: %lu\nudpStream: %lu\nrtpDepay: %lu, dec: %lu",
                     s->vidConv / 1000, s->enc / 1000, s->rtpPay / 1000, s->udpStream / 1000,
-                    s->rtpDepay / 1000, s->dec / 1000, s->queue / 1000);
+                    s->rtpDepay / 1000, s->dec / 1000); //, s->queue / 1000);
         }
 
 
