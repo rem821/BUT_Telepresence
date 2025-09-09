@@ -47,7 +47,7 @@ void PoseServer::listenForTrigger() {
         if (received > 0) {
             buffer[received] = '\0';  // Null-terminate the received data
             std::string message(buffer);
-            LOG_INFO("Poll signal received");
+            //LOG_INFO("Poll signal received");
 
             {
                 std::lock_guard<std::mutex> lock(queueMutex_);
@@ -70,7 +70,7 @@ void PoseServer::processQueue() {
 
             std::vector<unsigned char> emptyMsg = {EMPTY_MESSAGE_TYPE};
             sendMessage(emptyMsg);
-            LOG_ERROR("Pose server: sensing empty message");
+            //LOG_ERROR("Pose server: sensing empty message");
 
             continue;
         }
@@ -96,7 +96,7 @@ void PoseServer::sendMessage(const std::vector<unsigned char> &message) {
     uint64_t commPrevEnd = commEnd_;
     commEnd_ = ntpTimer_->GetCurrentTimeUs();
     float fps = 1e6f / float(commEnd_ - commPrevEnd);
-    LOG_ERROR("Pose server took %f to respond. Running with %f FPS", (commEnd_ - commStart_) / 1000.0, fps);
+    //LOG_ERROR("Pose server took %f to respond. Running with %f FPS", (commEnd_ - commStart_) / 1000.0, fps);
 }
 
 // Schedule methods by priority
