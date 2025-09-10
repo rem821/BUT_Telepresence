@@ -5,6 +5,9 @@
 #include <bitset>
 #include <sstream>
 #include "pose_server.h"
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 constexpr int RESPONSE_TIMEOUT_US = 50000;
 constexpr int RESPONSE_MIN_BYTES = 6;
@@ -15,10 +18,10 @@ constexpr unsigned char EMPTY_MESSAGE_TYPE = 0x03;
 constexpr unsigned char IDENTIFIER_1 = 0x47;
 constexpr unsigned char IDENTIFIER_2 = 0x54;
 
-PoseServer::PoseServer(NtpTimer *ntpTimer) : ntpTimer_(ntpTimer), socket_(socket(AF_INET, SOCK_DGRAM, 0)), trigger_(false),
+PoseServer::PoseServer(NtpTimer *ntpTimer, HUDState* hudState) : ntpTimer_(ntpTimer), hudState_(hudState), socket_(socket(AF_INET, SOCK_DGRAM, 0)), trigger_(false),
                                              clientAddrLen_(sizeof(clientAddr_)) {
     if (socket_ < 0) {
-        LOG_ERROR("Socket creation failed");
+        LOG_ERROR("PoseServer: Socket creation failed");
         return;
     }
 
@@ -28,7 +31,7 @@ PoseServer::PoseServer(NtpTimer *ntpTimer) : ntpTimer_(ntpTimer), socket_(socket
     myAddr_.sin_port = htons(31285);  // Listen for "now" command on port 31285
 
     if (bind(socket_, (sockaddr *) &myAddr_, sizeof(myAddr_)) < 0) {
-        LOG_ERROR("Bind socket failed");
+        LOG_ERROR("PoseServer: Bind socket failed");
     }
 
     // Start listening for the "now" message in a separate thread
@@ -47,7 +50,8 @@ void PoseServer::listenForTrigger() {
         if (received > 0) {
             buffer[received] = '\0';  // Null-terminate the received data
             std::string message(buffer);
-            LOG_INFO("Poll signal received");
+            parseTeleoperationState(message);
+            LOG_INFO("PoseServer: Poll signal received");
 
             {
                 std::lock_guard<std::mutex> lock(queueMutex_);
@@ -70,7 +74,7 @@ void PoseServer::processQueue() {
 
             std::vector<unsigned char> emptyMsg = {EMPTY_MESSAGE_TYPE};
             sendMessage(emptyMsg);
-            LOG_ERROR("Pose server: sensing empty message");
+            LOG_ERROR("PoseServer: sending empty message");
 
             continue;
         }
@@ -83,7 +87,7 @@ void PoseServer::processQueue() {
             // Execute the highest priority task
             task.second();
         } else {
-            LOG_ERROR("Task queue was empty!");
+            LOG_ERROR("PoseServer: Task queue was empty!");
         }
     }
 }
@@ -91,12 +95,12 @@ void PoseServer::processQueue() {
 // Send message to the client address
 void PoseServer::sendMessage(const std::vector<unsigned char> &message) {
     if (sendto(socket_, message.data(), message.size(), 0, (sockaddr *) &clientAddr_, clientAddrLen_) < 0) {
-        LOG_ERROR("Failed to send message to client address");
+        LOG_ERROR("PoseServer: Failed to send message to client address");
     }
     uint64_t commPrevEnd = commEnd_;
     commEnd_ = ntpTimer_->GetCurrentTimeUs();
     float fps = 1e6f / float(commEnd_ - commPrevEnd);
-    LOG_ERROR("Pose server took %f to respond. Running with %f FPS", (commEnd_ - commStart_) / 1000.0, fps);
+    LOG_ERROR("PoseServer: took %f to respond. Running with %f FPS", (commEnd_ - commStart_) / 1000.0, fps);
 }
 
 // Schedule methods by priority
@@ -143,7 +147,7 @@ void PoseServer::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, RobotMov
         auto elevation = int32_t(((-azimuthElevation.elevation * 2.0F) / M_PI) * elevation_max_side + elevation_center);
 
         azimuth += (azimuth - azimuth_center) * movementRange.speedMultiplier;
-        elevation += (elevation - elevation_center) * movementRange.speedMultiplier;
+        elevation += (elevation - elevation_center + 200'000'000) * movementRange.speedMultiplier;
 
         if (azimuth < movementRange.azimuthMin) {
             azimuth = movementRange.azimuthMin;
@@ -247,6 +251,18 @@ void PoseServer::setFrameLatencyMessage(const CameraStats cameraStats) {
                                              dec[0], dec[1], dec[2], dec[3]};
         sendMessage(logBuffer);
     });
+}
+
+void PoseServer::parseTeleoperationState(std::string& state) {
+    if(state.empty()) return;
+    auto parsedState = json::parse(state);
+
+    parsedState["notification"]["title"].get_to(hudState_->notificationTitle);
+    parsedState["notification"]["message"].get_to(hudState_->notificationMessage);
+    parsedState["notification"]["severity"].get_to(hudState_->notificationSeverity);
+    parsedState["teleoperation_state"]["latency"].get_to(hudState_->teleoperationLatency);
+    parsedState["teleoperation_state"]["speed"].get_to(hudState_->teleoperatedVehicleSpeed);
+    parsedState["teleoperation_state"]["state"].get_to(hudState_->teleoperationState);
 }
 
 

@@ -7,13 +7,10 @@
 #include "render_imgui.h"
 #include "openxr/openxr.h"
 
-#define DISPLAY_SCALE_X 1
-#define DISPLAY_SCALE_Y 1
+#define DISPLAY_SCALE_X 1.0f
+#define DISPLAY_SCALE_Y 1.0f
 #define _X(x)       ((float)(x) / DISPLAY_SCALE_X)
 #define _Y(y)       ((float)(y) / DISPLAY_SCALE_Y)
-
-static int s_win_w;
-static int s_win_h;
 
 static ImVec2 s_win_size[10];
 static ImVec2 s_win_pos[10];
@@ -24,23 +21,16 @@ static int numberOfElements = 13;
 static int numberOfSegments = 5;
 
 int
-init_imgui(int win_w, int win_h) {
+init_imgui() {
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
 
     // Setup Platform/Renderer bindings
     ImGui_ImplOpenGL3_Init(NULL);
-
-    io.DisplaySize = ImVec2(_X(win_w), _Y(win_h));
-    io.DisplayFramebufferScale = {DISPLAY_SCALE_X, DISPLAY_SCALE_Y};
-
-    s_win_w = win_w;
-    s_win_h = win_h;
 
     return 0;
 }
@@ -87,7 +77,7 @@ imgui_is_anywindow_hovered() {
 #endif
 }
 
-static void render_gui(const std::shared_ptr<AppState> &appState) {
+static void render_settings_gui(const std::shared_ptr<AppState> &appState) {
     int win_w = 300;
     int win_h = 0;
     int win_x = 0;
@@ -242,6 +232,58 @@ static void render_gui(const std::shared_ptr<AppState> &appState) {
     ImGui::End();
 }
 
+static void render_teleoperation_gui(const int win_w, const int win_h, const std::shared_ptr<AppState> &appState) {
+    int win_x = 0;
+    int win_y = 0;
+
+    ImGui::SetNextWindowPos(ImVec2(_X(win_x), _Y(win_y)), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(_X(win_w), _Y(win_h)), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Teleoperation", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground);
+
+    std::string latency = std::to_string(int16_t(appState->hudState.teleoperationLatency));
+    std::string speed = fmt::format("{:02}", static_cast<int>(appState->hudState.teleoperatedVehicleSpeed));
+    std::string state = appState->hudState.teleoperationState;
+    std::string latencyLabel = "Latency";
+    std::string speedLabel = "Km/h";
+    std::string stateLabel = "State";
+
+    const char* leftText   = latency.c_str();
+    const char* belowLeft  = latencyLabel.c_str();
+    const char* centerText = speed.c_str();
+    const char* belowCenter  = speedLabel.c_str();
+    const char* rightText  = state.c_str();
+    const char* belowRight  = stateLabel.c_str();
+
+    const uint8_t line1_vert = 20;
+    const uint8_t line2_vert = 50;
+    const uint8_t col_left = 0;
+    const uint8_t col_mid = 100;
+    const uint8_t col_right = 160;
+
+
+    // ---- Left text ----
+    ImGui::SetCursorPos(ImVec2(col_left + 10, line1_vert + 10));
+    ImGui::Text("Latency: %s", leftText);
+
+    // ---- Center text ----
+    ImGui::SetWindowFontScale(2.0f);
+    ImGui::SetCursorPos(ImVec2(col_mid, line1_vert));
+    ImGui::Text("%s", centerText);
+    ImGui::SetWindowFontScale(1.0f);
+
+    // ---- Right text ----
+    ImGui::SetCursorPos(ImVec2(col_right, line1_vert + 10));
+    ImGui::Text("State: %s", rightText);
+
+    // ---- Center text (row 2, directly below) ----
+    ImGui::SetWindowFontScale(0.7f);
+    ImGui::SetCursorPos(ImVec2(col_mid + 3, line2_vert));
+    ImGui::Text("%s", belowCenter);
+    ImGui::SetWindowFontScale(1.0f);
+
+    ImGui::End();
+}
+
 void focusable_text(const std::string &text, bool isFocused) {
     ImVec2 p = ImGui::GetCursorScreenPos(); // Top-left position of the current drawing cursor
     ImVec2 textSize = ImGui::CalcTextSize(text.c_str()); // Size of the text
@@ -296,11 +338,32 @@ void focusable_button(const std::string &label, bool isFocused) {
 }
 
 int
-invoke_imgui(const std::shared_ptr<AppState> &appState) {
+invoke_imgui_settings(int win_w, int win_h, const std::shared_ptr<AppState> &appState) {
+    ImGuiIO &io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(_X(win_w), _Y(win_h));
+    io.DisplayFramebufferScale = {DISPLAY_SCALE_X, DISPLAY_SCALE_Y};
+
     ImGui_ImplOpenGL3_NewFrame();
     ImGui::NewFrame();
 
-    render_gui(appState);
+    render_settings_gui(appState);
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+    return 0;
+}
+
+int
+invoke_imgui_teleoperation(int win_w, int win_h, const std::shared_ptr<AppState> &appState) {
+    ImGuiIO &io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(_X(win_w), _Y(win_h));
+    io.DisplayFramebufferScale = {DISPLAY_SCALE_X, DISPLAY_SCALE_Y};
+
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui::NewFrame();
+
+    render_teleoperation_gui(win_w, win_h, appState);
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

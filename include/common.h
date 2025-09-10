@@ -447,6 +447,13 @@ struct GUIControl {
     int cooldown = 0; // Number of frames gui can't be controlled (set in GUI layer, decreased every frame
 };
 
+struct HUDState {
+    std::string notificationTitle, notificationMessage, notificationSeverity;
+    long teleoperationLatency;
+    float teleoperatedVehicleSpeed;
+    std::string teleoperationState = "Disconnected";
+};
+
 struct AppState {
     CamPair cameraStreamingStates{};
     StreamingConfig streamingConfig{};
@@ -458,6 +465,7 @@ struct AppState {
     uint32_t headMovementMaxSpeed = 990000;
     uint32_t headMovementPredictionMs = 50;
     RobotMovementRange robotMovementRange{};
+    HUDState hudState{};
     bool robotControlEnabled = true;
     bool headsetMounted = false;
 };
