@@ -84,7 +84,7 @@ class PoseServer {
 
 public:
 
-    explicit PoseServer(NtpTimer *ntpTimer);
+    explicit PoseServer(NtpTimer *ntpTimer, HUDState* hudState);
 
     ~PoseServer() = default;
 
@@ -104,6 +104,8 @@ private:
 
     void processQueue();
 
+    void parseTeleoperationState(std::string& state);
+
     template<typename IntType>
     [[nodiscard]] inline static std::vector<uint8_t> serializeLEInt(const IntType &value) {
         std::vector<uint8_t> data{};
@@ -116,7 +118,8 @@ private:
 
     static AzimuthElevation quaternionToAzimuthElevation(XrQuaternionf quat);
 
-    NtpTimer *ntpTimer_;
+    NtpTimer* ntpTimer_;
+    HUDState* hudState_;
 
     int socket_;
     struct sockaddr_in myAddr_, clientAddr_;

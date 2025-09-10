@@ -154,7 +154,7 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
 
         if (mono_) imageHandle = &appState_->cameraStreamingStates.first;
 
-        render_scene(layerViews[i], rtarget, quad, appState_, imageHandle, renderGui_);
+        render_scene(layerViews[i], rtarget, quad, appState_, imageHandle, renderGui_, true);
 
         openxr_release_viewsurface(viewsurfaces_[i]);
         auto end = std::chrono::high_resolution_clock::now();
@@ -555,7 +555,7 @@ void TelepresenceProgram::SendControllerDatagram() {
     }
 #else
     if (poseServer_ == nullptr) {
-        poseServer_ = std::make_unique<PoseServer>(ntpTimer_.get());
+        poseServer_ = std::make_unique<PoseServer>(ntpTimer_.get(), &appState_->hudState);
         poseServer_->enableServos(true);
     }
 

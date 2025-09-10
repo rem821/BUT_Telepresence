@@ -13,10 +13,13 @@
 
 #include "render_scene.h"
 
-static const std::array<float, 4> CLEAR_COLOR{0.05f, 0.05f, 0.05f, 1.0f};
+static const std::array<float, 4> CLEAR_COLOR{0.02f, 0.02f, 0.02f, 1.0f};
 
-static int GUI_WIDTH = 300;
-static int GUI_HEIGHT = 480;
+static int SETTINGS_GUI_WIDTH = 300;
+static int SETTINGS_GUI_HEIGHT = 480;
+
+static int TELEOPERATION_GUI_WIDTH = 300;
+static int TELEOPERATION_GUI_HEIGHT = 128;
 
 static GLuint cubeVertexBuffer{0}, cubeIndexBuffer{0}, vertexArrayObject{0},
         vertexAttribCoords{0}, vertexAttribTexCoords{0}, texture2D{0};
@@ -24,7 +27,8 @@ static GLuint cubeVertexBuffer{0}, cubeIndexBuffer{0}, vertexArrayObject{0},
 static shader_obj_t image_shader_object;
 static shader_obj_t gui_shader_object;
 
-static render_target_t gui_render_target;
+static render_target_t settings_gui_render_target;
+static render_target_t teleoperation_gui_render_target;
 
 static const char *ImageVertexShaderGlsl = R"_(#version 320 es
 
@@ -76,7 +80,7 @@ static const char *GuiFragmentShaderGlsl = R"_(#version 320 es
 )_";
 
 void init_scene(const int textureWidth, const int textureHeight, bool reinit) {
-    if(reinit) {
+    if (reinit) {
         init_image_plane(textureWidth, textureHeight);
         return;
     }
@@ -84,21 +88,25 @@ void init_scene(const int textureWidth, const int textureHeight, bool reinit) {
     generate_shader(&image_shader_object, ImageVertexShaderGlsl, ImageFragmentShaderGlsl);
     generate_shader(&gui_shader_object, GuiVertexShaderGlsl, GuiFragmentShaderGlsl);
     init_image_plane(textureWidth, textureHeight);
-    init_imgui(GUI_WIDTH, GUI_HEIGHT);
+    init_imgui();
     init_texplate();
 
-    create_render_target(&gui_render_target, GUI_WIDTH, GUI_HEIGHT);
+    create_render_target(&settings_gui_render_target, SETTINGS_GUI_WIDTH, SETTINGS_GUI_HEIGHT);
+    create_render_target(&teleoperation_gui_render_target, TELEOPERATION_GUI_WIDTH,TELEOPERATION_GUI_HEIGHT);
+
 }
 
 void init_image_plane(const int textureWidth, const int textureHeight) {
 
     glGenBuffers(1, &cubeVertexBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, cubeVertexBuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Geometry::c_quadVertices), Geometry::c_quadVertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Geometry::c_quadVertices), Geometry::c_quadVertices,
+                 GL_STATIC_DRAW);
 
     glGenBuffers(1, &cubeIndexBuffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeIndexBuffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Geometry::c_quadIndices), Geometry::c_quadIndices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Geometry::c_quadIndices), Geometry::c_quadIndices,
+                 GL_STATIC_DRAW);
 
     vertexAttribCoords = image_shader_object.loc_position;
     vertexAttribTexCoords = image_shader_object.loc_tex_coord;
@@ -122,14 +130,15 @@ void init_image_plane(const int textureWidth, const int textureHeight) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, textureWidth, textureHeight, 0, GL_SRGB, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, textureWidth, textureHeight, 0, GL_SRGB,
+                 GL_UNSIGNED_BYTE, nullptr);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void render_scene(const XrCompositionLayerProjectionView &layerView,
                   render_target_t &rtarget, const Quad &quad,
                   const std::shared_ptr<AppState> &appState,
-                  const CameraFrame *cameraFrame, bool drawGui) {
+                  const CameraFrame *cameraFrame, bool drawSettingsGui, bool drawTeleoperationGui) {
 
     glBindFramebuffer(GL_FRAMEBUFFER, rtarget.fbo_id);
     glViewport(
@@ -163,8 +172,8 @@ void render_scene(const XrCompositionLayerProjectionView &layerView,
     XrMatrix4x4f_Multiply(&vp, &proj, &view);
 
     draw_image_plane(vp, quad, cameraFrame);
-    if (drawGui) draw_imgui(vp, appState);
-    
+    draw_imgui(vp, appState, drawSettingsGui, drawTeleoperationGui);
+
     glUseProgram(0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -180,10 +189,12 @@ int draw_image_plane(const XrMatrix4x4f &vp, const Quad &quad, const CameraFrame
     XrMatrix4x4f_CreateTranslationRotationScale(&model, &pos, &quad.Pose.orientation, &quad.Scale);
     XrMatrix4x4f mvp;
     XrMatrix4x4f_Multiply(&mvp, &vp, &model);
-    glUniformMatrix4fv(static_cast<GLint>(image_shader_object.loc_mvp), 1, GL_FALSE, reinterpret_cast<const GLfloat *>(&mvp));
+    glUniformMatrix4fv(static_cast<GLint>(image_shader_object.loc_mvp), 1, GL_FALSE,
+                       reinterpret_cast<const GLfloat *>(&mvp));
 
     glBindTexture(GL_TEXTURE_2D, texture2D);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, cameraFrame->frameWidth, cameraFrame->frameHeight, 0, GL_SRGB, GL_UNSIGNED_BYTE, cameraFrame->dataHandle);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB, cameraFrame->frameWidth, cameraFrame->frameHeight, 0,
+                 GL_SRGB, GL_UNSIGNED_BYTE, cameraFrame->dataHandle);
 
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(ArraySize(Geometry::c_quadIndices)),
                    GL_UNSIGNED_SHORT, nullptr);
@@ -193,38 +204,72 @@ int draw_image_plane(const XrMatrix4x4f &vp, const Quad &quad, const CameraFrame
     return 0;
 }
 
-int draw_imgui(const XrMatrix4x4f &vp, const std::shared_ptr<AppState> &appState) {
+int
+draw_imgui(const XrMatrix4x4f &vp, const std::shared_ptr<AppState> &appState, bool drawSettingsGui,
+           bool drawTeleoperationGui) {
 
     /* save current FBO */
     render_target_t rtarget0{};
     get_render_target(&rtarget0);
 
-    /* render to UIPlane-FBO */
-    set_render_target(&gui_render_target);
-    glClearColor(1.0f, 0.0f, 1.0f, 0.8f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    /* render to settings UIPlane-FBO */
+    if (drawSettingsGui) {
+        set_render_target(&settings_gui_render_target);
+        glClearColor(1.0f, 0.0f, 1.0f, 0.8f);
+        glClear(GL_COLOR_BUFFER_BIT);
 
-    {
-        invoke_imgui(appState);
+        {
+            invoke_imgui_settings(SETTINGS_GUI_WIDTH, SETTINGS_GUI_HEIGHT, appState);
+        }
+
+        /* restore FBO */
+        set_render_target(&rtarget0);
+
+        glEnable(GL_DEPTH_TEST);
+
+        {
+            XrMatrix4x4f matT;
+            float win_h = 1.0f;
+            float win_w = win_h * ((float) SETTINGS_GUI_WIDTH / (float) SETTINGS_GUI_HEIGHT);
+            XrVector3f translation{1.0f, -0.5f, 0.2f};
+            XrQuaternionf rotation{0.0f, 0.0f, 0.0f, 1.0f};
+            XrVector3f scale{win_w, win_h, 1.0f};
+            XrMatrix4x4f_CreateTranslationRotationScale(&matT, &translation, &rotation, &scale);
+
+            XrMatrix4x4f matPVM;
+            XrMatrix4x4f_Multiply(&matPVM, &vp, &matT);
+            draw_tex_plate(settings_gui_render_target.texc_id, matPVM);
+        }
     }
 
-    /* restore FBO */
-    set_render_target(&rtarget0);
+    if (drawTeleoperationGui) {
+        /* render to teleoperation UIPlane-FBO */
+        set_render_target(&teleoperation_gui_render_target);
+        glClearColor(0.4f, 0.4f, 0.4f, 0.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
 
-    glEnable(GL_DEPTH_TEST);
+        {
+            invoke_imgui_teleoperation(TELEOPERATION_GUI_WIDTH, TELEOPERATION_GUI_HEIGHT, appState);
+        }
 
-    {
-        XrMatrix4x4f matT;
-        float win_h = 1.0f;
-        float win_w = win_h * ((float) GUI_WIDTH / (float) GUI_HEIGHT);
-        XrVector3f translation{1.0f, -0.5f, 0.2f};
-        XrQuaternionf rotation{0.0f, 0.0f, 0.0f, 1.0f};
-        XrVector3f scale{win_w, win_h, 1.0f};
-        XrMatrix4x4f_CreateTranslationRotationScale(&matT, &translation, &rotation, &scale);
+        /* restore FBO */
+        set_render_target(&rtarget0);
 
-        XrMatrix4x4f matPVM;
-        XrMatrix4x4f_Multiply(&matPVM, &vp, &matT);
-        draw_tex_plate(gui_render_target.texc_id, matPVM);
+        glEnable(GL_DEPTH_TEST);
+
+        {
+            XrMatrix4x4f matT;
+            float win_w = 1.0f;
+            float win_h = win_w * ((float) TELEOPERATION_GUI_HEIGHT / (float) TELEOPERATION_GUI_WIDTH);
+            XrVector3f translation{0.0f, -1.1f, 0.2f};
+            XrQuaternionf rotation{0.0f, 0.0f, 0.0f, 1.0f};
+            XrVector3f scale{win_w, win_h, 1.0f};
+            XrMatrix4x4f_CreateTranslationRotationScale(&matT, &translation, &rotation, &scale);
+
+            XrMatrix4x4f matPVM;
+            XrMatrix4x4f_Multiply(&matPVM, &vp, &matT);
+            draw_tex_plate(teleoperation_gui_render_target.texc_id, matPVM);
+        }
     }
 
     return 0;
