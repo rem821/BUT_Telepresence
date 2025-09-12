@@ -398,6 +398,7 @@ struct CameraStats {
     uint64_t rtpPayTimestamp, udpSrcTimestamp, rtpDepayTimestamp, decTimestamp, queueTimestamp;
     uint64_t totalLatency;
     uint64_t frameId;
+    uint16_t _packetsPerFrame;
 };
 
 struct CameraFrame {
