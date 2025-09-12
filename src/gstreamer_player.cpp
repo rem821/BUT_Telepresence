@@ -460,24 +460,32 @@ void GstreamerPlayer::onRtpHeaderMetadata(GstElement *identity, GstBuffer *buffe
     guint8 appbits = 1;
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 0, &myInfoBuf, &size_64) != 0) {
         stats->frameId = *(static_cast<uint64_t *>(myInfoBuf));
+        LOG_INFO("RTPDEBUG: New frameid from %s - number of packets: %s", identity->object.parent->name, std::to_string(stats->_packetsPerFrame).c_str());
+        stats->_packetsPerFrame = 0;
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 1, &myInfoBuf, &size_64) != 0) {
         stats->vidConv = *(static_cast<uint64_t *>(myInfoBuf));
+        //LOG_INFO("RTPDEBUG: New vidconv from %s", identity->object.parent->name);
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 2, &myInfoBuf, &size_64) != 0) {
         stats->enc = *(static_cast<uint64_t *>(myInfoBuf));
+        //LOG_INFO("RTPDEBUG: New enc from %s", identity->object.parent->name);
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 3, &myInfoBuf, &size_64) != 0) {
         stats->rtpPay = *(static_cast<uint64_t *>(myInfoBuf));
+        //LOG_INFO("RTPDEBUG: New rtppay from %s", identity->object.parent->name);
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 4, &myInfoBuf, &size_64) != 0) {
         stats->rtpPayTimestamp = *(static_cast<uint64_t *>(myInfoBuf));
+        //LOG_INFO("RTPDEBUG: New udpsink timestamp from %s", identity->object.parent->name);
     }
     gst_rtp_buffer_unmap(&rtp_buf);
 
+    //LOG_INFO("RTPDEBUG: New rtp header from %s frame: %s", identity->object.parent->name, std::to_string(stats->frameId).c_str());
     // This is so the last packet of rtp gets saved
     stats->udpSrcTimestamp = ntpTimer->GetCurrentTimeUs();
     stats->udpStream = stats->udpSrcTimestamp - stats->rtpPayTimestamp;
+    stats->_packetsPerFrame += 1;
 }
 
 void GstreamerPlayer::onIdentityHandoff(GstElement *identity, GstBuffer *buffer, gpointer data) {
@@ -500,13 +508,14 @@ void GstreamerPlayer::onIdentityHandoff(GstElement *identity, GstBuffer *buffer,
         stats->queueTimestamp = ntpTimer->GetCurrentTimeUs();
         stats->queue = stats->queueTimestamp - stats->decTimestamp;
         stats->totalLatency = stats->vidConv + stats->enc + stats->rtpPay + stats->udpStream + stats->rtpDepay + stats->dec + stats->queue;
-        /*LOG_INFO(
-                "Pipeline latencies: vidconv: %lu, enc: %lu, rtpPay: %lu, udpStream: %lu, rtpDepay: %lu, dec: %lu, queue: %lu, total: %lu",
+        LOG_INFO(
+                "RTPDEBUG: %s Pipeline latencies: vidconv: %lu, enc: %lu, rtpPay: %lu, udpStream: %lu, rtpDepay: %lu, dec: %lu, queue: %lu, total: %lu",
+                identity->object.parent->name,
                 (unsigned long) stats->vidConv, (unsigned long) stats->enc,
                 (unsigned long) stats->rtpPay, (unsigned long) stats->udpStream,
                 (unsigned long) stats->rtpDepay, (unsigned long) stats->dec,
                 (unsigned long) stats->queue,
-                (unsigned long) stats->totalLatency);*/
+                (unsigned long) stats->totalLatency);
     }
 }
 

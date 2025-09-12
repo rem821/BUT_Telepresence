@@ -8,6 +8,12 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
 
+struct Sample {
+    int64_t offset;
+    uint64_t rtt;
+    uint64_t diff;
+};
+
 class NtpTimer {
 public:
     explicit NtpTimer(const std::string& ntpServerAddress);
@@ -19,21 +25,16 @@ public:
 private:
     void SyncWithServer(boost::asio::io_context& io);
 
-    std::optional<std::pair<int64_t, uint64_t>> GetOneNtpSample(boost::asio::io_context& io);
+    std::optional<Sample> GetOneNtpSample(boost::asio::io_context& io);
 
     static uint64_t GetCurrentTimeUsNonAdjusted();
 
-    struct Sample {
-        int64_t offset;
-        uint64_t rtt;
-    };
-
     std::string ntpServerAddress_;
 
-    double smoothedOffsetUs_ = 0;
+    int64_t smoothedOffsetUs_ = 0;
 
+    bool hasInitialOffset_ = false;
     uint64_t lastSyncedTimestampLocal_ = 0;
-    int64_t localTimeOffset_ = 0;
 
     static constexpr uint32_t NTP_TIMESTAMP_DELTA = 2208988800U;
     static constexpr double alpha = 0.1;

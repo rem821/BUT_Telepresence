@@ -261,7 +261,7 @@ draw_imgui(const XrMatrix4x4f &vp, const std::shared_ptr<AppState> &appState, bo
             XrMatrix4x4f matT;
             float win_w = 1.0f;
             float win_h = win_w * ((float) TELEOPERATION_GUI_HEIGHT / (float) TELEOPERATION_GUI_WIDTH);
-            XrVector3f translation{0.0f, -1.1f, 0.2f};
+            XrVector3f translation{0.2f, -1.1f, 0.2f};
             XrQuaternionf rotation{0.0f, 0.0f, 0.0f, 1.0f};
             XrVector3f scale{win_w, win_h, 1.0f};
             XrMatrix4x4f_CreateTranslationRotationScale(&matT, &translation, &rotation, &scale);

@@ -130,6 +130,9 @@ private:
 
     int32_t frameId_ = 0;
 
+    int32_t azimuthFiltered, elevationFiltered;
+    float filterAlpha = 0.2f;
+
     MessagePriorityQueue<std::function<void()>> taskQueue_;
 
     uint64_t commStart_{}, commEnd_{};

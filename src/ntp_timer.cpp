@@ -49,8 +49,7 @@ void NtpTimer::SyncWithServer(boost::asio::io_context &io) {
     for (int i = 0; i < 3; ++i) {
         auto result = GetOneNtpSample(io);
         if (result.has_value()) {
-            const auto &[offset, rtt] = result.value();
-            goodSamples.emplace_back(Sample{offset, rtt});
+            goodSamples.push_back(result.value());
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
     }
@@ -65,18 +64,27 @@ void NtpTimer::SyncWithServer(boost::asio::io_context &io) {
         }
     }
 
-    smoothedOffsetUs_ = alpha * goodSamples[bestIndex].offset + (1.0 - alpha) * smoothedOffsetUs_;
-    localTimeOffset_ = static_cast<int64_t>(smoothedOffsetUs_);
+    const auto& best = goodSamples[bestIndex];
+
+    if (!hasInitialOffset_) {
+        smoothedOffsetUs_ = best.offset;
+        hasInitialOffset_ = true;
+    } else {
+        smoothedOffsetUs_ = alpha * best.offset +
+                            (1.0 - alpha) * smoothedOffsetUs_;
+    }
+
     lastSyncedTimestampLocal_ = GetCurrentTimeUsNonAdjusted();
 
-    //LOG_INFO("NTPCLIENT: Current offset after filtering: %ld us", localTimeOffset_);
+    LOG_INFO("NTPCLIENT: Selected sample Offset=%ld ms | RTT=%lu us | Diff=%ld us",
+             best.offset / 1000, best.rtt, best.diff);
 }
 
-std::optional<std::pair<int64_t, uint64_t>> NtpTimer::GetOneNtpSample(boost::asio::io_context &io) {
+std::optional<Sample> NtpTimer::GetOneNtpSample(boost::asio::io_context &io) {
     try {
         //LOG_INFO("NTPCLIENT: Fetching NTP sample...");
         udp::resolver resolver(io);
-        udp::endpoint serverEndpoint = *resolver.resolve(udp::v4(), "195.113.144.201", "123").begin();
+        udp::endpoint serverEndpoint = *resolver.resolve(udp::v4(), ntpServerAddress_, "123").begin(); //"195.113.144.201"
 
         udp::socket socket(io);
         socket.open(udp::v4());
@@ -85,7 +93,15 @@ std::optional<std::pair<int64_t, uint64_t>> NtpTimer::GetOneNtpSample(boost::asi
         std::array<uint8_t, 48> request{};
         request[0] = 0b11100011;  // LI = 3 (unsynchronized), Version = 4, Mode = 3 (client)
 
-        auto timeSent = std::chrono::high_resolution_clock::now();
+        // --- T1: client send time ---
+        auto T1 = GetCurrentTimeUsNonAdjusted();
+        // Convert to NTP timestamp (seconds since 1900)
+        uint64_t ntpSeconds = (T1 / 1'000'000) + NTP_TIMESTAMP_DELTA;
+        uint64_t ntpFraction = (uint64_t)((T1 % 1'000'000) * ((1LL << 32) / 1e6));
+
+        *reinterpret_cast<uint32_t*>(&request[40]) = htonl((uint32_t)ntpSeconds);
+        *reinterpret_cast<uint32_t*>(&request[44]) = htonl((uint32_t)ntpFraction);
+
         socket.send_to(boost::asio::buffer(request), serverEndpoint);
 
         std::array<uint8_t, 48> response{};
@@ -93,7 +109,7 @@ std::optional<std::pair<int64_t, uint64_t>> NtpTimer::GetOneNtpSample(boost::asi
         boost::system::error_code ec;
 
         size_t len = socket.receive_from(boost::asio::buffer(response), senderEndpoint, 0, ec);
-        auto timeReceived = std::chrono::high_resolution_clock::now();
+        auto T4 = GetCurrentTimeUsNonAdjusted();
         //LOG_INFO("NTPCLIENT: Received a response from the NTP server...");
 
         if (ec || len < 48) {
@@ -101,29 +117,29 @@ std::optional<std::pair<int64_t, uint64_t>> NtpTimer::GetOneNtpSample(boost::asi
             return std::nullopt;
         }
 
-        uint64_t roundTripDelay = std::chrono::duration_cast<std::chrono::microseconds>(timeReceived - timeSent).count();
-        if (roundTripDelay > 20000) {
-            //LOG_ERROR("NTPCLIENT: High RTT: %lu us — discarding sample", roundTripDelay);
-            return std::nullopt;
-        }
+        // --- Extract T1, T2, T3 from response ---
+        auto parseTimestamp = [](const uint8_t* data) {
+            uint32_t secs = ntohl(*reinterpret_cast<const uint32_t*>(data));
+            uint32_t frac = ntohl(*reinterpret_cast<const uint32_t*>(data + 4));
+            double fracSec = (double)frac / (double)(1ULL << 32);
+            uint64_t micros = (uint64_t)(fracSec * 1e6);
+            return (uint64_t)(secs - NTP_TIMESTAMP_DELTA) * 1'000'000 + micros;
+        };
 
-        uint32_t tx_seconds = ntohl(*reinterpret_cast<uint32_t *>(&response[40]));
-        uint32_t tx_fraction = ntohl(*reinterpret_cast<uint32_t *>(&response[44]));
+        uint64_t T1srv = parseTimestamp(&response[24]); // originate (echo of client T1)
+        uint64_t T2    = parseTimestamp(&response[32]); // server receive
+        uint64_t T3    = parseTimestamp(&response[40]); // server transmit
 
-        double fractionInSeconds = static_cast<double>(tx_fraction) / (1LL << 32);
-        auto microseconds = static_cast<uint32_t>(fractionInSeconds * 1e6);
-        uint64_t serverTime = static_cast<uint64_t>(tx_seconds - NTP_TIMESTAMP_DELTA) * 1'000'000 + microseconds;
-        //LOG_ERROR("NTPCLIENT: Server time: %lu vs Client time: %lu", serverTime, GetCurrentTimeUsNonAdjusted());
+        // --- Compute offset & delay ---
+        int64_t offset = ((int64_t)(T2 - T1) + (int64_t)(T3 - T4)) / 2;
+        uint64_t delay = ((T4 - T1) - (T3 - T2));
 
-        // latency-compensated server time
-        uint64_t serverTimeAdj = serverTime + roundTripDelay / 2;
 
-        // time offset smoothing to eliminate discrete jumps
-        const uint64_t now = GetCurrentTimeUsNonAdjusted();
-        int64_t newOffset = now - serverTimeAdj;
+        LOG_INFO("NTPCLIENT: Offset=%ld us | RTT=%lu us", offset, delay);
 
-        //LOG_INFO("NTPCLIENT: Received NTP sample: Offset: %ld us | RTT: %lu us", newOffset, roundTripDelay);
-        return std::make_pair(newOffset, roundTripDelay);
+        if (delay > 20000) return std::nullopt; // reject bad RTTs
+
+        return Sample{offset, delay, GetCurrentTimeUs() - T3};
     } catch (const std::exception &e) {
         //LOG_ERROR("NTPCLIENT: Exception during sync: %s", e.what());
         return std::nullopt;
@@ -131,7 +147,7 @@ std::optional<std::pair<int64_t, uint64_t>> NtpTimer::GetOneNtpSample(boost::asi
 }
 
 uint64_t NtpTimer::GetCurrentTimeUs() const {
-    return GetCurrentTimeUsNonAdjusted() - localTimeOffset_;
+    return GetCurrentTimeUsNonAdjusted() + smoothedOffsetUs_;
 }
 
 uint64_t NtpTimer::GetCurrentTimeUsNonAdjusted() {
