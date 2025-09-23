@@ -78,13 +78,15 @@ void NtpTimer::SyncWithServer(boost::asio::io_context &io) {
 
     LOG_INFO("NTPCLIENT: Selected sample Offset=%ld ms | RTT=%lu us | Diff=%ld us",
              best.offset / 1000, best.rtt, best.diff);
+
+    LOG_INFO("NTPCLIENT: Current offset=%ld ms", smoothedOffsetUs_ / 1000);
 }
 
 std::optional<Sample> NtpTimer::GetOneNtpSample(boost::asio::io_context &io) {
     try {
         //LOG_INFO("NTPCLIENT: Fetching NTP sample...");
         udp::resolver resolver(io);
-        udp::endpoint serverEndpoint = *resolver.resolve(udp::v4(), ntpServerAddress_, "123").begin(); //"195.113.144.201"
+        udp::endpoint serverEndpoint = *resolver.resolve(udp::v4(), "195.113.144.201", "123").begin(); // "195.113.144.201"
 
         udp::socket socket(io);
         socket.open(udp::v4());

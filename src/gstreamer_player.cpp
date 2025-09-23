@@ -382,7 +382,7 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
     GstSample *sample;
     /* Retrieve the buffer */
     g_signal_emit_by_name(sink, "pull-sample", &sample);
-    LOG_INFO("NEW_SAMPLE - sample arrived");
+    //LOG_INFO("NEW_SAMPLE - sample arrived");
     if (sample) {
         if (std::string(sink->object.parent->name) == "pipeline_combined") {
             //LOG_INFO("New GStreamer combined frame received");
@@ -403,9 +403,9 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
         } else {
             bool isLeftCamera = std::string(sink->object.parent->name) == "pipeline_left";
             if (isLeftCamera) {
-                LOG_INFO("NEW_SAMPLE - New GStreamer frame received from left camera");
+                //LOG_INFO("NEW_SAMPLE - New GStreamer frame received from left camera");
             } else {
-                LOG_INFO("NEW_SAMPLE - New GStreamer frame received from right camera");
+                //LOG_INFO("NEW_SAMPLE - New GStreamer frame received from right camera");
             }
 
             auto pair = callbackObj->first;
@@ -426,10 +426,10 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
                 GstGLMemory *gl_mem = GST_GL_MEMORY_CAST(memory);
                 GLuint tex_id = gst_gl_memory_get_texture_id(gl_mem);
                 GLenum tex_target = gst_gl_memory_get_texture_target(gl_mem);
-                LOG_INFO("NEW_SAMPLE - it is an gl memory sample");
+                //LOG_INFO("NEW_SAMPLE - it is an gl memory sample");
                 return GST_FLOW_OK;
             }
-            LOG_INFO("NEW_SAMPLE - it is not an gl memory sample");
+            //LOG_INFO("NEW_SAMPLE - it is not an gl memory sample");
 
             gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
 
@@ -484,7 +484,7 @@ void GstreamerPlayer::onRtpHeaderMetadata(GstElement *identity, GstBuffer *buffe
     //LOG_INFO("RTPDEBUG: New rtp header from %s frame: %s", identity->object.parent->name, std::to_string(stats->frameId).c_str());
     // This is so the last packet of rtp gets saved
     stats->udpSrcTimestamp = ntpTimer->GetCurrentTimeUs();
-    stats->udpStream = stats->udpSrcTimestamp - stats->rtpPayTimestamp;
+    //stats->udpStream = stats->udpSrcTimestamp - stats->rtpPayTimestamp;
     stats->_packetsPerFrame += 1;
 }
 
@@ -499,7 +499,8 @@ void GstreamerPlayer::onIdentityHandoff(GstElement *identity, GstBuffer *buffer,
     if (std::string(identity->object.name) == "rtpdepay_ident") {
         stats->rtpDepayTimestamp = ntpTimer->GetCurrentTimeUs();
         stats->rtpDepay = stats->rtpDepayTimestamp - stats->udpSrcTimestamp;
-
+        stats->udpStream = stats->rtpDepayTimestamp - stats->rtpPayTimestamp;
+        LOG_INFO("RTPDEBUG: UDP streaming took: %s ms", std::to_string(stats->udpStream / 1000).c_str());
     } else if (std::string(identity->object.name) == "dec_ident") {
         stats->decTimestamp = ntpTimer->GetCurrentTimeUs();
         stats->dec = stats->decTimestamp - stats->rtpDepayTimestamp;
