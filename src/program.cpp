@@ -44,6 +44,7 @@ TelepresenceProgram::TelepresenceProgram(struct android_app *app) {
     ntpTimer_ = std::make_unique<NtpTimer>(IpToString(appState_->streamingConfig.jetson_ip));
     ntpTimer_->StartAutoSync();
     gstreamerPlayer_ = std::make_unique<GstreamerPlayer>(&appState_->cameraStreamingStates, ntpTimer_.get());
+    rosNetworkGatewayClient_ = std::make_unique<RosNetworkGatewayClient>();
 
     appState_->systemInfo.openXrRuntime = openxr_get_runtime_name(&openxr_instance_);
     appState_->systemInfo.openXrSystem = openxr_get_system_name(&openxr_instance_, &openxr_system_id_);
@@ -154,7 +155,7 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
 
         if (mono_) imageHandle = &appState_->cameraStreamingStates.first;
 
-        render_scene(layerViews[i], rtarget, quad, appState_, imageHandle, renderGui_, true);
+        render_scene(layerViews[i], rtarget, quad, appState_, imageHandle, renderGui_, false);
 
         openxr_release_viewsurface(viewsurfaces_[i]);
         auto end = std::chrono::high_resolution_clock::now();

@@ -9,6 +9,7 @@
 #include "rest_client.h"
 #include "ntp_timer.h"
 #include "state_storage.h"
+#include "ros_network_gateway_client.h"
 
 #define HANDL_IN    "/user/hand/left/input"
 #define HANDR_IN    "/user/hand/right/input"
@@ -61,6 +62,7 @@ private:
     std::unique_ptr<GstreamerPlayer> gstreamerPlayer_;
     std::unique_ptr<RestClient> restClient_;
     std::unique_ptr<NtpTimer> ntpTimer_;
+    std::unique_ptr<RosNetworkGatewayClient> rosNetworkGatewayClient_;
 #ifndef POSE_SERVER_MODE
     std::unique_ptr<ServoCommunicator> servoCommunicator_;
 #else
