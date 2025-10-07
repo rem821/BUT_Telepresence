@@ -79,6 +79,7 @@ add_library(
         src/render_texplate.cpp
         src/ntp_timer.cpp
         src/state_storage.cpp
+        src/ros_network_gateway_client.cpp
         external/imgui/imgui.cpp
         external/imgui/imgui_demo.cpp
         external/imgui/imgui_draw.cpp
