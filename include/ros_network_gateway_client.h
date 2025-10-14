@@ -9,7 +9,7 @@
 #include <arpa/inet.h>
 #include <unordered_map>
 #include "BS_thread_pool.hpp"
-#include "json.h"
+#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 
