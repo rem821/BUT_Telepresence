@@ -24,7 +24,12 @@ RosNetworkGatewayClient::RosNetworkGatewayClient()
         LOG_ERROR("bind socket failed");
     }
 
-    std::thread(&RosNetworkGatewayClient::listenForMessages, this).detach();
+    listenerThread_ = std::thread(&RosNetworkGatewayClient::listenForMessages, this);
+}
+
+RosNetworkGatewayClient::~RosNetworkGatewayClient() {
+    if (listenerThread_.joinable()) listenerThread_.join();
+    if (socket_ >= 0) close(socket_);
 }
 
 void RosNetworkGatewayClient::listenForMessages() {
@@ -43,33 +48,41 @@ void RosNetworkGatewayClient::listenForMessages() {
         std::string topic, type, payload;
 
         if (!parseMessage(buffer, timestamp, topic, type, payload)) {
-            LOG_ERROR("Failed to parse ROS message header");
+            LOG_ERROR("ROS Topic: Failed to parse ROS message header");
             continue;
         }
 
-        // Clean up potential invalid UTF-8 for safety
-        for (char& c : payload)
-            if (static_cast<unsigned char>(c) < 0x09)
-                c = '?';
+//        double now = std::chrono::duration<double>(
+//                std::chrono::system_clock::now().time_since_epoch())
+//                .count();
+//        double delay_ms = (now - timestamp) * 1000.0;
+//
+//        LOG_INFO("ROS Topic: %s (%s)\n  Timestamp: %.3f  Delay: %.1f ms\n  Payload: %s",
+//                 topic.c_str(), type.c_str(), timestamp, delay_ms, payload.c_str());
 
-        double now = std::chrono::duration<double>(
-                std::chrono::system_clock::now().time_since_epoch())
-                .count();
-        double delay_ms = (now - timestamp) * 1000.0;
-
-        LOG_INFO("ROS Topic: %s (%s)\n  Timestamp: %.3f  Delay: %.1f ms\n  Payload: %s",
-                 topic.c_str(), type.c_str(), timestamp, delay_ms, payload.c_str());
+        try {
+            if (schemaRegistry_.registerIfSchema(type, payload)) { continue; };
+            if (!schemaRegistry_.hasSchema(type)) { continue; }
+            auto parsed = schemaRegistry_.buildParsedMessage(type, topic, payload);
+            if (parsed.topic() == "/loki_1/chassis/battery_voltage") {
+                LOG_INFO("ROS Topic: %s, data: %f", topic.c_str(), parsed.get<float>("data"));
+            } else if (parsed.topic() == "/loki_1/chassis/clock") {
+                LOG_INFO("ROS Topic: %s, clock sec: %lu", topic.c_str(),
+                         parsed.get<long>("clock.sec"));
+            }
+        } catch (const std::exception &e) {
+            LOG_ERROR("ROS Topic: Failed to parse ROS message payload: %s", e.what());
+        }
 
         buffer.resize(BUFFER_SIZE); // reset for next packet
     }
 };
 
-bool RosNetworkGatewayClient::parseMessage(const std::vector<uint8_t>& buffer,
-                         double& timestamp,
-                         std::string& topic,
-                         std::string& type,
-                         std::string& payload)
-{
+bool RosNetworkGatewayClient::parseMessage(const std::vector<uint8_t> &buffer,
+                                           double &timestamp,
+                                           std::string &topic,
+                                           std::string &type,
+                                           std::string &payload) {
     if (buffer.size() < sizeof(double) + 3)
         return false;
 
@@ -79,16 +92,16 @@ bool RosNetworkGatewayClient::parseMessage(const std::vector<uint8_t>& buffer,
     // Find first null (topic)
     auto topic_end = std::find(buffer.begin() + pos, buffer.end(), '\0');
     if (topic_end == buffer.end()) return false;
-    topic.assign(reinterpret_cast<const char*>(&buffer[pos]), topic_end - (buffer.begin() + pos));
+    topic.assign(reinterpret_cast<const char *>(&buffer[pos]), topic_end - (buffer.begin() + pos));
     pos = (topic_end - buffer.begin()) + 1;
 
     // Find second null (type)
     auto type_end = std::find(buffer.begin() + pos, buffer.end(), '\0');
     if (type_end == buffer.end()) return false;
-    type.assign(reinterpret_cast<const char*>(&buffer[pos]), type_end - (buffer.begin() + pos));
+    type.assign(reinterpret_cast<const char *>(&buffer[pos]), type_end - (buffer.begin() + pos));
     pos = (type_end - buffer.begin()) + 1;
 
     // Rest is payload (JSON string)
-    payload.assign(reinterpret_cast<const char*>(&buffer[pos]), buffer.size() - pos);
+    payload.assign(reinterpret_cast<const char *>(&buffer[pos]), buffer.size() - pos);
     return true;
 }
