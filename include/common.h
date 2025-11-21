@@ -12,7 +12,7 @@
 #include <vector>
 #include <unordered_map>
 
-#define POSE_SERVER_MODE
+//#define POSE_SERVER_MODE
 
 // <!-- IP CONFIGURATION SECTION --!>
 constexpr uint8_t IP_CONFIG_JETSON_ADDR[4] = {192,168,1,105};

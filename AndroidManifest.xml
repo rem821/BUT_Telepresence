@@ -17,6 +17,21 @@
     <!-- Tell the system this app works in either 3dof or 6dof mode -->
     <uses-feature
         android:name="android.hardware.vr.headtracking"
+        android:required="true"
+        android:version="1" />
+
+    <uses-feature
+        android:name="com.oculus.software.body_tracking"
+        android:required="false"
+        android:version="1" />
+
+    <uses-feature
+        android:name="com.oculus.software.face_tracking"
+        android:required="false"
+        android:version="1" />
+
+    <uses-feature
+        android:name="com.oculus.software.eye_tracking"
         android:required="false"
         android:version="1" />
 
@@ -27,7 +42,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
-    <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
+    <uses-permission android:name="horizonos.permission.HAND_TRACKING" />
     <uses-permission android:name="com.oculus.permission.CONTROLLER_LEFT" />
     <uses-permission android:name="com.oculus.permission.CONTROLLER_RIGHT" />
     <uses-permission android:name="com.oculus.permission.INPUT_TYPE_MAP" />

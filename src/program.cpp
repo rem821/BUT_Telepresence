@@ -148,8 +148,10 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
         CameraFrame *imageHandle = i == 0 ? &appState_->cameraStreamingStates.second
                                           : &appState_->cameraStreamingStates.first;
 
+#ifdef POSE_SERVER_MODE
         //Send out a debugging message for logging
         poseServer_->setFrameLatencyMessage(*imageHandle->stats);
+#endif
 
         HandleControllers();
 
