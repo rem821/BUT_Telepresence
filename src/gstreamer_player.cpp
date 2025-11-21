@@ -9,38 +9,47 @@ GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair
     gst_version(&major, &minor, &micro, &nano);
     LOG_INFO("Running GStreamer version: %d.%d.%d.%d", major, minor, micro, nano);
 
-    //listAvailableDecoders();
-    //listGstreamerPlugins();
+    listAvailableDecoders();
+    listGstreamerPlugins();
 
-//    GstElementFactory *factory = gst_element_factory_find("amcviddec-omxqcomvideodecoderavc");
-//    if (factory) {
-//        const GList *pads = gst_element_factory_get_static_pad_templates(factory);
-//        for (const GList *pad = pads; pad != nullptr; pad = pad->next) {
-//            GstPadTemplate *template_ = static_cast<GstPadTemplate *>(pad->data);
-//
-//            const gchar *pad_name = template_->name_template;
-//            const gchar *direction = (template_->direction == GST_PAD_SRC) ? "SRC" : "SINK";
-//
-//            LOG_INFO("Pad: %s | Direction: %s", pad_name, direction);
-//        }
-//
-//        gst_object_unref(factory);
-//    } else {
-//        LOG_ERROR("Element factory not found for amcviddec-omxqcomvideodecoderhevc");
-//    }
+    GstElementFactory *factory = gst_element_factory_find("amcviddec-omxqcomvideodecoderavc");
+    if (factory) {
+        const GList *pads = gst_element_factory_get_static_pad_templates(factory);
+        for (const GList *pad = pads; pad != nullptr; pad = pad->next) {
+            GstPadTemplate *template_ = static_cast<GstPadTemplate *>(pad->data);
+
+            const gchar *pad_name = template_->name_template;
+            const gchar *direction = (template_->direction == GST_PAD_SRC) ? "SRC" : "SINK";
+
+            LOG_INFO("Gstreamer: Pad: %s | Direction: %s", pad_name, direction);
+        }
+
+        gst_object_unref(factory);
+    } else {
+        LOG_ERROR("Gstreamer: Element factory not found for amcviddec-omxqcomvideodecoderavc");
+    }
+
+    GList *list = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODER, GST_RANK_NONE);
+    for (GList *l = list; l; l = l->next) {
+        auto *f = GST_ELEMENT_FACTORY(l->data);
+        const gchar *name = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(f));
+        const gchar *longname = gst_element_factory_get_longname(f);
+        const gchar *klass = gst_element_factory_get_klass(f);
+        if (g_strrstr(name, "amc")) {
+            LOG_INFO("Gstreamer: AMC DEC: %s  | %s  | %s", name, longname, klass);
+        }
+    }
+    gst_plugin_feature_list_free(list);
 
     /* Create our own GLib Main Context and make it the default one */
-    context_ = g_main_context_new();
-    g_main_context_push_thread_default(context_);
+    gMainContext_ = g_main_context_new();
+    g_main_context_push_thread_default(gMainContext_);
 
-    GstGLDisplay *gl_display = GST_GL_DISPLAY(gst_gl_display_egl_new_with_egl_display(egl_get_display()));
-    glContext_ = gst_gl_context_new(gl_display);
-    GError *error = nullptr;
-    if (!gst_gl_context_create(glContext_, nullptr, &error)) {
-        LOG_ERROR("Failed to create GstGLContext: %s", error ? error->message : "unknown error");
-        if (error) g_error_free(error);
-        return;
-    }}
+    glContext_ = (GstGLContext*) egl_get_context();
+    gContext_ = gst_context_new("gst.gl.app_context", TRUE);
+    GstStructure *s = gst_context_writable_structure(gContext_);
+    gst_structure_set(s, "context", GST_TYPE_GL_CONTEXT, glContext_, NULL);
+}
 
 void
 GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config, const bool combinedStreaming) {
@@ -156,13 +165,14 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(rtp_capsfilter);
 
         GstElement *appsink = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "appsink");
+        gst_element_set_context(GST_ELEMENT (appsink), gContext_);
         gst_element_set_name(pipelineCombined_, "pipeline_combined");
         gst_element_set_state(pipelineCombined_, GST_STATE_READY);
 
         bus = gst_element_get_bus(pipelineCombined_);
         bus_source = gst_bus_create_watch(bus);
         g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
-        g_source_attach(bus_source, context_);
+        g_source_attach(bus_source, gMainContext_);
         g_source_unref(bus_source);
 
         g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineCombined_);
@@ -183,11 +193,6 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
 
         gst_element_set_state(pipelineCombined_, GST_STATE_PLAYING);
     } else {
-        GstContext *gst_context_left = gst_context_new("gst.gl.app_context", TRUE);
-        gst_structure_set(gst_context_writable_structure(gst_context_left), "context", GST_TYPE_GL_CONTEXT, glContext_, NULL);
-        gst_element_set_context(pipelineLeft_, gst_context_left);
-        gst_context_unref(gst_context_left);
-
         std::string xDimString = fmt::format("{},{}", config.resolution.getWidth(), config.resolution.getHeight());
 
         GstElement *leftudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc_ident");
@@ -219,13 +224,14 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(rtp_capsfilter_left);
 
         GstElement *leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "appsink");
+        gst_element_set_context(GST_ELEMENT (leftappsink), gContext_);
         gst_element_set_name(pipelineLeft_, "pipeline_left");
         gst_element_set_state(pipelineLeft_, GST_STATE_READY);
 
         bus = gst_element_get_bus(pipelineLeft_);
         bus_source = gst_bus_create_watch(bus);
         g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
-        g_source_attach(bus_source, context_);
+        g_source_attach(bus_source, gMainContext_);
         g_source_unref(bus_source);
 
         g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineLeft_);
@@ -243,11 +249,6 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(leftqueue_ident);
         gst_object_unref(leftappsink);
         gst_object_unref(bus);
-
-        GstContext *gst_context_right = gst_context_new("gst.gl.app_context", TRUE);
-        gst_structure_set(gst_context_writable_structure(gst_context_right), "context", GST_TYPE_GL_CONTEXT, glContext_, NULL);
-        gst_element_set_context(pipelineRight_, gst_context_right);
-        gst_context_unref(gst_context_right);
 
         GstElement *rightudpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc_ident");
         GstElement *rightrtpdepay_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtpdepay_ident");
@@ -273,13 +274,14 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(rtp_capsfilter_right);
 
         GstElement *rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "appsink");
+        gst_element_set_context(GST_ELEMENT (rightappsink), gContext_);
         gst_element_set_name(pipelineRight_, "pipeline_right");
         gst_element_set_state(pipelineRight_, GST_STATE_READY);
 
         bus = gst_element_get_bus(pipelineRight_);
         bus_source = gst_bus_create_watch(bus);
         g_source_set_callback(bus_source, (GSourceFunc) gst_bus_async_signal_func, nullptr, nullptr);
-        g_source_attach(bus_source, context_);
+        g_source_attach(bus_source, gMainContext_);
         g_source_unref(bus_source);
 
         g_signal_connect(G_OBJECT(bus), "message::info", (GCallback) infoCallback, pipelineRight_);
@@ -304,11 +306,11 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
 
     threadPool.detach_task([&]() {
         /* Create a GLib Main Loop and set it to run */
-        LOG_INFO("GStreamer entering the main loop");
-        mainLoop_ = g_main_loop_new(context_, FALSE);
+        LOG_INFO("GSTREAMER entering the main loop");
+        mainLoop_ = g_main_loop_new(gMainContext_, FALSE);
 
         g_main_loop_run(mainLoop_);
-        LOG_INFO("GStreamer exited the main loop");
+        LOG_INFO("GSTREAMER exited the main loop");
         g_main_loop_unref(mainLoop_);
         mainLoop_ = nullptr;
     });
@@ -318,10 +320,10 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
     GstSample *sample;
     /* Retrieve the buffer */
     g_signal_emit_by_name(sink, "pull-sample", &sample);
-    //LOG_INFO("NEW_SAMPLE - sample arrived");
+    //LOG_INFO("GSTREAMER - sample arrived");
     if (sample) {
         if (std::string(sink->object.parent->name) == "pipeline_combined") {
-            //LOG_INFO("New GStreamer combined frame received");
+            //LOG_INFO("GSTREAMER New GStreamer combined frame received");
             auto pair = callbackObj->first;
 
             GstBuffer *buffer;
@@ -331,7 +333,7 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
             gst_buffer_map(buffer, &mapInfo, GST_MAP_READ);
 
             memcpy(pair->first.dataHandle, mapInfo.data, pair->first.memorySize);
-            //LOG_INFO("frame size: %lu. Should be: %lu", mapInfo.size, pair->first.memorySize + pair->second.memorySize);
+            //LOG_INFO("GSTREAMER frame size: %lu. Should be: %lu", mapInfo.size, pair->first.memorySize + pair->second.memorySize);
             memcpy(pair->second.dataHandle, mapInfo.data + pair->first.memorySize - 3, pair->second.memorySize);
 
             gst_sample_unref(sample);
@@ -339,9 +341,9 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
         } else {
             bool isLeftCamera = std::string(sink->object.parent->name) == "pipeline_left";
             if (isLeftCamera) {
-                //LOG_INFO("NEW_SAMPLE - New GStreamer frame received from left camera");
+                LOG_INFO("GSTREAMER NEW_SAMPLE - New GStreamer frame received from left camera");
             } else {
-                //LOG_INFO("NEW_SAMPLE - New GStreamer frame received from right camera");
+                LOG_INFO("GSTREAMER NEW_SAMPLE - New GStreamer frame received from right camera");
             }
 
             auto pair = callbackObj->first;
@@ -385,28 +387,28 @@ void GstreamerPlayer::onRtpHeaderMetadata(GstElement *identity, GstBuffer *buffe
     guint8 appbits = 1;
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 0, &myInfoBuf, &size_64) != 0) {
         stats->frameId = *(static_cast<uint64_t *>(myInfoBuf));
-        LOG_INFO("RTPDEBUG: New frameid from %s - number of packets: %s", identity->object.parent->name, std::to_string(stats->_packetsPerFrame).c_str());
+        //LOG_INFO("GSTREAMER: New frameid from %s - number of packets: %s", identity->object.parent->name, std::to_string(stats->_packetsPerFrame).c_str());
         stats->_packetsPerFrame = 0;
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 1, &myInfoBuf, &size_64) != 0) {
         stats->vidConv = *(static_cast<uint64_t *>(myInfoBuf));
-        //LOG_INFO("RTPDEBUG: New vidconv from %s", identity->object.parent->name);
+        //LOG_INFO("GSTREAMER: New vidconv from %s", identity->object.parent->name);
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 2, &myInfoBuf, &size_64) != 0) {
         stats->enc = *(static_cast<uint64_t *>(myInfoBuf));
-        //LOG_INFO("RTPDEBUG: New enc from %s", identity->object.parent->name);
+        //LOG_INFO("GSTREAMER: New enc from %s", identity->object.parent->name);
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 3, &myInfoBuf, &size_64) != 0) {
         stats->rtpPay = *(static_cast<uint64_t *>(myInfoBuf));
-        //LOG_INFO("RTPDEBUG: New rtppay from %s", identity->object.parent->name);
+        //LOG_INFO("GSTREAMER: New rtppay from %s", identity->object.parent->name);
     }
     if (gst_rtp_buffer_get_extension_twobytes_header(&rtp_buf, &appbits, 1, 4, &myInfoBuf, &size_64) != 0) {
         stats->rtpPayTimestamp = *(static_cast<uint64_t *>(myInfoBuf));
-        //LOG_INFO("RTPDEBUG: New udpsink timestamp from %s", identity->object.parent->name);
+        //LOG_INFO("GSTREAMER: New udpsink timestamp from %s", identity->object.parent->name);
     }
     gst_rtp_buffer_unmap(&rtp_buf);
 
-    //LOG_INFO("RTPDEBUG: New rtp header from %s frame: %s", identity->object.parent->name, std::to_string(stats->frameId).c_str());
+    //LOG_INFO("GSTREAMER: New rtp header from %s frame: %s", identity->object.parent->name, std::to_string(stats->frameId).c_str());
     // This is so the last packet of rtp gets saved
     stats->udpSrcTimestamp = ntpTimer->GetCurrentTimeUs();
     //stats->udpStream = stats->udpSrcTimestamp - stats->rtpPayTimestamp;
@@ -425,7 +427,7 @@ void GstreamerPlayer::onIdentityHandoff(GstElement *identity, GstBuffer *buffer,
         stats->rtpDepayTimestamp = ntpTimer->GetCurrentTimeUs();
         stats->rtpDepay = stats->rtpDepayTimestamp - stats->udpSrcTimestamp;
         stats->udpStream = stats->rtpDepayTimestamp - stats->rtpPayTimestamp;
-        LOG_INFO("RTPDEBUG: UDP streaming took: %s ms", std::to_string(stats->udpStream / 1000).c_str());
+        LOG_INFO("GSTREAMER: UDP streaming took: %s ms", std::to_string(stats->udpStream / 1000).c_str());
     } else if (std::string(identity->object.name) == "dec_ident") {
         stats->decTimestamp = ntpTimer->GetCurrentTimeUs();
         stats->dec = stats->decTimestamp - stats->rtpDepayTimestamp;
@@ -435,7 +437,7 @@ void GstreamerPlayer::onIdentityHandoff(GstElement *identity, GstBuffer *buffer,
         stats->queue = stats->queueTimestamp - stats->decTimestamp;
         stats->totalLatency = stats->vidConv + stats->enc + stats->rtpPay + stats->udpStream + stats->rtpDepay + stats->dec + stats->queue;
         LOG_INFO(
-                "RTPDEBUG: %s Pipeline latencies: vidconv: %lu, enc: %lu, rtpPay: %lu, udpStream: %lu, rtpDepay: %lu, dec: %lu, queue: %lu, total: %lu",
+                "GSTREAMER: %s Pipeline latencies: vidconv: %lu, enc: %lu, rtpPay: %lu, udpStream: %lu, rtpDepay: %lu, dec: %lu, queue: %lu, total: %lu",
                 identity->object.parent->name,
                 (unsigned long) stats->vidConv, (unsigned long) stats->enc,
                 (unsigned long) stats->rtpPay, (unsigned long) stats->udpStream,
@@ -449,7 +451,7 @@ void GstreamerPlayer::stateChangedCallback(GstBus *bus, GstMessage *msg, GstElem
     GstState old_state, new_state, pending_state;
     gst_message_parse_state_changed(msg, &old_state, &new_state, &pending_state);
 
-    LOG_INFO("GStreamer element %s state changed to: %s", GST_MESSAGE_SRC(msg)->name, gst_element_state_get_name(new_state));
+    LOG_INFO("GSTREAMER element %s state changed to: %s", GST_MESSAGE_SRC(msg)->name, gst_element_state_get_name(new_state));
 }
 
 void GstreamerPlayer::infoCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline) {
@@ -458,9 +460,7 @@ void GstreamerPlayer::infoCallback(GstBus *bus, GstMessage *msg, GstElement *pip
 
     gst_message_parse_info(msg, &err, &debug_info);
 
-    LOG_INFO("GStreamer info received from element: %s, %s", GST_OBJECT_NAME(msg->src), err->message);
-
-    gst_element_set_state(pipeline, GST_STATE_NULL);
+    LOG_INFO("GSTREAMER info received from element: %s, %s", GST_OBJECT_NAME(msg->src), err->message);
 }
 
 void GstreamerPlayer::warningCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline) {
@@ -469,9 +469,7 @@ void GstreamerPlayer::warningCallback(GstBus *bus, GstMessage *msg, GstElement *
 
     gst_message_parse_warning(msg, &err, &debug_info);
 
-    LOG_INFO("GStreamer warning received from element: %s, %s", GST_OBJECT_NAME(msg->src), err->message);
-
-    gst_element_set_state(pipeline, GST_STATE_NULL);
+    LOG_INFO("GSTREAMER warning received from element: %s, %s", GST_OBJECT_NAME(msg->src), err->message);
 }
 
 void GstreamerPlayer::errorCallback(GstBus *bus, GstMessage *msg, GstElement *pipeline) {
@@ -480,9 +478,7 @@ void GstreamerPlayer::errorCallback(GstBus *bus, GstMessage *msg, GstElement *pi
 
     gst_message_parse_error(msg, &err, &debug_info);
 
-    LOG_ERROR("GStreamer error received from element: %s, %s", GST_OBJECT_NAME(msg->src), err->message);
-
-    gst_element_set_state(pipeline, GST_STATE_NULL);
+    LOG_ERROR("GSTREAMER error received from element: %s, %s", GST_OBJECT_NAME(msg->src), err->message);
 }
 
 // Callback function to log packet arrivals
@@ -503,7 +499,7 @@ void GstreamerPlayer::listAvailableDecoders() {
     GList *decoders = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODER, GST_RANK_NONE);
 
     if (!decoders) {
-        LOG_INFO("No decoders found in the GStreamer registry.");
+        LOG_INFO("GSTREAMER No decoders found in the GStreamer registry.");
         return;
     }
 
@@ -522,9 +518,9 @@ void GstreamerPlayer::listAvailableDecoders() {
 
         // Log the decoder details
         if (is_hardware) {
-            LOG_INFO("HW Decoder: %s (%s)", name, longname);
+            LOG_INFO("GSTREAMER HW Decoder: %s (%s)", name, longname);
         } else {
-            LOG_INFO("SW Decoder: %s (%s)", name, longname);
+            LOG_INFO("GSTREAMER SW Decoder: %s (%s)", name, longname);
         }
     }
 
@@ -542,7 +538,7 @@ void GstreamerPlayer::listGstreamerPlugins() {
         const gchar *longname = gst_element_factory_get_longname(factory);
         const gchar *klass = gst_element_factory_get_klass(factory);
 
-        LOG_INFO("Element: %s — %s (%s)\n", name, longname, klass);
+        LOG_INFO("GSTREAMER Element: %s — %s (%s)\n", name, longname, klass);
     }
 
     gst_plugin_feature_list_free(features);
