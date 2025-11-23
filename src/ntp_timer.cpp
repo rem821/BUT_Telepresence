@@ -76,10 +76,10 @@ void NtpTimer::SyncWithServer(boost::asio::io_context &io) {
 
     lastSyncedTimestampLocal_ = GetCurrentTimeUsNonAdjusted();
 
-    LOG_INFO("NTPCLIENT: Selected sample Offset=%ld ms | RTT=%lu us | Diff=%ld us",
-             best.offset / 1000, best.rtt, best.diff);
+    //LOG_INFO("NTPCLIENT: Selected sample Offset=%ld ms | RTT=%lu us | Diff=%ld us",
+    //         best.offset / 1000, best.rtt, best.diff);
 
-    LOG_INFO("NTPCLIENT: Current offset=%ld ms", smoothedOffsetUs_ / 1000);
+    //LOG_INFO("NTPCLIENT: Current offset=%ld ms", smoothedOffsetUs_ / 1000);
 }
 
 std::optional<Sample> NtpTimer::GetOneNtpSample(boost::asio::io_context &io) {
@@ -137,7 +137,7 @@ std::optional<Sample> NtpTimer::GetOneNtpSample(boost::asio::io_context &io) {
         uint64_t delay = ((T4 - T1) - (T3 - T2));
 
 
-        LOG_INFO("NTPCLIENT: Offset=%ld us | RTT=%lu us", offset, delay);
+        //("NTPCLIENT: Offset=%ld us | RTT=%lu us", offset, delay);
 
         if (delay > 20000) return std::nullopt; // reject bad RTTs
 

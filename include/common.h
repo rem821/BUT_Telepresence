@@ -406,6 +406,11 @@ struct CameraFrame {
     CameraStats *stats;
     int frameWidth = CameraResolution::fromLabel("FHD").getWidth();
     int frameHeight = CameraResolution::fromLabel("FHD").getHeight();
+
+    bool hasGlTexture = false;
+    unsigned int glTexture = 0;
+    unsigned int glTarget = 0;
+
     unsigned long memorySize = frameWidth * frameHeight * 3; // Size of single Full HD RGB frame
     void *dataHandle;
 };
