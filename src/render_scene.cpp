@@ -69,7 +69,14 @@ static const char *ImageFragmentShaderOES = R"_(#version 320 es
     uniform samplerExternalOES u_Texture;
 
     void main() {
-        color = texture(u_Texture, v_TexCoord);
+        lowp vec4 c = texture(u_Texture, v_TexCoord);
+
+        // Assume limited-range 35–235 and expand to full range
+        lowp vec3 rgb = (c.rgb - vec3(40.0/255.0)) * (255.0/235.0);
+        rgb = clamp(rgb, 0.0, 1.0);
+        rgb = rgb * 0.8;
+
+        color = vec4(rgb, c.a);
     }
     )_";
 

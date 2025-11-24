@@ -393,7 +393,7 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
         return GST_FLOW_ERROR;
     }
 
-    LOG_INFO("GSTREAMER - sample arrived");
+    //LOG_INFO("GSTREAMER - sample arrived");
 
     CamPair *pair = callbackObj->first;
     //pair->first.hasGlTexture  = false;
@@ -432,11 +432,11 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
     CameraFrame &frame = isLeftCamera ? pair->first : pair->second;
 
     if (isLeftCamera) {
-        LOG_INFO("GSTREAMER NEW_SAMPLE - New GStreamer frame received from left camera");
+        //LOG_INFO("GSTREAMER NEW_SAMPLE - New GStreamer frame received from left camera");
     } else if (isRightCamera) {
-        LOG_INFO("GSTREAMER NEW_SAMPLE - New GStreamer frame received from right camera");
+        //LOG_INFO("GSTREAMER NEW_SAMPLE - New GStreamer frame received from right camera");
     } else {
-        LOG_INFO("GSTREAMER NEW_SAMPLE - New GStreamer frame received from unknown pipeline: %s", pipelineName.c_str());
+        //LOG_INFO("GSTREAMER NEW_SAMPLE - New GStreamer frame received from unknown pipeline: %s", pipelineName.c_str());
     }
 
     // Update FPS stats
@@ -510,7 +510,7 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
 
         // vframe.data[0] contains a GLuint* with the texture ID
         GLuint tex_id = *(guint *)vframe.data[0];
-        LOG_INFO("GSTREAMER GL frame: texture id = %u", tex_id);
+        //LOG_INFO("GSTREAMER GL frame: texture id = %u", tex_id);
 
         frame.glTexture   = tex_id;
         frame.hasGlTexture = true;
@@ -525,47 +525,6 @@ GstFlowReturn GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallb
         // GL_TEXTURE_EXTERNAL_OES / GL_TEXTURE_2D accordingly.
         return GST_FLOW_OK;
     }
-}
-
-gboolean GstreamerPlayer::onClientDraw(GstElement *glsink, GstGLContext *context, GstSample *sample, gpointer data) {
-    auto *cbObj = reinterpret_cast<GStreamerCallbackObj *>(data);
-    CamPair *camPair = cbObj->first;
-
-    // Determine which pipeline (left/right/combined)
-    const char *pipeline_name = glsink->object.parent->name;
-    bool isLeft = strcmp(pipeline_name, "pipeline_left") == 0;
-    bool isRight = strcmp(pipeline_name, "pipeline_right") == 0;
-
-    CameraFrame *frame = nullptr;
-    if (isLeft) {
-        frame = &camPair->first;
-    } else {
-        frame = &camPair->second;
-    }
-
-    GstBuffer *buf = gst_sample_get_buffer(sample);
-    GstCaps *caps = gst_sample_get_caps(sample);
-
-    GstVideoInfo vinfo;
-    gst_video_info_from_caps(&vinfo, caps);
-
-    GstVideoFrame vframe;
-    if (!gst_video_frame_map(&vframe, &vinfo, buf,(GstMapFlags) (GST_MAP_READ | GST_MAP_GL))) {
-        g_warning("Failed to map video frame as GL");
-        return TRUE; // avoid dropping frame
-    }
-
-    // vframe.data[0] holds a GLuint* with the GL texture id
-    GLuint src_tex_id = *(guint *) vframe.data[0];
-    LOG_INFO("GSTREAMER Client draw! %u", src_tex_id);
-
-    frame->glTexture = src_tex_id;
-    frame->hasGlTexture = true;
-    frame->frameWidth = GST_VIDEO_INFO_WIDTH(&vinfo);
-    frame->frameHeight = GST_VIDEO_INFO_HEIGHT(&vinfo);
-
-    gst_video_frame_unmap(&vframe);
-    return TRUE;
 }
 
 void GstreamerPlayer::onRtpHeaderMetadata(GstElement *identity, GstBuffer *buffer, gpointer data) {
