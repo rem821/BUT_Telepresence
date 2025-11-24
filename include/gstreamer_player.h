@@ -26,8 +26,6 @@ private:
 
     static GstFlowReturn newFrameCallback(GstElement *sink, GStreamerCallbackObj *callbackObj);
 
-    static gboolean onClientDraw(GstElement *glsink, GstGLContext *context, GstSample *sample, gpointer data);
-
     static void onRtpHeaderMetadata(GstElement *identity, GstBuffer *buffer, gpointer data);
 
     static void onIdentityHandoff(GstElement *identity, GstBuffer *buffer, gpointer data);

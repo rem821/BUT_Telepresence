@@ -665,50 +665,56 @@ void TelepresenceProgram::HandleControllers() {
                     }
                     appState_->guiControl.changesEnqueued = true;
                     break;
-                case 4: // Mono / Stereo
+                case 4: // Bitrate
+                    if (appState_->streamingConfig.bitrate < 100000000) {
+                        appState_->streamingConfig.bitrate += 100000;
+                    }
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 5: // Mono / Stereo
                     appState_->streamingConfig.videoMode = static_cast<VideoMode>(
                             (static_cast<int>(appState_->streamingConfig.videoMode) + 1 +
                              static_cast<int>(VideoMode::CNT)) % static_cast<int>(VideoMode::CNT));
                     appState_->guiControl.changesEnqueued = true;
                     break;
-                case 5: // FullScreen / FullFOV
+                case 6: // FullScreen / FullFOV
                     appState_->aspectRatioMode = static_cast<AspectRatioMode>((static_cast<int>(appState_->aspectRatioMode) + 1 +
                                                                                static_cast<int>(AspectRatioMode::CNT2)) %
                                                                               static_cast<int>(AspectRatioMode::CNT2));
                     appState_->guiControl.changesEnqueued = true;
                     break;
-                case 6: // FPS
+                case 7: // FPS
                     if (appState_->streamingConfig.fps < 80) {
                         appState_->streamingConfig.fps += 1;
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
-                case 7: // Resolution
+                case 8: // Resolution
                     if (appState_->streamingConfig.resolution.getIndex() < CameraResolution::count() - 1) {
                         appState_->streamingConfig.resolution = CameraResolution::fromIndex(appState_->streamingConfig.resolution.getIndex() + 1);
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
-                case 9: // Camera head movement max speed
+                case 10: // Camera head movement max speed
                     if (appState_->headMovementMaxSpeed < 990000) {
                         appState_->headMovementMaxSpeed += 10000;
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
-                case 10: // Camera head movement speed multiplier
+                case 11: // Camera head movement speed multiplier
                     if (appState_->robotMovementRange.speedMultiplier < 2.0f) {
                         appState_->robotMovementRange.speedMultiplier += 0.1f;
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
-                case 11: // Headset movement prediction time in ms
+                case 12: // Headset movement prediction time in ms
                     if (appState_->headMovementPredictionMs < 100) {
                         appState_->headMovementPredictionMs += 1;
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
 
-                case 12:
+                case 13:
                     appState_->robotMovementRange.setRobotType(static_cast<RobotType>((static_cast<int>(appState_->robotMovementRange.type) + 1 +
                                                                                        static_cast<int>(RobotType::CNT3)) %
                                                                                       static_cast<int>(RobotType::CNT3)));
@@ -744,50 +750,56 @@ void TelepresenceProgram::HandleControllers() {
                     }
                     appState_->guiControl.changesEnqueued = true;
                     break;
-                case 4: // Mono / Stereo
+                case 4: // Bitrate
+                    if (appState_->streamingConfig.bitrate > 100000) {
+                        appState_->streamingConfig.bitrate -= 100000;
+                    }
+                    appState_->guiControl.changesEnqueued = true;
+                    break;
+                case 5: // Mono / Stereo
                     appState_->streamingConfig.videoMode = static_cast<VideoMode>(
                             (static_cast<int>(appState_->streamingConfig.videoMode) - 1 +
                              static_cast<int>(VideoMode::CNT)) % static_cast<int>(VideoMode::CNT));
                     appState_->guiControl.changesEnqueued = true;
                     mono_ = appState_->streamingConfig.videoMode == VideoMode::MONO;
                     break;
-                case 5: // FullScreen / FullFOV
+                case 6: // FullScreen / FullFOV
                     appState_->aspectRatioMode = static_cast<AspectRatioMode>((static_cast<int>(appState_->aspectRatioMode) - 1 +
                                                                                static_cast<int>(AspectRatioMode::CNT2)) %
                                                                               static_cast<int>(AspectRatioMode::CNT2));
                     appState_->guiControl.changesEnqueued = true;
                     break;
-                case 6: // FPS
+                case 7: // FPS
                     if (appState_->streamingConfig.fps > 1) {
                         appState_->streamingConfig.fps -= 1;
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
-                case 7: // Resolution
+                case 8: // Resolution
                     if (appState_->streamingConfig.resolution.getIndex() > 0) {
                         appState_->streamingConfig.resolution = CameraResolution::fromIndex(appState_->streamingConfig.resolution.getIndex() - 1);
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
-                case 9: // Camera head movement max speed
+                case 10: // Camera head movement max speed
                     if (appState_->headMovementMaxSpeed > 110000) {
                         appState_->headMovementMaxSpeed -= 10000;
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
-                case 10: // Camera head movement speed multiplier
+                case 11: // Camera head movement speed multiplier
                     if (appState_->robotMovementRange.speedMultiplier > 0.5f) {
                         appState_->robotMovementRange.speedMultiplier -= 0.1f;
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
-                case 11: // Headset movement prediction time in ms
+                case 12: // Headset movement prediction time in ms
                     if (appState_->headMovementPredictionMs > 0) {
                         appState_->headMovementPredictionMs -= 1;
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
-                case 12:
+                case 13:
                     appState_->robotMovementRange.setRobotType(static_cast<RobotType>((static_cast<int>(appState_->robotMovementRange.type) - 1 +
                                                                                        static_cast<int>(RobotType::CNT3)) %
                                                                                       static_cast<int>(RobotType::CNT3)));
@@ -798,7 +810,7 @@ void TelepresenceProgram::HandleControllers() {
 
 
             // Apply streaming config button
-        else if (userState_.triggerValue[Side::LEFT] > 0.9f && appState_->guiControl.focusedElement == 8) {
+        else if (userState_.triggerValue[Side::LEFT] > 0.9f && appState_->guiControl.focusedElement == 9) {
             stateStorage_->SaveAppState(*appState_);
             init_scene(appState_->streamingConfig.resolution.getWidth(), appState_->streamingConfig.resolution.getHeight(), true);
             gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig, false);

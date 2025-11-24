@@ -424,7 +424,7 @@ struct StreamingConfig {
     int portRight{IP_CONFIG_RIGHT_CAMERA_PORT};
     Codec codec{JPEG};
     int encodingQuality{60};
-    int bitrate{4000};
+    int bitrate{4000000};
     CameraResolution resolution{CameraResolution::fromLabel("FHD")};
     VideoMode videoMode{STEREO};
     int fps{60};

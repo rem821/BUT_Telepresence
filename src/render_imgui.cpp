@@ -17,7 +17,7 @@ static ImVec2 s_win_pos[10];
 static int s_win_num = 0;
 static ImVec2 s_mouse_pos;
 
-static int numberOfElements = 13;
+static int numberOfElements = 14;
 static int numberOfSegments = 5;
 
 int
@@ -160,21 +160,25 @@ static void render_settings_gui(const std::shared_ptr<AppState> &appState) {
                 appState->guiControl.focusedElement == 3
         );
         focusable_text(
-                fmt::format("{}", VideoModeToString(appState->streamingConfig.videoMode)),
+                fmt::format("Bitrate: {}", appState->streamingConfig.bitrate),
                 appState->guiControl.focusedElement == 4
         );
         focusable_text(
-                fmt::format("{}", AspectRatioModeToString(appState->aspectRatioMode)),
+                fmt::format("{}", VideoModeToString(appState->streamingConfig.videoMode)),
                 appState->guiControl.focusedElement == 5
         );
         focusable_text(
-                fmt::format("FPS: {}", appState->streamingConfig.fps),
+                fmt::format("{}", AspectRatioModeToString(appState->aspectRatioMode)),
                 appState->guiControl.focusedElement == 6
+        );
+        focusable_text(
+                fmt::format("FPS: {}", appState->streamingConfig.fps),
+                appState->guiControl.focusedElement == 7
         );
         focusable_text(
                 fmt::format("Resolution: {}x{}({})", appState->streamingConfig.resolution.getWidth(),
                             appState->streamingConfig.resolution.getHeight(), appState->streamingConfig.resolution.getLabel()),
-                appState->guiControl.focusedElement == 7
+                appState->guiControl.focusedElement == 8
         );
 
         if (appState->streamingConfig.codec == JPEG) {
@@ -188,25 +192,25 @@ static void render_settings_gui(const std::shared_ptr<AppState> &appState) {
 
             ImGui::Text("Approx. bandwidth: %.2f Mbps", bandwidth);
         }
-        focusable_button("Apply", appState->guiControl.focusedElement == 8);
+        focusable_button("Apply", appState->guiControl.focusedElement == 9);
 
         ImGui::SeparatorText("Status Information");
 
         focusable_text(
                 fmt::format("Camera head movement max speed: {}", appState->headMovementMaxSpeed),
-                appState->guiControl.focusedElement == 9
-        );
-        focusable_text(
-                fmt::format("Head movement speed multiplier: {:.2}", appState->robotMovementRange.speedMultiplier),
                 appState->guiControl.focusedElement == 10
         );
         focusable_text(
-                fmt::format("Headset movement prediction: {} ms", appState->headMovementPredictionMs),
+                fmt::format("Head movement speed multiplier: {:.2}", appState->robotMovementRange.speedMultiplier),
                 appState->guiControl.focusedElement == 11
         );
         focusable_text(
-                fmt::format("Robot: {}", RobotTypeToString(appState->robotMovementRange.type)),
+                fmt::format("Headset movement prediction: {} ms", appState->headMovementPredictionMs),
                 appState->guiControl.focusedElement == 12
+        );
+        focusable_text(
+                fmt::format("Robot: {}", RobotTypeToString(appState->robotMovementRange.type)),
+                appState->guiControl.focusedElement == 13
         );
 
         ImGui::Text("Robot control: %s", BoolToString(appState->robotControlEnabled));
