@@ -12,6 +12,8 @@
 #include <vector>
 #include <unordered_map>
 #include <atomic>
+#include <deque>
+#include <mutex>
 
 //#define POSE_SERVER_MODE
 
@@ -401,6 +403,8 @@ struct CameraStatsSnapshot {
     uint64_t totalLatency;
     uint64_t frameId;
     uint16_t _packetsPerFrame;
+    uint64_t frameReadyTimestamp;
+    uint64_t presentation;
 };
 
 struct CameraStats {
@@ -411,6 +415,13 @@ struct CameraStats {
     std::atomic<uint64_t> totalLatency{0};
     std::atomic<uint64_t> frameId{0};
     std::atomic<uint16_t> _packetsPerFrame{0};
+    std::atomic<uint64_t> frameReadyTimestamp{0};
+    std::atomic<uint64_t> presentation{0};
+
+    // Running average history
+    static constexpr size_t HISTORY_SIZE = 50;
+    mutable std::mutex historyMutex_;
+    mutable std::deque<CameraStatsSnapshot> history_;
 
     // Create a copyable snapshot of current values
     CameraStatsSnapshot snapshot() const {
@@ -423,8 +434,72 @@ struct CameraStats {
             decTimestamp.load(), queueTimestamp.load(),
             totalLatency.load(),
             frameId.load(),
-            _packetsPerFrame.load()
+            _packetsPerFrame.load(),
+            frameReadyTimestamp.load(),
+            presentation.load()
         };
+    }
+
+    // Update history with current snapshot (call after each frame is processed)
+    void updateHistory() {
+        auto snap = snapshot();
+        std::lock_guard<std::mutex> lock(historyMutex_);
+        history_.push_back(snap);
+        if (history_.size() > HISTORY_SIZE) {
+            history_.pop_front();
+        }
+    }
+
+    // Get averaged snapshot over the last N frames
+    CameraStatsSnapshot averagedSnapshot() const {
+        std::lock_guard<std::mutex> lock(historyMutex_);
+
+        if (history_.empty()) {
+            return snapshot(); // Return current if no history
+        }
+
+        CameraStatsSnapshot avg{};
+        for (const auto& snap : history_) {
+            avg.prevTimestamp += snap.prevTimestamp;
+            avg.currTimestamp += snap.currTimestamp;
+            avg.fps += snap.fps;
+            avg.vidConv += snap.vidConv;
+            avg.enc += snap.enc;
+            avg.rtpPay += snap.rtpPay;
+            avg.udpStream += snap.udpStream;
+            avg.rtpDepay += snap.rtpDepay;
+            avg.dec += snap.dec;
+            avg.queue += snap.queue;
+            avg.totalLatency += snap.totalLatency;
+            avg.presentation += snap.presentation;
+            // Note: frameId and _packetsPerFrame from most recent
+        }
+
+        size_t count = history_.size();
+        avg.prevTimestamp /= count;
+        avg.currTimestamp /= count;
+        avg.fps /= count;
+        avg.vidConv /= count;
+        avg.enc /= count;
+        avg.rtpPay /= count;
+        avg.udpStream /= count;
+        avg.rtpDepay /= count;
+        avg.dec /= count;
+        avg.queue /= count;
+        avg.totalLatency /= count;
+        avg.presentation /= count;
+
+        // Use most recent values for these
+        avg.frameId = history_.back().frameId;
+        avg._packetsPerFrame = history_.back()._packetsPerFrame;
+        avg.rtpPayTimestamp = history_.back().rtpPayTimestamp;
+        avg.udpSrcTimestamp = history_.back().udpSrcTimestamp;
+        avg.rtpDepayTimestamp = history_.back().rtpDepayTimestamp;
+        avg.decTimestamp = history_.back().decTimestamp;
+        avg.queueTimestamp = history_.back().queueTimestamp;
+        avg.frameReadyTimestamp = history_.back().frameReadyTimestamp;
+
+        return avg;
     }
 };
 
