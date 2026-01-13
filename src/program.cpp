@@ -667,7 +667,7 @@ void TelepresenceProgram::HandleControllers() {
                     break;
                 case 4: // Bitrate
                     if (appState_->streamingConfig.bitrate < 100000000) {
-                        appState_->streamingConfig.bitrate += 100000;
+                        appState_->streamingConfig.bitrate += 1000000;
                     }
                     appState_->guiControl.changesEnqueued = true;
                     break;
@@ -751,8 +751,8 @@ void TelepresenceProgram::HandleControllers() {
                     appState_->guiControl.changesEnqueued = true;
                     break;
                 case 4: // Bitrate
-                    if (appState_->streamingConfig.bitrate > 100000) {
-                        appState_->streamingConfig.bitrate -= 100000;
+                    if (appState_->streamingConfig.bitrate > 1000000) {
+                        appState_->streamingConfig.bitrate -= 1000000;
                     }
                     appState_->guiControl.changesEnqueued = true;
                     break;

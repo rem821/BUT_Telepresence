@@ -8,13 +8,19 @@
 #include <gst/gl/gstglmemory.h>
 #include <GLES2/gl2ext.h>
 
-#define SINK_CAPS \
-    "video/x-raw(memory:GLMemory), "                         \
-    "format = (string) RGBA, "                               \
-    "width = (int) [ 1, max ], "        \
-    "height = (int) [ 1, max ], "      \
-    "framerate = (fraction) [ 0/1, max ], " \
+#define SINK_CAPS                                     \
+    "video/x-raw(memory:GLMemory), "                  \
+    "format = (string) RGBA, "                        \
+    "width = (int) [ 1, max ], "                      \
+    "height = (int) [ 1, max ], "                     \
+    "framerate = (fraction) [ 0/1, max ], "           \
     "texture-target = (string) { 2D, external-oes } "
+
+#define DECODER_CAPS                                  \
+    "video/x-h264"                                    \
+    "stream-format=byte-stream"                       \
+    "alignment=au"                                    \
+    "parsed=true"
 
 GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair_(camPair), ntpTimer_(ntpTimer) {
     guint major, minor, micro, nano;
@@ -24,22 +30,28 @@ GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair
     //listAvailableDecoders();
     //listGstreamerPlugins();
 
-//    GstElementFactory *factory = gst_element_factory_find("amcviddec-omxqcomvideodecoderavc");
-//    if (factory) {
-//        const GList *pads = gst_element_factory_get_static_pad_templates(factory);
-//        for (const GList *pad = pads; pad != nullptr; pad = pad->next) {
-//            GstPadTemplate *template_ = static_cast<GstPadTemplate *>(pad->data);
-//
-//            const gchar *pad_name = template_->name_template;
-//            const gchar *direction = (template_->direction == GST_PAD_SRC) ? "SRC" : "SINK";
-//
-//            LOG_INFO("Gstreamer: Pad: %s | Direction: %s", pad_name, direction);
-//        }
-//
-//        gst_object_unref(factory);
-//    } else {
-//        LOG_ERROR("Gstreamer: Element factory not found for amcviddec-omxqcomvideodecoderavc");
-//    }
+    GstElementFactory *factory = gst_element_factory_find("amcviddec-omxqcomvideodecoderhevc");
+    if (factory) {
+        const GList *pads = gst_element_factory_get_static_pad_templates(factory);
+        for (const GList *pad = pads; pad != nullptr; pad = pad->next) {
+            auto *templ = static_cast<GstStaticPadTemplate *>(pad->data);
+
+            const gchar *pad_name = templ->name_template;
+            const gchar *direction = (templ->direction == GST_PAD_SRC) ? "SRC" : "SINK";
+
+            GstCaps *caps = gst_static_pad_template_get_caps(templ);
+            gchar *caps_str = gst_caps_to_string(caps);
+
+            LOG_INFO("Gstreamer: Pad: %s caps: %s | Direction: %s", pad_name, caps_str, direction);
+
+            g_free(caps_str);
+            gst_caps_unref(caps);
+        }
+
+        gst_object_unref(factory);
+    } else {
+        LOG_ERROR("Gstreamer: Element factory not found for amcviddec-omxqcomvideodecoderhevc");
+    }
 
 //    GList *list = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODER, GST_RANK_NONE);
 //    for (GList *l = list; l; l = l->next) {
@@ -104,11 +116,11 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
     camPair_->second.stats = new CameraStats();
 
     auto *emptyFrameLeft = new unsigned char[camPair_->first.memorySize];
-    memset(emptyFrameLeft, 0, sizeof(emptyFrameLeft));
+    memset(emptyFrameLeft, 0, camPair_->first.memorySize);
     camPair_->first.dataHandle = (void *) emptyFrameLeft;
 
     auto *emptyFrameRight = new unsigned char[camPair_->second.memorySize];
-    memset(emptyFrameRight, 0, sizeof(emptyFrameRight));
+    memset(emptyFrameRight, 0, camPair_->second.memorySize);
     camPair_->second.dataHandle = (void *) emptyFrameRight;
 
     camPair_->first.frameWidth = config.resolution.getWidth();
@@ -240,16 +252,23 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_caps_unref(new_caps_left);
         gst_object_unref(rtp_capsfilter_left);
 
+        GstElement *leftdec = nullptr;
         GstElement *leftglsink = nullptr;
         GstElement *leftappsink = nullptr;
         if (config.codec != Codec::JPEG) {
+            if(config.codec == Codec::H264) {
+                leftdec = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "dec");
+                g_autoptr(GstCaps) caps_dec = buildDecoderSrcCaps(config.codec, config.resolution.width, config.resolution.height, config.fps);
+                g_object_set(leftdec, "caps", caps_dec, NULL);
+            }
+
             leftglsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "glsink");
             gst_element_set_context(leftglsink, gContext_);
 
-            g_autoptr(GstCaps) caps = gst_caps_from_string(SINK_CAPS);
+            g_autoptr(GstCaps) caps_sink = gst_caps_from_string(SINK_CAPS);
             leftappsink = gst_element_factory_make("appsink", nullptr);
             gst_element_set_context(leftappsink, gContext_);
-            g_object_set(leftappsink, "caps", caps, "max-buffers", 1, "drop", true, "emit-signals", true, "sync", true, NULL);
+            g_object_set(leftappsink, "caps", caps_sink, "max-buffers", 1, "drop", true, "emit-signals", true, "sync", true, NULL);
 
             g_autoptr(GstElement) glsinkbin = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "glsink");
             g_object_set(glsinkbin, "sink", leftappsink, NULL);
@@ -269,12 +288,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineLeft_);
         g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineLeft_);
         g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineLeft_);
-        if (config.codec != Codec::JPEG) {
-            //g_signal_connect(G_OBJECT(leftglsink), "client-draw", (GCallback) GstreamerPlayer::onClientDraw, callbackObj_);
-            g_signal_connect(G_OBJECT(leftappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
-        } else {
-            g_signal_connect(G_OBJECT(leftappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
-        }
+        g_signal_connect(G_OBJECT(leftappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
         g_signal_connect(G_OBJECT(leftudpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
         g_signal_connect(G_OBJECT(leftrtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
         g_signal_connect(G_OBJECT(leftdec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
@@ -284,6 +298,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(leftdec_ident);
         gst_object_unref(leftqueue_ident);
         if (config.codec != Codec::JPEG) {
+            gst_object_unref(leftdec);
             gst_object_unref(leftglsink);
         }
         gst_object_unref(leftappsink);
@@ -317,9 +332,16 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_caps_unref(new_caps_right);
         gst_object_unref(rtp_capsfilter_right);
 
+        GstElement *rightdec = nullptr;
         GstElement *rightglsink = nullptr;
         GstElement *rightappsink = nullptr;
         if (config.codec != Codec::JPEG) {
+            if(config.codec == Codec::H264) {
+                rightdec = gst_bin_get_by_name(GST_BIN(pipelineRight_), "dec");
+                g_autoptr(GstCaps) caps_dec = buildDecoderSrcCaps(config.codec, config.resolution.width, config.resolution.height, config.fps);
+                g_object_set(rightdec, "caps", caps_dec, NULL);
+            }
+
             rightglsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "glsink");
             gst_element_set_context(rightglsink, gContext_);
 
@@ -345,11 +367,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         g_signal_connect(G_OBJECT(bus), "message::warning", (GCallback) warningCallback, pipelineRight_);
         g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineRight_);
         g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineRight_);
-        if (config.codec != Codec::JPEG) {
-            g_signal_connect(G_OBJECT(rightappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
-        } else {
-            g_signal_connect(G_OBJECT(rightappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
-        }
+        g_signal_connect(G_OBJECT(rightappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
         g_signal_connect(G_OBJECT(rightudpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
         g_signal_connect(G_OBJECT(rightrtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
         g_signal_connect(G_OBJECT(rightdec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
@@ -359,6 +377,7 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(rightdec_ident);
         gst_object_unref(rightqueue_ident);
         if (config.codec != Codec::JPEG) {
+            gst_object_unref(rightdec);
             gst_object_unref(rightglsink);
         }
         gst_object_unref(rightappsink);
@@ -648,6 +667,23 @@ GstPadProbeReturn GstreamerPlayer::udpPacketProbeCallback(GstPad *pad, GstPadPro
     //LOG_INFO("[UDP Packet] Arrived. Interval: %lld ms", elapsed);
 
     return GST_PAD_PROBE_OK;
+}
+
+GstCaps* GstreamerPlayer::buildDecoderSrcCaps(Codec codec, int width, int height, int fps) {
+    const char* media_type = codec == Codec::H265 ? "video/x-h265" : "video/x-h264";
+
+    GstCaps* caps = gst_caps_new_simple(
+            media_type,
+            "width",          G_TYPE_INT,     width,
+            "height",         G_TYPE_INT,     height,
+            "framerate",      GST_TYPE_FRACTION, fps, 1,
+            "stream-format",  G_TYPE_STRING, "byte-stream",
+            "alignment",      G_TYPE_STRING, "au",
+            "parsed",         G_TYPE_BOOLEAN, TRUE,
+            nullptr
+    );
+
+    return caps;
 }
 
 void GstreamerPlayer::listAvailableDecoders() {

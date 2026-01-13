@@ -125,37 +125,40 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, R
         azimuth += (azimuth - azimuth_center) * movementRange.speedMultiplier;
         elevation += (elevation - elevation_center) * movementRange.speedMultiplier;
 
-        if (azimuth < movementRange.azimuthMin) {
-            azimuth = movementRange.azimuthMin;
+        azimuthFiltered = azimuthFiltered * (1.0f - filterAlpha) + azimuth * filterAlpha;
+        elevationFiltered = elevationFiltered * (1.0f - filterAlpha) + elevation * filterAlpha;
+
+        if (azimuthFiltered < movementRange.azimuthMin) {
+            azimuthFiltered = movementRange.azimuthMin;
         }
-        if (azimuth > movementRange.azimuthMax) {
-            azimuth = movementRange.azimuthMax;
+        if (azimuthFiltered > movementRange.azimuthMax) {
+            azimuthFiltered = movementRange.azimuthMax;
         }
-        if (elevation < movementRange.elevationMin) {
-            elevation = movementRange.elevationMin;
+        if (elevationFiltered < movementRange.elevationMin) {
+            elevationFiltered = movementRange.elevationMin;
         }
-        if (elevation > movementRange.elevationMax) {
-            elevation = movementRange.elevationMax;
+        if (elevationFiltered > movementRange.elevationMax) {
+            elevationFiltered = movementRange.elevationMax;
         }
 
         int32_t azRevol = 0;
         int32_t elRevol = 0;
-        if (azimuth < 0) {
+        if (azimuthFiltered < 0) {
             azRevol = -1;
         }
-        if (elevation < 0) {
+        if (elevationFiltered < 0) {
             elRevol = -1;
         }
 
         //LOG_INFO("Sending - Azimuth: %d, Elevation: %d", azimuth, elevation);
-        auto azAngleBytes = serializeLEInt(azimuth);
+        auto azAngleBytes = serializeLEInt(azimuthFiltered);
         auto azRevolBytes = serializeLEInt(azRevol);
-        auto elAngleBytes = serializeLEInt(elevation);
+        auto elAngleBytes = serializeLEInt(elevationFiltered);
         auto elRevolBytes = serializeLEInt(elRevol);
         if (azimuthElevationReversed) {
-            azAngleBytes = serializeLEInt(elevation);
+            azAngleBytes = serializeLEInt(elevationFiltered);
             azRevolBytes = serializeLEInt(elRevol);
-            elAngleBytes = serializeLEInt(azimuth);
+            elAngleBytes = serializeLEInt(azimuthFiltered);
             elRevolBytes = serializeLEInt(azRevol);
         }
 
@@ -345,17 +348,5 @@ ServoCommunicator::AzimuthElevation ServoCommunicator::quaternionToAzimuthElevat
     azimuth = atan2(2 * q.y * q.w - 2 * q.x * q.z, 1 - 2 * sqy - 2 * sqz);
     elevation = atan2(2 * q.x * q.w - 2 * q.y * q.z, 1 - 2 * sqx - 2 * sqz);
 
-//    if (elevation < -M_PI / 2) {
-//        elevation = -M_PI / 2;
-//    }
-//    if (elevation > M_PI / 2) {
-//        elevation = M_PI / 2;
-//    }
-
-//    if (azimuth < -M_PI / 2) azimuth = -M_PI / 2;
-//    if (azimuth > M_PI / 2) azimuth = M_PI / 2;
-//
-
-    //LOG_INFO("quat x: %2.2f, y: %2.2f, z: %2.2f, w: %2.2f; Azimuth: %2.2f, Elevation: %2.2f", q.x, q.y, q.z, q.w, azimuth, elevation + 0.5f);
     return AzimuthElevation{azimuth, elevation + 0.5f};
 }
