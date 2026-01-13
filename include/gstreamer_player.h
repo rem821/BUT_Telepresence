@@ -44,6 +44,8 @@ private:
 
     void listGstreamerPlugins();
 
+    GstCaps* buildDecoderSrcCaps(Codec codec, int width, int height, int fps);
+
     GstElement *pipelineLeft_{}, *pipelineRight_{}, *pipelineCombined_{};
     GstContext *gContext_{};
     GMainContext *gMainContext_{};
@@ -56,8 +58,8 @@ private:
     NtpTimer *ntpTimer_;
 
     const std::string jpegPipeline_ =   "udpsrc name=udpsrc ! capsfilter name=rtp_capsfilter caps=\"application/x-rtp, media=video, encoding-name=JPEG, payload=26, clock-rate=90000\" ! identity name=udpsrc_ident ! rtpjitterbuffer latency=50 do-lost=true drop-on-latency=true do-retransmission=false ! rtpjpegdepay ! identity name=rtpdepay_ident ! jpegparse ! jpegdec ! videoconvert ! video/x-raw,format=RGB ! identity name=dec_ident ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
-    const std::string h264Pipeline_ =   "udpsrc name=udpsrc ! capsfilter name=rtp_capsfilter caps=\"application/x-rtp, encoding-name=H264, media=video, clock-rate=90000, payload=96\" ! identity name=udpsrc_ident ! rtpjitterbuffer latency=50 do-lost=true drop-on-latency=true do-retransmission=false ! rtph264depay ! identity name=rtpdepay_ident ! h264parse config-interval=-1 ! queue ! video/x-h264, stream-format=byte-stream, alignment=au, parsed=true ! amcviddec-omxqcomvideodecoderavc ! identity name=dec_ident ! queue ! identity name=queue_ident ! glsinkbin name=glsink";
-    const std::string h265Pipeline_ =   "udpsrc name=udpsrc ! capsfilter name=rtp_capsfilter caps=\"application/x-rtp, encoding-name=H265, media=video, clock-rate=90000, payload=96\" ! identity name=udpsrc_ident ! rtpjitterbuffer latency=50 do-lost=true drop-on-latency=true do-retransmission=false ! rtph265depay ! identity name=rtpdepay_ident ! h265parse config-interval=-1 ! queue ! video/x-h265, stream-format=byte-stream, alignment=au, parsed=true ! amcviddec-omxqcomvideodecoderhevc ! identity name=dec_ident ! queue ! identity name=queue_ident ! glsinkbin name=glsink";
+    const std::string h264Pipeline_ =   "udpsrc name=udpsrc ! capsfilter name=rtp_capsfilter caps=\"application/x-rtp, encoding-name=H264, media=video, clock-rate=90000, payload=96\" ! identity name=udpsrc_ident ! rtpjitterbuffer latency=50 do-lost=true drop-on-latency=true do-retransmission=false ! rtph264depay ! identity name=rtpdepay_ident ! h264parse config-interval=-1 ! queue ! video/x-h264, stream-format=byte-stream, alignment=au, parsed=true ! amcviddec-omxqcomvideodecoderavc name=dec ! identity name=dec_ident ! queue ! identity name=queue_ident ! glsinkbin name=glsink";
+    const std::string h265Pipeline_ =   "udpsrc name=udpsrc ! capsfilter name=rtp_capsfilter caps=\"application/x-rtp, encoding-name=H265, media=video, clock-rate=90000, payload=96\" ! identity name=udpsrc_ident ! rtpjitterbuffer latency=50 do-lost=true drop-on-latency=true do-retransmission=false ! rtph265depay ! identity name=rtpdepay_ident ! h265parse config-interval=-1 ! queue ! video/x-h265, width=1920, height=1080, framerate=60/1, stream-format=byte-stream, alignment=au, parsed=true ! amcviddec-omxqcomvideodecoderhevc name=dec ! identity name=dec_ident ! queue ! identity name=queue_ident ! glsinkbin name=glsink";
 
     const std::string jpegPipelineCombined_ = "udpsrc name=udpsrc ! capsfilter name=rtp_capsfilter caps=\"application/x-rtp, encoding-name=JPEG, payload=26\" ! identity name=udpsrc_ident ! rtpjpegdepay ! identity name=rtpdepay_ident ! jpegparse ! jpegdec ! videoconvert ! video/x-raw,format=RGB ! identity name=dec_ident ! identity name=queue_ident ! appsink emit-signals=true name=appsink sync=false";
 };

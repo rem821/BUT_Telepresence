@@ -35,7 +35,7 @@ int RestClient::StartStream() {
         default:
             break;
     }
-    std::string req = json{{"bitrate",          std::to_string(config_.bitrate)},
+    std::string req = json{{"bitrate",          config_.bitrate},
                            {"codec",            codec},
                            {"encoding_quality", config_.encodingQuality},
                            {"fps",              config_.fps},
@@ -79,7 +79,7 @@ StreamingConfig RestClient::GetStreamingConfig() {
 }
 
 int RestClient::UpdateStreamingConfig(const StreamingConfig &config) {
-    std::string req = json{{"bitrate",          std::to_string(config.bitrate)},
+    std::string req = json{{"bitrate",          config.bitrate},
                            {"codec",            CodecToString(config.codec)},
                            {"encoding_quality", config.encodingQuality},
                            {"fps",              config.fps},

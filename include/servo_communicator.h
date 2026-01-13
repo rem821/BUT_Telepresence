@@ -99,6 +99,9 @@ private:
 
     int32_t frameId_ = 0;
 
+    int32_t azimuthFiltered, elevationFiltered;
+    float filterAlpha = 0.15f;
+
     int socket_ = -1;
     sockaddr_in myAddr_{}, destAddr_{};
     std::future<void> threadFuture_;
