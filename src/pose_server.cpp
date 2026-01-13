@@ -240,7 +240,7 @@ void PoseServer::setMode() {
     });
 }
 
-void PoseServer::setFrameLatencyMessage(const CameraStats cameraStats) {
+void PoseServer::setFrameLatencyMessage(const CameraStatsSnapshot cameraStats) {
     std::lock_guard<std::mutex> lock(queueMutex_);
 
     taskQueue_.emplace(FRAME_LATENCY, [this, cameraStats]() {

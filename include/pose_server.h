@@ -94,7 +94,7 @@ public:
     void setMode();
 
     //Set an additional debugging message to be sent to the client containing latency info
-    void setFrameLatencyMessage(const CameraStats cameraStats);
+    void setFrameLatencyMessage(const CameraStatsSnapshot cameraStats);
 
 private:
 
