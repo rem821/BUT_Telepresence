@@ -16,7 +16,7 @@ public:
 
     explicit GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer);
 
-    ~GstreamerPlayer() = default;
+    ~GstreamerPlayer();
 
     void configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config, const bool combinedStreaming);
 

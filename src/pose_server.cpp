@@ -149,41 +149,47 @@ void PoseServer::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, RobotMov
         azimuth += (azimuth - azimuth_center) * movementRange.speedMultiplier;
         elevation += (elevation - elevation_center + 200'000'000) * movementRange.speedMultiplier;
 
-        azimuthFiltered = azimuthFiltered * (1.0f - filterAlpha) + azimuth * filterAlpha;
-        elevationFiltered = elevationFiltered * (1.0f - filterAlpha) + elevation * filterAlpha;
+        // Protect filter value access with mutex
+        std::vector<uint8_t> azAngleBytes, azRevolBytes, elAngleBytes, elRevolBytes;
+        {
+            std::lock_guard<std::mutex> lock(filterMutex_);
 
-        if (azimuthFiltered < movementRange.azimuthMin) {
-            azimuthFiltered = movementRange.azimuthMin;
-        }
-        if (azimuthFiltered > movementRange.azimuthMax) {
-            azimuthFiltered = movementRange.azimuthMax;
-        }
-        if (elevationFiltered < movementRange.elevationMin) {
-            elevationFiltered = movementRange.elevationMin;
-        }
-        if (elevationFiltered > movementRange.elevationMax) {
-            elevationFiltered = movementRange.elevationMax;
-        }
+            azimuthFiltered = azimuthFiltered * (1.0f - filterAlpha) + azimuth * filterAlpha;
+            elevationFiltered = elevationFiltered * (1.0f - filterAlpha) + elevation * filterAlpha;
 
-        int32_t azRevol = 0;
-        int32_t elRevol = 0;
-        if (azimuthFiltered < 0) {
-            azRevol = -1;
-        }
-        if (elevationFiltered < 0) {
-            elRevol = -1;
-        }
+            if (azimuthFiltered < movementRange.azimuthMin) {
+                azimuthFiltered = movementRange.azimuthMin;
+            }
+            if (azimuthFiltered > movementRange.azimuthMax) {
+                azimuthFiltered = movementRange.azimuthMax;
+            }
+            if (elevationFiltered < movementRange.elevationMin) {
+                elevationFiltered = movementRange.elevationMin;
+            }
+            if (elevationFiltered > movementRange.elevationMax) {
+                elevationFiltered = movementRange.elevationMax;
+            }
 
-        //LOG_INFO("Sending - Azimuth: %d, Elevation: %d", azimuth, elevation);
-        auto azAngleBytes = serializeLEInt(azimuthFiltered);
-        auto azRevolBytes = serializeLEInt(azRevol);
-        auto elAngleBytes = serializeLEInt(elevationFiltered);
-        auto elRevolBytes = serializeLEInt(elRevol);
-        if (azimuthElevationReversed) {
-            azAngleBytes = serializeLEInt(elevationFiltered);
-            azRevolBytes = serializeLEInt(elRevol);
-            elAngleBytes = serializeLEInt(azimuthFiltered);
-            elRevolBytes = serializeLEInt(azRevol);
+            int32_t azRevol = 0;
+            int32_t elRevol = 0;
+            if (azimuthFiltered < 0) {
+                azRevol = -1;
+            }
+            if (elevationFiltered < 0) {
+                elRevol = -1;
+            }
+
+            //LOG_INFO("Sending - Azimuth: %d, Elevation: %d", azimuth, elevation);
+            azAngleBytes = serializeLEInt(azimuthFiltered);
+            azRevolBytes = serializeLEInt(azRevol);
+            elAngleBytes = serializeLEInt(elevationFiltered);
+            elRevolBytes = serializeLEInt(elRevol);
+            if (azimuthElevationReversed) {
+                azAngleBytes = serializeLEInt(elevationFiltered);
+                azRevolBytes = serializeLEInt(elRevol);
+                elAngleBytes = serializeLEInt(azimuthFiltered);
+                elRevolBytes = serializeLEInt(azRevol);
+            }
         }
 
         auto speedBytes = serializeLEInt(speed);

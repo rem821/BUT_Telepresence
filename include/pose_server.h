@@ -128,12 +128,14 @@ private:
     std::mutex queueMutex_;
     std::condition_variable cv_;
 
-    int32_t frameId_ = 0;
+    std::atomic<int32_t> frameId_{0};
 
+    std::mutex filterMutex_;
     int32_t azimuthFiltered, elevationFiltered;
     float filterAlpha = 0.2f;
 
     MessagePriorityQueue<std::function<void()>> taskQueue_;
 
-    uint64_t commStart_{}, commEnd_{};
+    std::atomic<uint64_t> commStart_{0};
+    std::atomic<uint64_t> commEnd_{0};
 };

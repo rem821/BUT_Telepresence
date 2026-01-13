@@ -116,7 +116,7 @@ AppState StateStorage::LoadAppState() {
         appState.robotMovementRange.setRobotType(StringToRobotType(LoadValue(sharedPreferences, getString, "robot_type")));
         appState.robotControlEnabled = std::stoi(LoadValue(sharedPreferences, getString, "robot_control_enabled"));
 
-    } catch(std::exception e) {
+    } catch(const std::exception& e) {
         env_->DeleteLocalRef(sharedPreferences);
         env_->DeleteLocalRef(prefsClass);
         env_->DeleteLocalRef(contextClass);

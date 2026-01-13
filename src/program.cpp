@@ -94,8 +94,9 @@ void TelepresenceProgram::RenderFrame() {
     auto end = std::chrono::high_resolution_clock::now();
     appState_->appFrameTime = std::chrono::duration_cast<std::chrono::microseconds>(
             end - frameStart_).count();
-    appState_->appFrameRate = 1e6f / std::chrono::duration_cast<std::chrono::microseconds>(
+    auto frameDuration = std::chrono::duration_cast<std::chrono::microseconds>(
             frameStart_ - prevFrameStart_).count();
+    appState_->appFrameRate = (frameDuration > 0) ? (1e6f / frameDuration) : 0.0f;
 }
 
 bool TelepresenceProgram::RenderLayer(XrTime displayTime,

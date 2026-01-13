@@ -10,6 +10,8 @@
 #include "BS_thread_pool.hpp"
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <atomic>
+#include <mutex>
 
 class ServoCommunicator {
     enum Operation {
@@ -93,12 +95,13 @@ private:
 
     static AzimuthElevation quaternionToAzimuthElevation(XrQuaternionf quat);
 
-    bool isInitialized_ = false;
-    bool isReady_ = false;
-    bool servosEnabled_ = false;
+    std::atomic<bool> isInitialized_{false};
+    std::atomic<bool> isReady_{false};
+    std::atomic<bool> servosEnabled_{false};
 
-    int32_t frameId_ = 0;
+    std::atomic<int32_t> frameId_{0};
 
+    std::mutex filterMutex_;
     int32_t azimuthFiltered, elevationFiltered;
     float filterAlpha = 0.15f;
 

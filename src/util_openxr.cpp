@@ -70,7 +70,8 @@ void openxr_create_instance(android_app *app, XrInstance *instance) {
     createInfo.enabledExtensionCount = extensions.size();
     createInfo.enabledExtensionNames = extensions.data();
 
-    strcpy(createInfo.applicationInfo.applicationName, "BUT_Telepresence");
+    strncpy(createInfo.applicationInfo.applicationName, "BUT_Telepresence", XR_MAX_APPLICATION_NAME_SIZE - 1);
+    createInfo.applicationInfo.applicationName[XR_MAX_APPLICATION_NAME_SIZE - 1] = '\0';
     createInfo.applicationInfo.apiVersion = XR_API_VERSION_1_0;
 
     CHECK_XRCMD(xrCreateInstance(&createInfo, instance))
@@ -511,8 +512,10 @@ openxr_create_actionset(XrInstance *instance, std::string name, std::string loca
     XrActionSet actionset;
     XrActionSetCreateInfo ci = {XR_TYPE_ACTION_SET_CREATE_INFO};
     ci.priority = priority;
-    strcpy(ci.actionSetName, name.c_str());
-    strcpy(ci.localizedActionSetName, localized_name.c_str());
+    strncpy(ci.actionSetName, name.c_str(), XR_MAX_ACTION_SET_NAME_SIZE - 1);
+    ci.actionSetName[XR_MAX_ACTION_SET_NAME_SIZE - 1] = '\0';
+    strncpy(ci.localizedActionSetName, localized_name.c_str(), XR_MAX_LOCALIZED_ACTION_SET_NAME_SIZE - 1);
+    ci.localizedActionSetName[XR_MAX_LOCALIZED_ACTION_SET_NAME_SIZE - 1] = '\0';
     CHECK_XRCMD(xrCreateActionSet(*instance, &ci, &actionset))
 
     return actionset;
