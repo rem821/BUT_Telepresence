@@ -11,6 +11,7 @@
 #include <sstream>
 #include <vector>
 #include <unordered_map>
+#include <atomic>
 
 //#define POSE_SERVER_MODE
 
@@ -21,7 +22,6 @@ constexpr int IP_CONFIG_REST_API_PORT = 32281;
 constexpr int IP_CONFIG_SERVO_PORT = 32115;
 constexpr int IP_CONFIG_LEFT_CAMERA_PORT = 8554;
 constexpr int IP_CONFIG_RIGHT_CAMERA_PORT = 8556;
-constexpr int IP_CONFIG_COMBINED_CAMERA_PORT = 8554;
 constexpr int IP_CONFIG_ROS_GATEWAY_PORT = 8502;
 
 inline std::string resolveIPv4(const std::string& hostname) {
@@ -392,7 +392,8 @@ private:
     }
 };
 
-struct CameraStats {
+// Copyable snapshot of camera stats for passing values around
+struct CameraStatsSnapshot {
     double prevTimestamp, currTimestamp;
     double fps;
     uint64_t vidConv, enc, rtpPay, udpStream, rtpDepay, dec, queue;
@@ -400,6 +401,31 @@ struct CameraStats {
     uint64_t totalLatency;
     uint64_t frameId;
     uint16_t _packetsPerFrame;
+};
+
+struct CameraStats {
+    std::atomic<double> prevTimestamp{0.0}, currTimestamp{0.0};
+    std::atomic<double> fps{0.0};
+    std::atomic<uint64_t> vidConv{0}, enc{0}, rtpPay{0}, udpStream{0}, rtpDepay{0}, dec{0}, queue{0};
+    std::atomic<uint64_t> rtpPayTimestamp{0}, udpSrcTimestamp{0}, rtpDepayTimestamp{0}, decTimestamp{0}, queueTimestamp{0};
+    std::atomic<uint64_t> totalLatency{0};
+    std::atomic<uint64_t> frameId{0};
+    std::atomic<uint16_t> _packetsPerFrame{0};
+
+    // Create a copyable snapshot of current values
+    CameraStatsSnapshot snapshot() const {
+        return CameraStatsSnapshot{
+            prevTimestamp.load(), currTimestamp.load(),
+            fps.load(),
+            vidConv.load(), enc.load(), rtpPay.load(), udpStream.load(),
+            rtpDepay.load(), dec.load(), queue.load(),
+            rtpPayTimestamp.load(), udpSrcTimestamp.load(), rtpDepayTimestamp.load(),
+            decTimestamp.load(), queueTimestamp.load(),
+            totalLatency.load(),
+            frameId.load(),
+            _packetsPerFrame.load()
+        };
+    }
 };
 
 struct CameraFrame {

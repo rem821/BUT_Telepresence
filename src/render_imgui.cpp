@@ -218,10 +218,12 @@ static void render_settings_gui(const std::shared_ptr<AppState> &appState) {
         ImGui::Text("Latencies:");
         auto s = appState->cameraStreamingStates.first.stats;
         if (s) {
+            // Take atomic snapshot to ensure all values are from the same frame
+            auto snapshot = s->snapshot();
             ImGui::Text(
                     "vidConv: %lu, enc: %lu, rtpPay: %lu\nudpStream: %lu\nrtpDepay: %lu, dec: %lu",
-                    s->vidConv / 1000, s->enc / 1000, s->rtpPay / 1000, s->udpStream / 1000,
-                    s->rtpDepay / 1000, s->dec / 1000); //, s->queue / 1000);
+                    snapshot.vidConv / 1000, snapshot.enc / 1000, snapshot.rtpPay / 1000,
+                    snapshot.udpStream / 1000, snapshot.rtpDepay / 1000, snapshot.dec / 1000);
         }
 
 

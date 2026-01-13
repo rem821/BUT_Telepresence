@@ -151,7 +151,7 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
 
 #ifdef POSE_SERVER_MODE
         //Send out a debugging message for logging
-        poseServer_->setFrameLatencyMessage(*imageHandle->stats);
+        poseServer_->setFrameLatencyMessage(imageHandle->stats->snapshot());
 #endif
 
         HandleControllers();
@@ -577,7 +577,7 @@ void TelepresenceProgram::InitializeStreaming() {
     restClient_->StopStream();
     restClient_->StartStream();
 
-    gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig, false);
+    gstreamerPlayer_->configurePipelines(gstreamerThreadPool_, appState_->streamingConfig);
 }
 
 void TelepresenceProgram::HandleControllers() {
@@ -814,7 +814,7 @@ void TelepresenceProgram::HandleControllers() {
         else if (userState_.triggerValue[Side::LEFT] > 0.9f && appState_->guiControl.focusedElement == 9) {
             stateStorage_->SaveAppState(*appState_);
             init_scene(appState_->streamingConfig.resolution.getWidth(), appState_->streamingConfig.resolution.getHeight(), true);
-            gstreamerPlayer_->configurePipeline(gstreamerThreadPool_, appState_->streamingConfig, false);
+            gstreamerPlayer_->configurePipelines(gstreamerThreadPool_, appState_->streamingConfig);
             //servoCommunicator_ = nullptr;
             restClient_->UpdateStreamingConfig(appState_->streamingConfig);
             appState_->guiControl.changesEnqueued = true;
