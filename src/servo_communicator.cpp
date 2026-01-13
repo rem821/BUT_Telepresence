@@ -4,6 +4,7 @@
 #include <cstring>
 #include <bitset>
 #include <sstream>
+#include <unistd.h>
 #include "servo_communicator.h"
 
 constexpr int RESPONSE_TIMEOUT_US = 50000;
@@ -15,7 +16,8 @@ constexpr unsigned char IDENTIFIER_2 = 0x54;
 ServoCommunicator::ServoCommunicator(BS::thread_pool<BS::tp::none> &threadPool, StreamingConfig &config) : socket_(socket(AF_INET, SOCK_DGRAM, 0)) {
 
     if (socket_ < 0) {
-        LOG_ERROR("socket creation failed");
+        LOG_ERROR("ServoCommunicator: socket creation failed - errno: %d", errno);
+        isInitialized_ = false;
         return;
     }
 
@@ -25,7 +27,11 @@ ServoCommunicator::ServoCommunicator(BS::thread_pool<BS::tp::none> &threadPool, 
     myAddr_.sin_port = htons(IP_CONFIG_SERVO_PORT);
 
     if (bind(socket_, (sockaddr *) &myAddr_, sizeof(myAddr_)) < 0) {
-        LOG_ERROR("bind socket failed");
+        LOG_ERROR("ServoCommunicator: bind socket failed - errno: %d", errno);
+        close(socket_);
+        socket_ = -1;
+        isInitialized_ = false;
+        return;
     }
 
     timeval timeout{};
@@ -33,13 +39,20 @@ ServoCommunicator::ServoCommunicator(BS::thread_pool<BS::tp::none> &threadPool, 
     timeout.tv_usec = RESPONSE_TIMEOUT_US;
 
     if (setsockopt(socket_, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
-        LOG_ERROR("setsockopt failed");
+        LOG_ERROR("ServoCommunicator: setsockopt failed - errno: %d", errno);
+        close(socket_);
+        socket_ = -1;
+        isInitialized_ = false;
+        return;
     }
 
     memset(&destAddr_, 0, sizeof(destAddr_));
     destAddr_.sin_family = AF_INET;
     destAddr_.sin_addr.s_addr = inet_addr(IpToString(config.jetson_ip).c_str());
     destAddr_.sin_port = htons(IP_CONFIG_SERVO_PORT);
+
+    // Socket initialized successfully
+    LOG_INFO("ServoCommunicator: Socket initialized successfully");
 
     setMode(threadPool);
 }
@@ -125,41 +138,47 @@ void ServoCommunicator::setPoseAndSpeed(XrQuaternionf quatPose, int32_t speed, R
         azimuth += (azimuth - azimuth_center) * movementRange.speedMultiplier;
         elevation += (elevation - elevation_center) * movementRange.speedMultiplier;
 
-        azimuthFiltered = azimuthFiltered * (1.0f - filterAlpha) + azimuth * filterAlpha;
-        elevationFiltered = elevationFiltered * (1.0f - filterAlpha) + elevation * filterAlpha;
+        // Protect filter value access with mutex
+        std::vector<uint8_t> azAngleBytes, azRevolBytes, elAngleBytes, elRevolBytes;
+        {
+            std::lock_guard<std::mutex> lock(filterMutex_);
 
-        if (azimuthFiltered < movementRange.azimuthMin) {
-            azimuthFiltered = movementRange.azimuthMin;
-        }
-        if (azimuthFiltered > movementRange.azimuthMax) {
-            azimuthFiltered = movementRange.azimuthMax;
-        }
-        if (elevationFiltered < movementRange.elevationMin) {
-            elevationFiltered = movementRange.elevationMin;
-        }
-        if (elevationFiltered > movementRange.elevationMax) {
-            elevationFiltered = movementRange.elevationMax;
-        }
+            azimuthFiltered = azimuthFiltered * (1.0f - filterAlpha) + azimuth * filterAlpha;
+            elevationFiltered = elevationFiltered * (1.0f - filterAlpha) + elevation * filterAlpha;
 
-        int32_t azRevol = 0;
-        int32_t elRevol = 0;
-        if (azimuthFiltered < 0) {
-            azRevol = -1;
-        }
-        if (elevationFiltered < 0) {
-            elRevol = -1;
-        }
+            if (azimuthFiltered < movementRange.azimuthMin) {
+                azimuthFiltered = movementRange.azimuthMin;
+            }
+            if (azimuthFiltered > movementRange.azimuthMax) {
+                azimuthFiltered = movementRange.azimuthMax;
+            }
+            if (elevationFiltered < movementRange.elevationMin) {
+                elevationFiltered = movementRange.elevationMin;
+            }
+            if (elevationFiltered > movementRange.elevationMax) {
+                elevationFiltered = movementRange.elevationMax;
+            }
 
-        //LOG_INFO("Sending - Azimuth: %d, Elevation: %d", azimuth, elevation);
-        auto azAngleBytes = serializeLEInt(azimuthFiltered);
-        auto azRevolBytes = serializeLEInt(azRevol);
-        auto elAngleBytes = serializeLEInt(elevationFiltered);
-        auto elRevolBytes = serializeLEInt(elRevol);
-        if (azimuthElevationReversed) {
-            azAngleBytes = serializeLEInt(elevationFiltered);
-            azRevolBytes = serializeLEInt(elRevol);
-            elAngleBytes = serializeLEInt(azimuthFiltered);
-            elRevolBytes = serializeLEInt(azRevol);
+            int32_t azRevol = 0;
+            int32_t elRevol = 0;
+            if (azimuthFiltered < 0) {
+                azRevol = -1;
+            }
+            if (elevationFiltered < 0) {
+                elRevol = -1;
+            }
+
+            //LOG_INFO("Sending - Azimuth: %d, Elevation: %d", azimuth, elevation);
+            azAngleBytes = serializeLEInt(azimuthFiltered);
+            azRevolBytes = serializeLEInt(azRevol);
+            elAngleBytes = serializeLEInt(elevationFiltered);
+            elRevolBytes = serializeLEInt(elRevol);
+            if (azimuthElevationReversed) {
+                azAngleBytes = serializeLEInt(elevationFiltered);
+                azRevolBytes = serializeLEInt(elRevol);
+                elAngleBytes = serializeLEInt(azimuthFiltered);
+                elRevolBytes = serializeLEInt(azRevol);
+            }
         }
 
         auto speedBytes = serializeLEInt(speed);
@@ -290,7 +309,7 @@ bool ServoCommunicator::waitForResponse(const std::vector<uint32_t> &statusBytes
     struct sockaddr_in src_addr{};
     socklen_t addrlen = sizeof(src_addr);
 
-    size_t nbytes = recvfrom(socket_, buffer.data(), sizeof(buffer), 0, (sockaddr *) &src_addr, &addrlen);
+    ssize_t nbytes = recvfrom(socket_, buffer.data(), sizeof(buffer), 0, (sockaddr *) &src_addr, &addrlen);
     if (nbytes <= 0) {
         if (errno == EWOULDBLOCK) {
             LOG_ERROR("Timeout reached. No data received.");
@@ -300,23 +319,30 @@ bool ServoCommunicator::waitForResponse(const std::vector<uint32_t> &statusBytes
         return false;
     }
 
-    std::string response;
-    if (nbytes < 100) {
-        for (int i = 0; i < nbytes; i++) {
-            response += buffer[i];
-        }
-    }
+    // Treat response as binary data, not string
+    size_t response_len = static_cast<size_t>(nbytes);
 
     isReady_ = true;
-    if (response.length() == 0) {
+    if (response_len == 0) {
         //LOG_ERROR("No response received! Check if the servo is connected properly");
-    } else if (response.length() < RESPONSE_MIN_BYTES) {
+    } else if (response_len < RESPONSE_MIN_BYTES) {
         LOG_ERROR("Malformed packet received!");
     } else {
-        std::cout << "Received response: " << response.c_str() << std::endl;
+        // Log only printable portion of response
+        if (response_len < 100) {
+            std::string printable_response(buffer.data(), response_len);
+            std::cout << "Received response (" << response_len << " bytes): " << printable_response << std::endl;
+        }
+
         bool isOk = true;
         for (uint32_t const status: statusBytes) {
-            isOk &= response.c_str()[status] == '\0'; // Xth byte should be 0
+            // Bounds check before accessing buffer
+            if (status >= response_len) {
+                LOG_ERROR("Status byte index %u out of bounds (response length: %zu)", status, response_len);
+                isOk = false;
+                break;
+            }
+            isOk &= buffer[status] == '\0'; // Xth byte should be 0
         }
         return isOk;
     }

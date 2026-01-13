@@ -80,6 +80,36 @@ GstreamerPlayer::GstreamerPlayer(CamPair *camPair, NtpTimer *ntpTimer) : camPair
     g_main_context_push_thread_default(gMainContext_);
 }
 
+GstreamerPlayer::~GstreamerPlayer() {
+    // Clean up callback object
+    if (callbackObj_) {
+        delete callbackObj_;
+        callbackObj_ = nullptr;
+    }
+
+    // Clean up camera stats
+    if (camPair_) {
+        if (camPair_->first.stats) {
+            delete camPair_->first.stats;
+            camPair_->first.stats = nullptr;
+        }
+        if (camPair_->second.stats) {
+            delete camPair_->second.stats;
+            camPair_->second.stats = nullptr;
+        }
+
+        // Clean up frame buffers
+        if (camPair_->first.dataHandle) {
+            delete[] static_cast<unsigned char*>(camPair_->first.dataHandle);
+            camPair_->first.dataHandle = nullptr;
+        }
+        if (camPair_->second.dataHandle) {
+            delete[] static_cast<unsigned char*>(camPair_->second.dataHandle);
+            camPair_->second.dataHandle = nullptr;
+        }
+    }
+}
+
 void
 GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, const StreamingConfig &config, const bool combinedStreaming) {
     GstBus *bus;
@@ -111,6 +141,29 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
     }
 
     //Init the CameraFrame data structure
+    // Clean up old allocations if they exist (in case of reconfiguration)
+    if (callbackObj_) {
+        delete callbackObj_;
+        callbackObj_ = nullptr;
+    }
+    if (camPair_->first.stats) {
+        delete camPair_->first.stats;
+        camPair_->first.stats = nullptr;
+    }
+    if (camPair_->second.stats) {
+        delete camPair_->second.stats;
+        camPair_->second.stats = nullptr;
+    }
+    if (camPair_->first.dataHandle) {
+        delete[] static_cast<unsigned char*>(camPair_->first.dataHandle);
+        camPair_->first.dataHandle = nullptr;
+    }
+    if (camPair_->second.dataHandle) {
+        delete[] static_cast<unsigned char*>(camPair_->second.dataHandle);
+        camPair_->second.dataHandle = nullptr;
+    }
+
+    // Allocate new objects
     callbackObj_ = new GStreamerCallbackObj(camPair_, ntpTimer_);
     camPair_->first.stats = new CameraStats();
     camPair_->second.stats = new CameraStats();
@@ -160,10 +213,21 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         throw std::runtime_error("Unable to build pipeline!");
     }
 
+    // Check if pipelines were created successfully
+    if (!combinedStreaming && (!pipelineLeft_ || !pipelineRight_)) {
+        LOG_ERROR("Failed to create stereo pipelines");
+        throw std::runtime_error("Failed to create stereo pipelines");
+    }
+
     if (combinedStreaming) {
         std::string xDimString = fmt::format("{},{}", config.resolution.getWidth(), config.resolution.getHeight() * 2);
 
         pipelineCombined_ = gst_parse_launch(jpegPipelineCombined_.c_str(), &error);
+
+        if (!pipelineCombined_) {
+            LOG_ERROR("Failed to create combined pipeline");
+            throw std::runtime_error("Failed to create combined pipeline");
+        }
 
         GstElement *udpsrc_ident = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "udpsrc_ident");
         GstElement *rtpdepay_ident = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "rtpdepay_ident");
@@ -171,6 +235,10 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         GstElement *queue_ident = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "queue_ident");
 
         GstElement *udpsrc = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "udpsrc");
+        if (!udpsrc) {
+            LOG_ERROR("Failed to get udpsrc element from combined pipeline");
+            throw std::runtime_error("Failed to get udpsrc element");
+        }
         GstPad *pad = gst_element_get_static_pad(udpsrc, "src");
         if (pad) {
             gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, udpPacketProbeCallback, nullptr, nullptr);
@@ -184,6 +252,10 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         }
 
         GstElement *rtp_capsfilter = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "rtp_capsfilter");
+        if (!rtp_capsfilter) {
+            LOG_ERROR("Failed to get rtp_capsfilter element from combined pipeline");
+            throw std::runtime_error("Failed to get rtp_capsfilter element");
+        }
         GstCaps *new_caps = gst_caps_new_simple("application/x-rtp",
                                                 "encoding-name", G_TYPE_STRING, CodecToString(config.codec).c_str(),
                                                 "payload", G_TYPE_INT, payload,
@@ -194,6 +266,10 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         gst_object_unref(rtp_capsfilter);
 
         GstElement *appsink = gst_bin_get_by_name(GST_BIN(pipelineCombined_), "appsink");
+        if (!appsink) {
+            LOG_ERROR("Failed to get appsink element from combined pipeline");
+            throw std::runtime_error("Failed to get appsink element");
+        }
         gst_element_set_context(GST_ELEMENT (appsink), gContext_);
         gst_element_set_name(pipelineCombined_, "pipeline_combined");
         gst_element_set_state(pipelineCombined_, GST_STATE_READY);
@@ -209,14 +285,22 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineCombined_);
         g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineCombined_);
         g_signal_connect(G_OBJECT(appsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
-        g_signal_connect(G_OBJECT(udpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
-        g_signal_connect(G_OBJECT(rtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-        g_signal_connect(G_OBJECT(dec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-        g_signal_connect(G_OBJECT(queue_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-        gst_object_unref(udpsrc_ident);
-        gst_object_unref(rtpdepay_ident);
-        gst_object_unref(dec_ident);
-        gst_object_unref(queue_ident);
+        if (udpsrc_ident) {
+            g_signal_connect(G_OBJECT(udpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
+            gst_object_unref(udpsrc_ident);
+        }
+        if (rtpdepay_ident) {
+            g_signal_connect(G_OBJECT(rtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+            gst_object_unref(rtpdepay_ident);
+        }
+        if (dec_ident) {
+            g_signal_connect(G_OBJECT(dec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+            gst_object_unref(dec_ident);
+        }
+        if (queue_ident) {
+            g_signal_connect(G_OBJECT(queue_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+            gst_object_unref(queue_ident);
+        }
         gst_object_unref(appsink);
         gst_object_unref(bus);
 
@@ -230,6 +314,10 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         GstElement *leftqueue_ident = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "queue_ident");
 
         GstElement *leftudpsrc = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "udpsrc");
+        if (!leftudpsrc) {
+            LOG_ERROR("Failed to get leftudpsrc element from left pipeline");
+            throw std::runtime_error("Failed to get leftudpsrc element");
+        }
         GstPad *pad = gst_element_get_static_pad(leftudpsrc, "src");
         if (pad) {
             gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, udpPacketProbeCallback, nullptr, nullptr);
@@ -243,6 +331,10 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         }
 
         GstElement *rtp_capsfilter_left = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "rtp_capsfilter");
+        if (!rtp_capsfilter_left) {
+            LOG_ERROR("Failed to get rtp_capsfilter_left element from left pipeline");
+            throw std::runtime_error("Failed to get rtp_capsfilter_left element");
+        }
         GstCaps *new_caps_left = gst_caps_new_simple("application/x-rtp",
                                                      "encoding-name", G_TYPE_STRING, CodecToString(config.codec).c_str(),
                                                      "payload", G_TYPE_INT, payload,
@@ -258,11 +350,19 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         if (config.codec != Codec::JPEG) {
             if(config.codec == Codec::H264) {
                 leftdec = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "dec");
+                if (!leftdec) {
+                    LOG_ERROR("Failed to get leftdec element from left pipeline");
+                    throw std::runtime_error("Failed to get leftdec element");
+                }
                 g_autoptr(GstCaps) caps_dec = buildDecoderSrcCaps(config.codec, config.resolution.width, config.resolution.height, config.fps);
                 g_object_set(leftdec, "caps", caps_dec, NULL);
             }
 
             leftglsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "glsink");
+            if (!leftglsink) {
+                LOG_ERROR("Failed to get leftglsink element from left pipeline");
+                throw std::runtime_error("Failed to get leftglsink element");
+            }
             gst_element_set_context(leftglsink, gContext_);
 
             g_autoptr(GstCaps) caps_sink = gst_caps_from_string(SINK_CAPS);
@@ -271,9 +371,17 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
             g_object_set(leftappsink, "caps", caps_sink, "max-buffers", 1, "drop", true, "emit-signals", true, "sync", true, NULL);
 
             g_autoptr(GstElement) glsinkbin = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "glsink");
+            if (!glsinkbin) {
+                LOG_ERROR("Failed to get glsinkbin element from left pipeline");
+                throw std::runtime_error("Failed to get glsinkbin element");
+            }
             g_object_set(glsinkbin, "sink", leftappsink, NULL);
         } else {
             leftappsink = gst_bin_get_by_name(GST_BIN(pipelineLeft_), "appsink");
+            if (!leftappsink) {
+                LOG_ERROR("Failed to get leftappsink element from left pipeline");
+                throw std::runtime_error("Failed to get leftappsink element");
+            }
             gst_element_set_context(GST_ELEMENT (leftappsink), gContext_);
         }
 
@@ -289,14 +397,22 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineLeft_);
         g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineLeft_);
         g_signal_connect(G_OBJECT(leftappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
-        g_signal_connect(G_OBJECT(leftudpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
-        g_signal_connect(G_OBJECT(leftrtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-        g_signal_connect(G_OBJECT(leftdec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-        g_signal_connect(G_OBJECT(leftqueue_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-        gst_object_unref(leftudpsrc_ident);
-        gst_object_unref(leftrtpdepay_ident);
-        gst_object_unref(leftdec_ident);
-        gst_object_unref(leftqueue_ident);
+        if (leftudpsrc_ident) {
+            g_signal_connect(G_OBJECT(leftudpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
+            gst_object_unref(leftudpsrc_ident);
+        }
+        if (leftrtpdepay_ident) {
+            g_signal_connect(G_OBJECT(leftrtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+            gst_object_unref(leftrtpdepay_ident);
+        }
+        if (leftdec_ident) {
+            g_signal_connect(G_OBJECT(leftdec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+            gst_object_unref(leftdec_ident);
+        }
+        if (leftqueue_ident) {
+            g_signal_connect(G_OBJECT(leftqueue_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+            gst_object_unref(leftqueue_ident);
+        }
         if (config.codec != Codec::JPEG) {
             gst_object_unref(leftdec);
             gst_object_unref(leftglsink);
@@ -315,6 +431,10 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         GstElement *rightqueue_ident = gst_bin_get_by_name(GST_BIN(pipelineRight_), "queue_ident");
 
         GstElement *rightudpsrc = gst_bin_get_by_name(GST_BIN(pipelineRight_), "udpsrc");
+        if (!rightudpsrc) {
+            LOG_ERROR("Failed to get rightudpsrc element from right pipeline");
+            throw std::runtime_error("Failed to get rightudpsrc element");
+        }
         g_object_set(rightudpsrc, "port", IP_CONFIG_RIGHT_CAMERA_PORT, NULL);
         pad = gst_element_get_static_pad(rightudpsrc, "src");
         if (pad) {
@@ -323,6 +443,10 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         }
 
         GstElement *rtp_capsfilter_right = gst_bin_get_by_name(GST_BIN(pipelineRight_), "rtp_capsfilter");
+        if (!rtp_capsfilter_right) {
+            LOG_ERROR("Failed to get rtp_capsfilter_right element from right pipeline");
+            throw std::runtime_error("Failed to get rtp_capsfilter_right element");
+        }
         GstCaps *new_caps_right = gst_caps_new_simple("application/x-rtp",
                                                       "encoding-name", G_TYPE_STRING, CodecToString(config.codec).c_str(),
                                                       "payload", G_TYPE_INT, payload,
@@ -338,11 +462,19 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         if (config.codec != Codec::JPEG) {
             if(config.codec == Codec::H264) {
                 rightdec = gst_bin_get_by_name(GST_BIN(pipelineRight_), "dec");
+                if (!rightdec) {
+                    LOG_ERROR("Failed to get rightdec element from right pipeline");
+                    throw std::runtime_error("Failed to get rightdec element");
+                }
                 g_autoptr(GstCaps) caps_dec = buildDecoderSrcCaps(config.codec, config.resolution.width, config.resolution.height, config.fps);
                 g_object_set(rightdec, "caps", caps_dec, NULL);
             }
 
             rightglsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "glsink");
+            if (!rightglsink) {
+                LOG_ERROR("Failed to get rightglsink element from right pipeline");
+                throw std::runtime_error("Failed to get rightglsink element");
+            }
             gst_element_set_context(rightglsink, gContext_);
 
             g_autoptr(GstCaps) caps = gst_caps_from_string(SINK_CAPS);
@@ -351,9 +483,17 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
             g_object_set(rightappsink, "caps", caps, "max-buffers", 1, "drop", true, "emit-signals", true, "sync", true, NULL);
 
             g_autoptr(GstElement) glsinkbin = gst_bin_get_by_name(GST_BIN(pipelineRight_), "glsink");
+            if (!glsinkbin) {
+                LOG_ERROR("Failed to get glsinkbin element from right pipeline");
+                throw std::runtime_error("Failed to get glsinkbin element");
+            }
             g_object_set(glsinkbin, "sink", rightappsink, NULL);
         } else {
             rightappsink = gst_bin_get_by_name(GST_BIN(pipelineRight_), "appsink");
+            if (!rightappsink) {
+                LOG_ERROR("Failed to get rightappsink element from right pipeline");
+                throw std::runtime_error("Failed to get rightappsink element");
+            }
             gst_element_set_context(GST_ELEMENT (rightappsink), gContext_);
         }
 
@@ -368,14 +508,22 @@ GstreamerPlayer::configurePipeline(BS::thread_pool<BS::tp::none> &threadPool, co
         g_signal_connect(G_OBJECT(bus), "message::error", (GCallback) errorCallback, pipelineRight_);
         g_signal_connect(G_OBJECT(bus), "message::state-changed", (GCallback) stateChangedCallback, pipelineRight_);
         g_signal_connect(G_OBJECT(rightappsink), "new-sample", (GCallback) newFrameCallback, callbackObj_);
-        g_signal_connect(G_OBJECT(rightudpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
-        g_signal_connect(G_OBJECT(rightrtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-        g_signal_connect(G_OBJECT(rightdec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-        g_signal_connect(G_OBJECT(rightqueue_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
-        gst_object_unref(rightudpsrc_ident);
-        gst_object_unref(rightrtpdepay_ident);
-        gst_object_unref(rightdec_ident);
-        gst_object_unref(rightqueue_ident);
+        if (rightudpsrc_ident) {
+            g_signal_connect(G_OBJECT(rightudpsrc_ident), "handoff", (GCallback) onRtpHeaderMetadata, callbackObj_);
+            gst_object_unref(rightudpsrc_ident);
+        }
+        if (rightrtpdepay_ident) {
+            g_signal_connect(G_OBJECT(rightrtpdepay_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+            gst_object_unref(rightrtpdepay_ident);
+        }
+        if (rightdec_ident) {
+            g_signal_connect(G_OBJECT(rightdec_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+            gst_object_unref(rightdec_ident);
+        }
+        if (rightqueue_ident) {
+            g_signal_connect(G_OBJECT(rightqueue_ident), "handoff", (GCallback) onIdentityHandoff, callbackObj_);
+            gst_object_unref(rightqueue_ident);
+        }
         if (config.codec != Codec::JPEG) {
             gst_object_unref(rightdec);
             gst_object_unref(rightglsink);
