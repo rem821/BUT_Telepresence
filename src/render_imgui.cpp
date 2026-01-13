@@ -108,20 +108,26 @@ static void render_settings_gui(const std::shared_ptr<AppState> &appState) {
         if (appState->guiControl.focusMoveUp) {
             appState->guiControl.focusedElement -= 1;
             appState->guiControl.focusedSegment = 0;
-            if (appState->guiControl.focusedElement < 0) { appState->guiControl.focusedElement = numberOfElements - 1; }
+            if (appState->guiControl.focusedElement < 0) {
+                appState->guiControl.focusedElement = numberOfElements - 1;
+            }
         }
         if (appState->guiControl.focusMoveDown) {
             appState->guiControl.focusedElement += 1;
             appState->guiControl.focusedSegment = 0;
-            if (appState->guiControl.focusedElement >= numberOfElements) { appState->guiControl.focusedElement = 0; }
+            if (appState->guiControl.focusedElement >=
+                numberOfElements) { appState->guiControl.focusedElement = 0; }
         }
         if (appState->guiControl.focusMoveLeft) {
             appState->guiControl.focusedSegment -= 1;
-            if (appState->guiControl.focusedSegment < 0) { appState->guiControl.focusedSegment = numberOfSegments - 1; }
+            if (appState->guiControl.focusedSegment < 0) {
+                appState->guiControl.focusedSegment = numberOfSegments - 1;
+            }
         }
         if (appState->guiControl.focusMoveRight) {
             appState->guiControl.focusedSegment += 1;
-            if (appState->guiControl.focusedSegment >= numberOfSegments) { appState->guiControl.focusedSegment = 0; }
+            if (appState->guiControl.focusedSegment >=
+                numberOfSegments) { appState->guiControl.focusedSegment = 0; }
         }
         appState->guiControl.focusMoveUp = false;
         appState->guiControl.focusMoveDown = false;
@@ -176,22 +182,13 @@ static void render_settings_gui(const std::shared_ptr<AppState> &appState) {
                 appState->guiControl.focusedElement == 7
         );
         focusable_text(
-                fmt::format("Resolution: {}x{}({})", appState->streamingConfig.resolution.getWidth(),
-                            appState->streamingConfig.resolution.getHeight(), appState->streamingConfig.resolution.getLabel()),
+                fmt::format("Resolution: {}x{}({})",
+                            appState->streamingConfig.resolution.getWidth(),
+                            appState->streamingConfig.resolution.getHeight(),
+                            appState->streamingConfig.resolution.getLabel()),
                 appState->guiControl.focusedElement == 8
         );
 
-        if (appState->streamingConfig.codec == JPEG) {
-            double bandwidth =
-                    double(appState->streamingConfig.resolution.getHeight()) *
-                    double(appState->streamingConfig.resolution.getWidth()) *
-                    double(appState->streamingConfig.fps) *
-                    double(appState->streamingConfig.encodingQuality) *
-                    0.0075f / 1000000.0f;
-            if (appState->streamingConfig.videoMode == STEREO) { bandwidth *= 2; }
-
-            ImGui::Text("Approx. bandwidth: %.2f Mbps", bandwidth);
-        }
         focusable_button("Apply", appState->guiControl.focusedElement == 9);
 
         ImGui::SeparatorText("Status Information");
@@ -201,11 +198,13 @@ static void render_settings_gui(const std::shared_ptr<AppState> &appState) {
                 appState->guiControl.focusedElement == 10
         );
         focusable_text(
-                fmt::format("Head movement speed multiplier: {:.2}", appState->robotMovementRange.speedMultiplier),
+                fmt::format("Head movement speed multiplier: {:.2}",
+                            appState->robotMovementRange.speedMultiplier),
                 appState->guiControl.focusedElement == 11
         );
         focusable_text(
-                fmt::format("Headset movement prediction: {} ms", appState->headMovementPredictionMs),
+                fmt::format("Headset movement prediction: {} ms",
+                            appState->headMovementPredictionMs),
                 appState->guiControl.focusedElement == 12
         );
         focusable_text(
@@ -215,15 +214,22 @@ static void render_settings_gui(const std::shared_ptr<AppState> &appState) {
 
         ImGui::Text("Robot control: %s", BoolToString(appState->robotControlEnabled));
         ImGui::Text("");
-        ImGui::Text("Latencies:");
+        ImGui::Text("Latencies (avg last 50 frames):");
         auto s = appState->cameraStreamingStates.first.stats;
         if (s) {
-            // Take atomic snapshot to ensure all values are from the same frame
-            auto snapshot = s->snapshot();
+            // Get averaged snapshot over last 50 frames for smoother display
+            auto snapshot = s->averagedSnapshot();
+            double cameraExposing = 1000000.0f / snapshot.fps;
             ImGui::Text(
-                    "vidConv: %lu, enc: %lu, rtpPay: %lu\nudpStream: %lu\nrtpDepay: %lu, dec: %lu",
+                    "camera: %lu, vidConv: %lu, enc: %lu, rtpPay: %lu\nudpStream: %lu\nrtpDepay: %lu, dec: %lu, display: %lu",
+                    long(cameraExposing / 1000),
                     snapshot.vidConv / 1000, snapshot.enc / 1000, snapshot.rtpPay / 1000,
-                    snapshot.udpStream / 1000, snapshot.rtpDepay / 1000, snapshot.dec / 1000);
+                    snapshot.udpStream / 1000, snapshot.rtpDepay / 1000, snapshot.dec / 1000,
+                    snapshot.presentation / 1000);
+            ImGui::Text("In Total: %lu: \n",
+                        (long(cameraExposing) + snapshot.vidConv + snapshot.enc + snapshot.rtpPay +
+                         snapshot.udpStream +
+                         snapshot.rtpDepay + snapshot.dec + snapshot.presentation) / 1000);
         }
 
 
@@ -238,27 +244,30 @@ static void render_settings_gui(const std::shared_ptr<AppState> &appState) {
     ImGui::End();
 }
 
-static void render_teleoperation_gui(const int win_w, const int win_h, const std::shared_ptr<AppState> &appState) {
+static void render_teleoperation_gui(const int win_w, const int win_h,
+                                     const std::shared_ptr<AppState> &appState) {
     int win_x = 0;
     int win_y = 0;
 
     ImGui::SetNextWindowPos(ImVec2(_X(win_x), _Y(win_y)), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(_X(win_w), _Y(win_h)), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Teleoperation", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground);
+    ImGui::Begin("Teleoperation", nullptr,
+                 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoBackground);
 
     std::string latency = std::to_string(int16_t(appState->hudState.teleoperationLatency));
-    std::string speed = fmt::format("{:02}", static_cast<int>(appState->hudState.teleoperatedVehicleSpeed));
+    std::string speed = fmt::format("{:02}",
+                                    static_cast<int>(appState->hudState.teleoperatedVehicleSpeed));
     std::string state = appState->hudState.teleoperationState;
     std::string latencyLabel = "Latency";
     std::string speedLabel = "Km/h";
     std::string stateLabel = "State";
 
-    const char* leftText   = latency.c_str();
-    const char* belowLeft  = latencyLabel.c_str();
-    const char* centerText = speed.c_str();
-    const char* belowCenter  = speedLabel.c_str();
-    const char* rightText  = state.c_str();
-    const char* belowRight  = stateLabel.c_str();
+    const char *leftText = latency.c_str();
+    const char *belowLeft = latencyLabel.c_str();
+    const char *centerText = speed.c_str();
+    const char *belowCenter = speedLabel.c_str();
+    const char *rightText = state.c_str();
+    const char *belowRight = stateLabel.c_str();
 
     const uint8_t line1_vert = 20;
     const uint8_t line2_vert = 50;
@@ -321,9 +330,11 @@ void focusable_text_ip(const std::string &text, bool isFocused, int segment) {
     // Draw highlight if focused
     if (isFocused && start != std::string::npos) {
         ImDrawList *drawList = ImGui::GetWindowDrawList();
-        ImVec2 highlightStart = ImVec2(p.x + ImGui::CalcTextSize(text.substr(0, start).c_str()).x, p.y);
+        ImVec2 highlightStart = ImVec2(p.x + ImGui::CalcTextSize(text.substr(0, start).c_str()).x,
+                                       p.y);
         ImVec2 highlightSize = ImGui::CalcTextSize(text.substr(start, end - start).c_str());
-        drawList->AddRectFilled(highlightStart, ImVec2(highlightStart.x + highlightSize.x, highlightStart.y + highlightSize.y),
+        drawList->AddRectFilled(highlightStart, ImVec2(highlightStart.x + highlightSize.x,
+                                                       highlightStart.y + highlightSize.y),
                                 IM_COL32(100, 100, 255, 100));
     }
 
@@ -335,7 +346,8 @@ void focusable_button(const std::string &label, bool isFocused) {
     if (isFocused) {
         ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(100, 100, 255, 100));  // Light blue
     } else {
-        ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(100, 100, 255, 20));  // Transparent light blue
+        ImGui::PushStyleColor(ImGuiCol_Button,
+                              IM_COL32(100, 100, 255, 20));  // Transparent light blue
     }
 
     ImGui::Button(label.c_str());

@@ -348,11 +348,12 @@ GstreamerPlayer::newFrameCallback(GstElement *sink, GStreamerCallbackObj *callba
 
     CameraFrame &frame = isLeftCamera ? pair->first : pair->second;
 
-    // Update FPS stats
+    // Update FPS stats and frame ready timestamp
     double currentTime = callbackObj->second->GetCurrentTimeUs();
     double prevTime = frame.stats->currTimestamp.load();
     frame.stats->prevTimestamp.store(prevTime);
     frame.stats->currTimestamp.store(currentTime);
+    frame.stats->frameReadyTimestamp.store(static_cast<uint64_t>(currentTime));
     if (prevTime != 0) {
         double diff = currentTime - prevTime;
         frame.stats->fps.store(1e6f / diff);
@@ -505,6 +506,10 @@ void GstreamerPlayer::onIdentityHandoff(GstElement *identity, GstBuffer *buffer,
         stats->totalLatency =
                 stats->vidConv + stats->enc + stats->rtpPay + stats->udpStream + stats->rtpDepay +
                 stats->dec + stats->queue;
+
+        // Update running average history after all stats are computed
+        stats->updateHistory();
+
 //        LOG_INFO(
 //                "GSTREAMER: %s Pipeline latencies: vidconv: %lu, enc: %lu, rtpPay: %lu, udpStream: %lu, rtpDepay: %lu, dec: %lu, queue: %lu, total: %lu",
 //                identity->object.parent->name,

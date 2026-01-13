@@ -158,6 +158,13 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
 
         if (mono_) imageHandle = &appState_->cameraStreamingStates.first;
 
+        // Calculate presentation latency (frame ready → about to render)
+        uint64_t frameReadyTime = imageHandle->stats->frameReadyTimestamp.load();
+        if (frameReadyTime > 0) {
+            uint64_t renderTime = ntpTimer_->GetCurrentTimeUs();
+            imageHandle->stats->presentation.store(renderTime - frameReadyTime);
+        }
+
         render_scene(layerViews[i], rtarget, quad, appState_, imageHandle, renderGui_, false);
 
         openxr_release_viewsurface(viewsurfaces_[i]);
