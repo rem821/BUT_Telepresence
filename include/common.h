@@ -15,8 +15,6 @@
 #include <deque>
 #include <mutex>
 
-//#define POSE_SERVER_MODE
-
 // <!-- IP CONFIGURATION SECTION --!>
 constexpr uint8_t IP_CONFIG_JETSON_ADDR[4] = {192,168,1,105};
 constexpr uint8_t IP_CONFIG_HEADSET_ADDR[4] = {10,0,24,42};
@@ -292,33 +290,6 @@ inline RobotType StringToRobotType(const std::string type) {
     }
 }
 
-
-struct RobotMovementRange {
-    RobotType type {ODIN};
-    int32_t azimuthMax = 1'500'000'000;
-    int32_t azimuthMin = -700'000'000;
-    int32_t elevationMax = 1'400'000'000;
-    int32_t elevationMin = 100'000;
-    float speedMultiplier = 1.5f;
-
-    void setRobotType(RobotType newType) {
-        if(type == newType) return;
-
-        type = newType;
-        if(type == ODIN) {
-            azimuthMax = 1'500'000'000;
-            azimuthMin = -700'000'000;
-            elevationMax = 1'400'000'000;
-            elevationMin = 100'000;
-        } else if (type == SPOT) {
-            azimuthMax = 200'000'000;
-            azimuthMin = -2'000'000'000;
-            elevationMax = 1'100'000'000;
-            elevationMin = -600'000'000;
-        }
-    }
-};
-
 struct CameraResolution {
     int width;
     int height;
@@ -572,7 +543,7 @@ struct AppState {
     GUIControl guiControl;
     uint32_t headMovementMaxSpeed = 990000;
     uint32_t headMovementPredictionMs = 50;
-    RobotMovementRange robotMovementRange{};
+    float headMovementSpeedMultiplier = 1.5f;
     HUDState hudState{};
     bool robotControlEnabled = true;
     bool headsetMounted = false;

@@ -3,8 +3,7 @@
 #include "util_openxr.h"
 #include "util_egl.h"
 #include "BS_thread_pool.hpp"
-#include "servo_communicator.h"
-#include "pose_server.h"
+#include "robot_control_sender.h"
 #include "gstreamer_player.h"
 #include "rest_client.h"
 #include "ntp_timer.h"
@@ -63,14 +62,11 @@ private:
     std::unique_ptr<RestClient> restClient_;
     std::unique_ptr<NtpTimer> ntpTimer_;
     std::unique_ptr<RosNetworkGatewayClient> rosNetworkGatewayClient_;
-#ifndef POSE_SERVER_MODE
-    std::unique_ptr<ServoCommunicator> servoCommunicator_;
-#else
-    std::unique_ptr<PoseServer> poseServer_;
-#endif
+
+    std::unique_ptr<RobotControlSender> robotControlSender_;
+
     std::unique_ptr<StateStorage> stateStorage_;
 
-    unsigned char* testFrame_;
     std::chrono::time_point<std::chrono::high_resolution_clock> prevFrameStart_, frameStart_;
 
     std::shared_ptr<AppState> appState_{};

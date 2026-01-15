@@ -48,8 +48,7 @@ void StateStorage::SaveAppState(const AppState &appState) {
         SaveKeyValuePair(editor, putString, "aspect_ratio_mode", static_cast<int>(appState.aspectRatioMode));
         SaveKeyValuePair(editor, putString, "head_movement_max_speed", appState.headMovementMaxSpeed);
         SaveKeyValuePair(editor, putString, "head_movement_prediction_ms", appState.headMovementPredictionMs);
-        SaveKeyValuePair(editor, putString, "head_movement_speed_multiplier", appState.robotMovementRange.speedMultiplier * 10); // To build around integer formatting
-        SaveKeyValuePair(editor, putString, "robot_type", RobotTypeToString(appState.robotMovementRange.type));
+        SaveKeyValuePair(editor, putString, "head_movement_speed_multiplier", appState.headMovementSpeedMultiplier * 10); // To build around integer formatting
         SaveKeyValuePair(editor, putString, "robot_control_enabled", appState.robotControlEnabled);
     }
 
@@ -112,8 +111,7 @@ AppState StateStorage::LoadAppState() {
         appState.aspectRatioMode = static_cast<AspectRatioMode>(std::stoi(LoadValue(sharedPreferences, getString, "aspect_ratio_mode")));
         appState.headMovementMaxSpeed = std::stoi(LoadValue(sharedPreferences, getString, "head_movement_max_speed"));
         appState.headMovementPredictionMs = std::stoi(LoadValue(sharedPreferences, getString, "head_movement_prediction_ms"));
-        appState.robotMovementRange.speedMultiplier = std::stof(LoadValue(sharedPreferences, getString, "head_movement_speed_multiplier") ) / 10.0f; // To build around integer formatting
-        appState.robotMovementRange.setRobotType(StringToRobotType(LoadValue(sharedPreferences, getString, "robot_type")));
+        appState.headMovementSpeedMultiplier = std::stof(LoadValue(sharedPreferences, getString, "head_movement_speed_multiplier") ) / 10.0f; // To build around integer formatting
         appState.robotControlEnabled = std::stoi(LoadValue(sharedPreferences, getString, "robot_control_enabled"));
 
     } catch(const std::exception& e) {

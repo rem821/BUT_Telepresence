@@ -2,7 +2,6 @@
 #include "pch.h"
 #include "log.h"
 #include "check.h"
-#include "udp_socket.h"
 #include "render_scene.h"
 #include "render_imgui.h"
 
@@ -148,11 +147,6 @@ bool TelepresenceProgram::RenderLayer(XrTime displayTime,
 
         CameraFrame *imageHandle = i == 0 ? &appState_->cameraStreamingStates.second
                                           : &appState_->cameraStreamingStates.first;
-
-#ifdef POSE_SERVER_MODE
-        //Send out a debugging message for logging
-        poseServer_->setFrameLatencyMessage(imageHandle->stats->snapshot());
-#endif
 
         HandleControllers();
 
@@ -301,16 +295,6 @@ void TelepresenceProgram::InitializeActions() {
                                                        Side::COUNT,
                                                        input_.handSubactionPath.data());
 
-//    openxr_has_user_presence_capability(&openxr_instance_, &openxr_system_id_);
-//    // User presence action
-//    input_.userPresenceAction = openxr_create_action(&input_.actionSet,
-//                                                     XR_ACTION_TYPE_BOOLEAN_INPUT,
-//                                                     "user_presence",
-//                                                     "User Presence",
-//                                                     0,
-//                                                     nullptr);
-
-
     std::vector<XrActionSuggestedBinding> bindings;
     bindings.push_back({input_.quitAction, openxr_string2path(&openxr_instance_, HANDL_IN"/menu/click")});
     bindings.push_back({input_.quitAction, openxr_string2path(&openxr_instance_, HANDR_IN"/menu/click")});
@@ -341,10 +325,6 @@ void TelepresenceProgram::InitializeActions() {
     touch_bindings.push_back({input_.triggerTouchedAction, openxr_string2path(&openxr_instance_, HANDL_IN"/trigger/touch")});
     touch_bindings.push_back({input_.triggerTouchedAction, openxr_string2path(&openxr_instance_, HANDR_IN"/trigger/touch")});
     openxr_bind_interaction(&openxr_instance_, "/interaction_profiles/oculus/touch_controller", touch_bindings);
-
-//    std::vector<XrActionSuggestedBinding> user_presence_bindings;
-//    user_presence_bindings.push_back({input_.userPresenceAction, openxr_string2path(&openxr_instance_, "/user/head/user_presence")});
-//    openxr_bind_interaction(&openxr_instance_, "/interaction_profiles/ext/user_presence", user_presence_bindings);
 
     openxr_attach_actionset(&openxr_session_, input_.actionSet);
 
@@ -524,59 +504,29 @@ void TelepresenceProgram::PollActions() {
 
     CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &getTriggerTouchedLeftInfo, &triggerTouched))
     userState_.triggerTouched[Side::LEFT] = triggerTouched.currentState;
-
-    // User presence
-    //XrActionStateGetInfo userPresentInfo{XR_TYPE_ACTION_STATE_GET_INFO, nullptr, input_.userPresenceAction, XR_NULL_PATH};
-    //XrActionStateBoolean userPresent{XR_TYPE_ACTION_STATE_BOOLEAN};
-    //CHECK_XRCMD(xrGetActionStateBoolean(openxr_session_, &userPresentInfo, &userPresent))
-    //appState_->headsetMounted = userPresent.isActive && userPresent.currentState;
-    //LOG_INFO("User presence: %d, %d", userPresent.isActive, userPresent.currentState);
 }
 
 void TelepresenceProgram::SendControllerDatagram() {
-//    if (udpSocket_ == -1) udpSocket_ = createSocket();
-//    sendUDPPacket(udpSocket_, userState_);
     if (!appState_->headsetMounted) {
         return;
     }
 
-#ifndef POSE_SERVER_MODE
-    if (servoCommunicator_ == nullptr) {
-        servoCommunicator_ = std::make_unique<ServoCommunicator>(threadPool_, appState_->streamingConfig);
+    // Robot control sender (sends head pose and robot movement commands)
+    if (robotControlSender_ == nullptr) {
+        robotControlSender_ = std::make_unique<RobotControlSender>(appState_->streamingConfig, ntpTimer_.get());
     }
-    if (!servoCommunicator_->servosEnabled()) {
-        servoCommunicator_->enableServos(true, threadPool_);
-    }
-    if (servoCommunicator_->isReady()) {
-        if (userState_.xPressed && userState_.yPressed) {
-            servoCommunicator_->resetErrors(threadPool_);
+    if (robotControlSender_->isInitialized()) {
+        // Always send head pose
+        robotControlSender_->sendHeadPose(userState_.hmdPose.orientation, appState_->headMovementMaxSpeed, threadPool_);
+
+        // Send robot control when enabled
+        if (appState_->robotControlEnabled && !renderGui_) {
+            robotControlSender_->sendRobotControl(userState_.thumbstickPose[Side::RIGHT].y,
+                                              userState_.thumbstickPose[Side::RIGHT].x,
+                                              userState_.thumbstickPose[Side::LEFT].x,
+                                              threadPool_);
         }
-
-        servoCommunicator_->setPoseAndSpeed(userState_.hmdPose.orientation,
-                                            appState_->headMovementMaxSpeed,
-                                            appState_->robotMovementRange,
-                                            appState_->robotMovementRange.type == SPOT,
-                                            threadPool_);
     }
-    if (appState_->robotControlEnabled && !renderGui_) {
-        servoCommunicator_->sendOdinControlPacket(userState_.thumbstickPose[Side::RIGHT].y,
-                                                  userState_.thumbstickPose[Side::RIGHT].x,
-                                                  userState_.thumbstickPose[Side::LEFT].x,
-                                                  threadPool_);
-    }
-#else
-    if (poseServer_ == nullptr) {
-        poseServer_ = std::make_unique<PoseServer>(ntpTimer_.get(), &appState_->hudState);
-        poseServer_->enableServos(true);
-    }
-
-    if (userState_.xPressed && userState_.yPressed) {
-        poseServer_->resetErrors();
-    }
-
-    poseServer_->setPoseAndSpeed(userState_.hmdPose.orientation, appState_->headMovementMaxSpeed, appState_->robotMovementRange,
-                                 appState_->robotMovementRange.type == SPOT);
-#endif
 }
 
 void TelepresenceProgram::InitializeStreaming() {
@@ -593,9 +543,10 @@ void TelepresenceProgram::HandleControllers() {
     if (userState_.thumbstickPressed[Side::RIGHT] && !controlLockMovement) {
         appState_->robotControlEnabled = !appState_->robotControlEnabled;
         if (!appState_->robotControlEnabled) {
-#ifndef POSE_SERVER_MODE
-            servoCommunicator_->sendOdinControlPacket(0.0f, 0.0f, 0.0f, threadPool_);
-#endif
+            // Send stop command (all zeros) when disabling robot control
+            if (robotControlSender_ && robotControlSender_->isInitialized()) {
+                robotControlSender_->sendRobotControl(0.0f, 0.0f, 0.0f, threadPool_);
+            }
         }
         controlLockMovement = true;
     }
@@ -710,8 +661,8 @@ void TelepresenceProgram::HandleControllers() {
                     }
                     break;
                 case 11: // Camera head movement speed multiplier
-                    if (appState_->robotMovementRange.speedMultiplier < 2.0f) {
-                        appState_->robotMovementRange.speedMultiplier += 0.1f;
+                    if (appState_->headMovementSpeedMultiplier < 2.0f) {
+                        appState_->headMovementSpeedMultiplier += 0.1f;
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
@@ -720,13 +671,6 @@ void TelepresenceProgram::HandleControllers() {
                         appState_->headMovementPredictionMs += 1;
                         appState_->guiControl.changesEnqueued = true;
                     }
-                    break;
-
-                case 13:
-                    appState_->robotMovementRange.setRobotType(static_cast<RobotType>((static_cast<int>(appState_->robotMovementRange.type) + 1 +
-                                                                                       static_cast<int>(RobotType::CNT3)) %
-                                                                                      static_cast<int>(RobotType::CNT3)));
-                    appState_->guiControl.changesEnqueued = true;
                     break;
             }
         }
@@ -796,8 +740,8 @@ void TelepresenceProgram::HandleControllers() {
                     }
                     break;
                 case 11: // Camera head movement speed multiplier
-                    if (appState_->robotMovementRange.speedMultiplier > 0.5f) {
-                        appState_->robotMovementRange.speedMultiplier -= 0.1f;
+                    if (appState_->headMovementSpeedMultiplier > 0.5f) {
+                        appState_->headMovementSpeedMultiplier -= 0.1f;
                         appState_->guiControl.changesEnqueued = true;
                     }
                     break;
@@ -806,12 +750,6 @@ void TelepresenceProgram::HandleControllers() {
                         appState_->headMovementPredictionMs -= 1;
                         appState_->guiControl.changesEnqueued = true;
                     }
-                    break;
-                case 13:
-                    appState_->robotMovementRange.setRobotType(static_cast<RobotType>((static_cast<int>(appState_->robotMovementRange.type) - 1 +
-                                                                                       static_cast<int>(RobotType::CNT3)) %
-                                                                                      static_cast<int>(RobotType::CNT3)));
-                    appState_->guiControl.changesEnqueued = true;
                     break;
             }
         }
@@ -822,7 +760,6 @@ void TelepresenceProgram::HandleControllers() {
             stateStorage_->SaveAppState(*appState_);
             init_scene(appState_->streamingConfig.resolution.getWidth(), appState_->streamingConfig.resolution.getHeight(), true);
             gstreamerPlayer_->configurePipelines(gstreamerThreadPool_, appState_->streamingConfig);
-            //servoCommunicator_ = nullptr;
             restClient_->UpdateStreamingConfig(appState_->streamingConfig);
             appState_->guiControl.changesEnqueued = true;
         }

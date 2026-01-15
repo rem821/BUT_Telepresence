@@ -17,7 +17,7 @@ static ImVec2 s_win_pos[10];
 static int s_win_num = 0;
 static ImVec2 s_mouse_pos;
 
-static int numberOfElements = 14;
+static int numberOfElements = 13;
 static int numberOfSegments = 5;
 
 int
@@ -199,17 +199,13 @@ static void render_settings_gui(const std::shared_ptr<AppState> &appState) {
         );
         focusable_text(
                 fmt::format("Head movement speed multiplier: {:.2}",
-                            appState->robotMovementRange.speedMultiplier),
+                            appState->headMovementSpeedMultiplier),
                 appState->guiControl.focusedElement == 11
         );
         focusable_text(
                 fmt::format("Headset movement prediction: {} ms",
                             appState->headMovementPredictionMs),
                 appState->guiControl.focusedElement == 12
-        );
-        focusable_text(
-                fmt::format("Robot: {}", RobotTypeToString(appState->robotMovementRange.type)),
-                appState->guiControl.focusedElement == 13
         );
 
         ImGui::Text("Robot control: %s", BoolToString(appState->robotControlEnabled));
